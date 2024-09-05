@@ -7,9 +7,10 @@ app.get('/', (request, response) => {
     response.send("Welcome to the app!")
 });
 
-app.listen(3000, (error) => {
+const listener = app.listen(process.env.PORT, (error) => {
     if (error == null) {
-        console.log("Server now running on: http://localhost:3000")
+        console.log("Server now running on port " + listener.address().port)
+        console.log("http://localhost:" + listener.address().port)
     } else {
         console.log(error)
     }
