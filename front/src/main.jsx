@@ -2,8 +2,12 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 
 import './stylesheets/root.css'
+import './stylesheets/auth.css'
+import './stylesheets/topbar.css'
+
 
 import Root from './routes/root.jsx'
+import Auth from './routes/auth.jsx'
 import ErrorPage from './routes/error.jsx'
 
 import {
@@ -21,31 +25,31 @@ const router = createBrowserRouter([
       //   index: true,
       //   element: <Index/>
       // },
-      {
-        path: "/projects",
-        element: <Projects/>
-      },
-      {
-        path: "/cyber",
-        element: <Cyber/>
-      },
-      {
-        path: "/resume",
-        element: <Resume/>
-      },
-      {
-        path: "/resources",
-        element: <Resources/>
-      },
-      {
-        path: "/portal",
-        element: <Portal/>
-      },
+      // {
+      //   path: "/projects",
+      //   element: <Projects/>
+      // },
+      // {
+      //   path: "/cyber",
+      //   element: <Cyber/>
+      // },
+      // {
+      //   path: "/resume",
+      //   element: <Resume/>
+      // },
+      // {
+      //   path: "/resources",
+      //   element: <Resources/>
+      // },
+      // {
+      //   path: "/portal",
+      //   element: <Portal/>
+      // },
     ]
   },
   {
-    path: "/gaming",
-    element: <Gaming/> ,
+    path: "/auth",
+    element: <Auth/> ,
     errorElement: <ErrorPage/>,
   },
 ])

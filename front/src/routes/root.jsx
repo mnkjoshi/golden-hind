@@ -4,88 +4,56 @@ let device = 1;
 let transferring = false;
 import React, { useState } from 'react'
 
+import hind_entry from "../assets/HindEntry.png";
+
+
+function Landing() {
+    setTimeout(function() {
+        document.getElementById("landing-welcome").style.opacity = 1
+        document.getElementById("landing-welcome").style.transform = "translateY(10px)"
+        setTimeout(function() {
+            document.getElementById("landing-title").style.opacity = 1
+            document.getElementById("landing-banner").style.opacity = 1
+            setTimeout(function() {
+                document.getElementById("landing-entry").style.opacity = 1
+            }, 1500)
+        }, 1000)
+    }, 1000)
+}
+
+
+
+Landing();
+
+function Clear(navigate) {
+    document.getElementById("landing-welcome").style.opacity = 0
+    document.getElementById("landing-title").style.opacity = 0
+    document.getElementById("landing-banner").style.opacity = 0
+    document.getElementById("landing-entry").style.opacity = 0
+    document.getElementById("landing-entry-underline").style.opacity = 0
+    setTimeout(function() {
+        navigate("/auth")
+    }, 1200)
+}
+
 export default function Root() {  
     const [status, setStatus] = useState(0);
-    const [first, setFirst] = useState(0);
     const [movement, setMove] = useState(0);
     let location = useLocation();
     const navigate = useNavigate();
-    let dashBarTransition;
-
-    if (window.innerWidth <= 700) { // Mobile
-        dashBarTransition = "translateY(-5px)"
-        device = 2;
-    } else { // PC
-        dashBarTransition = "translateX(10px)"
-        device = 1;
+    
+    let first = localStorage.getItem("initial")
+    if (!(first == null)) {
+        navigate('/auth')
     }
 
-
-    
-    function Navigation(Route) {
-        if (currentRoute == Route) { return }
-
-        setTimeout(function() {
-            switch (Route) {
-                case -1:
-                    navigate("/", true);
-                    break;
-                case 1:
-                    navigate("/", true);
-                    break;
-                case 2:
-                    navigate("/projects");
-                    break;
-                case 3:
-                    navigate("/cyber");
-                    break;
-                case 4:
-                    navigate("/resume");
-                    break;
-                case 5:
-                    navigate("/resources");
-                    break;
-                case 6:
-                    navigate("/portal");
-                    break;
-            }
-            if (Route !== 1 && Route !== -1 && device == 1) {
-                activateToggles("0", dashBarTransition, 100);
-                deleter("Manav Joshi".length);      
-                currentRoute = Route
-                transferring = true;
-                if (status == 1) {
-                    setMove(movement + 1);
-                } else {
-                    setStatus(1);
-                }
-                setTimeout(function() { 
-                    if (currentRoute !== 1) {
-                        document.getElementById("landing-switches").style.width = "0%";
-                    }
-                    document.getElementById("landing-outlet").style.opacity = 1;
-                    transferring = false;
-                }, 2000)
-            } else if ((Route == 1 || Route == -1)  && device == 1) {
-                transferring = false;
-                document.getElementById("landing-switches").style.width = "18%";
-                activateToggles("1", dashBarTransition, 100);
-                typer("Manav Joshi", 0);
-                currentRoute = 1    
-                setStatus(0);
-            }
-        }, timeToWait)
-    }
-    
     return (
         <div className= "landing-main" id= "landing-main">
-            <p className= "contact-details"> mnjoshi+w@ualberta.ca </p>
-            <div className= "landing-central">
-                <p className= "landing-welcome" id= "landing-welcome"></p>
-            </div>
-            <div className= "landing-outlet" id= "landing-outlet">
-                <Outlet/>
-            </div>
-      </div>
+            <p className= "landing-welcome" id= "landing-welcome">Welcome to</p>
+            <p className= "landing-title" id= "landing-title"><span className= "landing-title-special">T</span>he <span className= "landing-title-special">G</span>olden <span className= "landing-title-special">H</span>ind</p>
+            <img className= "landing-banner" id= "landing-banner" src= {hind_entry}></img>
+            <button className= "landing-entry" id= "landing-entry" onClick= {() => Clear(navigate)} onMouseEnter={() => document.getElementById("landing-entry-underline").style.width = "10%"} onMouseLeave={() => document.getElementById("landing-entry-underline").style.width = "0%"}>ENTER</button>
+            <div className= "landing-entry-underline" id= "landing-entry-underline"/>
+        </div>
     );
   }

@@ -7,12 +7,12 @@ export default function ErrorPage() {
     let error = useRouteError();
     setTimeout(function() { 
         Navigation(-1);
-    }, 2000     )
+    }, 2000)
 
     return (
         <div>
             <p className="error-main">
-                An error was detected: {error.error.message}
+                An error was detected: {error.message}
                 
             </p>
             <p className="error-main">
