@@ -4,12 +4,7 @@ import dotenv from 'dotenv'
 
 import admin from "firebase-admin";
 
-import adminCert from "./secrets/the-golden-hind-firebase-adminsdk-vco9b-793ace4126.json" assert { type: "json" }
-import backupCert from "./etc/secrets/the-golden-hind-firebase-adminsdk-vco9b-793ace4126.json" assert { type: "json" }
-
-if (adminCert == null) {
-    adminCert = backupCert
-}
+import adminCert from "./etc/secrets/the-golden-hind-firebase-adminsdk-vco9b-793ace4126.json" assert { type: "json" }
 
 const firebaseConfig = {
     credential: admin.credential.cert(adminCert),
