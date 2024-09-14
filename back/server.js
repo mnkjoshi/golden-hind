@@ -3,17 +3,20 @@ import bodyParser from 'body-parser'
 import sgMail from '@sendgrid/mail'
 import dotenv from 'dotenv'
 
-import { initializeApp } from "firebase/app";
-import { ref, getDatabase, onValue, get, child, set, update } from "firebase/database";
+import admin from "firebase-admin";
+
 import mail from '@sendgrid/mail';
+import adminCert from "./secrets/the-golden-hind-firebase-adminsdk-vco9b-793ace4126.json" assert { type: "json" }
 
 const firebaseConfig = {
-    credential: "secrets/the-golden-hind-firebase-adminsdk-vco9b-793ace4126.json",
+    credential: admin.credential.cert(adminCert),
     databaseURL: "https://the-golden-hind-default-rtdb.firebaseio.com/",
 };
 
 const app = express();
-const firebaseApp = initializeApp(firebaseConfig);
+//const firebaseApp = initializeApp(firebaseConfig);
+
+const firebaseApp = admin.initializeApp(firebaseConfig)
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true}));
@@ -28,7 +31,6 @@ app.get('/', (request, response) => {
 });
 
 app.post('/login', async (request, response) => {
-    const userRef = ref(getDatabase());
     const { username, password } = request.body
     
     try {
@@ -99,11 +101,12 @@ app.post('/register', async (request, response) => {
 
     try { //Try registering the user!
         const worked = await Register(username, password, email)
-        
     } catch (error) {
         response.status(500);
-        response.send("UnknownR")
+        response.send("Err")
     }
+    response.status(200);
+        response.send("User successfully created!")
 });
 
 //TODO: DELETE AFTER DONE TESTING
@@ -127,16 +130,12 @@ app.post('/email', async (request, response) => {
 
 app.post('/verify', async (request, response) => {
     const { token } = request.body
-    const db = getDatabase();
+    const db = admin.database();
     const newToken = GenerateToken();
 
-    set(ref(db, `vlist/${token}`), {
-        user: null,
-    })
+    db.ref(`vlist/${token}`).set({ user: null })
+    db.ref(`users/${username}`).update({ token: newToken })
 
-    update(ref(db, `users/${username}`), {
-        token: newToken,
-    })
     response.status(200);
     response.send("Verification successful!");
 });
@@ -154,10 +153,11 @@ const listener = app.listen(3000, (error) => {
 });
 
 async function AttemptAuth(username, password) {
-    const db = ref(getDatabase());
+    const db = admin.database();
 
     try {
-        const snapshot = await get(child(db, `users/${username}/password`));
+            
+        const snapshot = await db.ref(`users/${username}/password`).once('value');
         if (snapshot.exists()) {
             const storedPassword = snapshot.val();
             return storedPassword === password;
@@ -170,9 +170,10 @@ async function AttemptAuth(username, password) {
     }
 }
 async function FetchUserToken(User) {
-    const db = ref(getDatabase());
+    const db = admin.database();
+
     try {
-        const DataSnapshot = await get(child(db, `users/${User}/token`))
+        const DataSnapshot = await db.ref(`users/${username}/token`).once('value');
         if (DataSnapshot.exists()) {
             return DataSnapshot.val();
         } else {
@@ -185,41 +186,44 @@ async function FetchUserToken(User) {
 }
 
 async function Register(username, password, email) {
-    const db = getDatabase();
+    const db = admin.database();
     const newToken = "validation=" + GenerateToken()
     try {
-        set(ref(db, `users/${username}`), {
+
+        db.ref(`users/${username}`).set({ 
             password: password,
             email: email,
             favourites: {1: "Placeholder"},
             token: newToken,
         })
+
         email = email.replace(".", "@@@")
-        set(ref(db, `emails/${email}`), {
+
+        db.ref(`emails/${email}`).set({ 
             user: username,
         })
 
-        set(ref(db, `vlist/${newToken}`), {
+        db.ref(`vlist/${newToken}`).set({ 
             user: username,
         })
     } catch (error) {
         return error
     }
 
-    OfferVerify(username, newToken, email)
+    await OfferVerify(username, newToken, email)
     return 0
 }
 
 async function CheckUser(username, email) {
-    const db = ref(getDatabase());
+    const db = admin.database();
 
-    const UserSnaphot = await get(child(db, `users/${username}`))
+    const UserSnaphot = await db.ref(`users/${username}`).once('value');
     if (UserSnaphot.exists()) {
         return 1
     }
 
     email = email.replace(".", "@@@")
-    const EmailSnapshot = await get(child(db, `emails/${email}`))
+    const EmailSnapshot = await db.ref(`emails/${email}`).once('value');
     if (EmailSnapshot.exists()) {
         return 2
     }
@@ -228,14 +232,14 @@ async function CheckUser(username, email) {
 }
 
 async function OfferVerify(username, token, email) {
-
     if (email == null) {
         const db = ref(getDatabase());
-        const EmailSnapshot = await get(child(db, `users/${username}/email`));
+        const EmailSnapshot = await db.ref(`users/${username}/email`).once('value');
         email = EmailSnapshot.val();
     }
 
     email = email.replace("@@@", ".")
+
     let link = "https://tgh.com/verify/" + token
     const msg = {
         to: email, // Change to your recipient
@@ -250,6 +254,7 @@ async function OfferVerify(username, token, email) {
       console.log('Email verification sent!')
     })
     .catch((error) => {
+        console.log("VerE")
       console.error(error)
     })
 }
