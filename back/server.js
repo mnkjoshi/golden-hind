@@ -1,12 +1,15 @@
 import express from 'express';
-import bodyParser from 'body-parser'
 import sgMail from '@sendgrid/mail'
 import dotenv from 'dotenv'
 
 import admin from "firebase-admin";
 
-import mail from '@sendgrid/mail';
 import adminCert from "./secrets/the-golden-hind-firebase-adminsdk-vco9b-793ace4126.json" assert { type: "json" }
+import backupCert from "./etc/secrets/the-golden-hind-firebase-adminsdk-vco9b-793ace4126.json" assert { type: "json" }
+
+if (adminCert == null) {
+    adminCert = backupCert
+}
 
 const firebaseConfig = {
     credential: admin.credential.cert(adminCert),
@@ -14,7 +17,6 @@ const firebaseConfig = {
 };
 
 const app = express();
-//const firebaseApp = initializeApp(firebaseConfig);
 
 const firebaseApp = admin.initializeApp(firebaseConfig)
 
@@ -107,25 +109,6 @@ app.post('/register', async (request, response) => {
     }
     response.status(200);
         response.send("User successfully created!")
-});
-
-//TODO: DELETE AFTER DONE TESTING
-app.post('/email', async (request, response) => {
-    const msg = {
-        to: 'manavnkjoshi@gmail.com', // Change to your recipient
-        from: 'disvelop@proton.me', // Change to your verified sender
-        subject: 'TGH Verification',
-        html: '<html> <head> <title>EMAIL</title> </head> <body> <div> <h1 style="text-align:center;">Welcome to TGH</h1> <hr> <p style= "text-align:center;">Click the link below to verify your account.</p> <a clicktracking=off href="https://www.sendgrid.com" style="text-align:center; align-self:center;">VERIFY</a> </div> </body> </html> ',
-    }
-
-    sgMail
-    .send(msg)
-    .then(() => {
-      console.log('Email sent')
-    })
-    .catch((error) => {
-      console.error(error)
-    })
 });
 
 app.post('/verify', async (request, response) => {
