@@ -4,21 +4,30 @@ import dotenv from 'dotenv'
 
 import admin from "firebase-admin";
 
-import adminCert from "./etc/secrets/tgh-firebase-rd-cert.json" assert { type: "json" }
+//import adminCert from "./etc/secrets/tgh-firebase-rd-cert.json" assert { type: "json" }
 
+
+const app = express();
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true}));
+
+
+dotenv.config();
+
+const adminCert = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const firebaseConfig = {
     credential: admin.credential.cert(adminCert),
     databaseURL: "https://the-golden-hind-default-rtdb.firebaseio.com/",
 };
 
-const app = express();
+
+
 
 const firebaseApp = admin.initializeApp(firebaseConfig)
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true}));
 
-dotenv.config();
+
 const mailAPIkey = process.env.mailAPIkey
 sgMail.setApiKey('SG.' + mailAPIkey)
 
