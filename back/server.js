@@ -2,6 +2,7 @@ import express from 'express';
 import sgMail from '@sendgrid/mail'
 import dotenv from 'dotenv'
 
+import cors from 'cors'
 import admin from "firebase-admin";
 
 //import adminCert from "./etc/secrets/tgh-firebase-rd-cert.json" assert { type: "json" }
@@ -11,7 +12,7 @@ const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true}));
-
+app.use(cors())
 
 dotenv.config();
 
