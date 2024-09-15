@@ -39,7 +39,6 @@ app.get('/', (request, response) => {
 
 app.post('/login', async (request, response) => {
     const { username, password } = request.body
-    
     try {
         const authenticated = await AttemptAuth(username, password);
         if (authenticated) {
@@ -157,9 +156,8 @@ async function AttemptAuth(username, password) {
         return false;
     }
 }
-async function FetchUserToken(User) {
+async function FetchUserToken(username) {
     const db = admin.database();
-
     try {
         const DataSnapshot = await db.ref(`users/${username}/token`).once('value');
         if (DataSnapshot.exists()) {
