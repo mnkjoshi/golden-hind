@@ -10,7 +10,6 @@ export default function App() {
     
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
-    console.log(token.substr(0, 11))
     useEffect(() => {
         if (user == null) {
             navigate('/auth')

@@ -124,3 +124,22 @@ p {
     margin-top: 0px;
     transition: 0.3s;
 }
+
+.auth-notification {
+    width: 40%;
+    height: 7%;
+    align-items: center;
+    background-color: #21982d;
+    border-radius: 10px;
+    margin-top: -15%;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.auth-notification-info {
+    color: white;
+    text-align: center;
+    font-family: Viga;
+    font-size: 20px;
+}

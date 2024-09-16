@@ -45,7 +45,7 @@ app.post('/login', async (request, response) => {
         if (authenticated) {
             const token = await FetchUserToken(request.body.username);
             if (token.substr(0, 11) == "validation=") {
-                response.status(401);
+                response.status(202);
                 response.send("UNV") // User needs to verify
                 OfferVerify(username, token)
             }
@@ -54,15 +54,15 @@ app.post('/login', async (request, response) => {
                 response.status(200);
                 response.send({ username,  token });
             } else {
-                response.status(401);
+                response.status(202);
                 response.send("UNV");
             }
         } else {
-            response.status(401);
+            response.status(202);
             response.send("ILD"); //Incorrect login details
         }
     } catch(error) {
-        response.status(500);
+        response.status(202);
         response.send(error.message); //Unknown error
     }
 });
@@ -75,24 +75,24 @@ app.post('/register', async (request, response) => {
         const Existence = await CheckUser(username, email);
 
         if (Existence === 1) {
-            response.status(500);
+            response.status(202);
             response.send("UNT"); //Username is taken
         } else if (Existence === 2) {
-            response.status(500);
+            response.status(202);
             response.send("ET"); //Email is taken
         }
     } catch(error) {
-        response.status(500);
+        response.status(202);
         response.send(error.message);
     }
 
     try { //Try registering the user!
         const worked = await Register(username, password, email)
     } catch (error) {
-        response.status(500);
+        response.status(202);
         response.send(error.message)
     }
-    response.status(200);
+    response.status(202);
     response.send("UCS") //User created successfully
 });
 
