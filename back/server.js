@@ -5,7 +5,8 @@ import dotenv from 'dotenv'
 import cors from 'cors'
 import admin from "firebase-admin";
 
-//import adminCert from "./etc/secrets/tgh-firebase-rd-cert.json" assert { type: "json" }
+//https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
+//https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
 
 
 const app = express();
@@ -43,9 +44,9 @@ app.post('/login', async (request, response) => {
         const authenticated = await AttemptAuth(username, password);
         if (authenticated) {
             const token = await FetchUserToken(request.body.username);
-            if (token.substr(1, 11) == "validation=") {
+            if (token.substr(0, 11) == "validation=") {
                 response.status(401);
-                response.send("User needs to verify.")
+                response.send("UNV") // User needs to verify
                 OfferVerify(username, token)
             }
             
@@ -54,35 +55,15 @@ app.post('/login', async (request, response) => {
                 response.send({ username,  token });
             } else {
                 response.status(401);
-                response.send("No token exists, user needs to verify.");
+                response.send("UNV");
             }
         } else {
             response.status(401);
-            response.send("Incorrect login details.");
+            response.send("ILD"); //Incorrect login details
         }
     } catch(error) {
         response.status(500);
-        response.send(error.message);
-         try {
-        const authenticated = await AttemptAuth(username, password);
-        if (authenticated) {
-            const token = await FetchUserToken(request.body.username);
-            
-            if (token) {
-                response.status(200);
-                response.send({ username,  token });
-            } else {
-                response.status(401);
-                response.send("No token exists, user needs to verify.");
-            }
-        } else {
-            response.status(401);
-            response.send("Incorrect login details.");
-        }
-    } catch(error) {
-        response.status(500);
-        response.send(error.message);
-    }
+        response.send(error.message); //Unknown error
     }
 });
 
@@ -95,24 +76,24 @@ app.post('/register', async (request, response) => {
 
         if (Existence === 1) {
             response.status(500);
-            response.send("Username");
+            response.send("UNT"); //Username is taken
         } else if (Existence === 2) {
             response.status(500);
-            response.send("Email");
+            response.send("ET"); //Email is taken
         }
     } catch(error) {
         response.status(500);
-        response.send(error);
+        response.send(error.message);
     }
 
     try { //Try registering the user!
         const worked = await Register(username, password, email)
     } catch (error) {
         response.status(500);
-        response.send("Err")
+        response.send(error.message)
     }
     response.status(200);
-        response.send("User successfully created!")
+    response.send("UCS") //User created successfully
 });
 
 app.post('/verify', async (request, response) => {
@@ -134,6 +115,7 @@ const listener = app.listen(3000, (error) => {
     if (error == null) {
         console.log("Server now running on port " + listener.address().port)
         console.log("http://localhost:" + listener.address().port)
+        console.log(GenerateToken())
     } else {
         console.log(error)
     }

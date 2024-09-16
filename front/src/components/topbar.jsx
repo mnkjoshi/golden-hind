@@ -35,7 +35,7 @@ export default function Topbar ({ Account }) {
             </div>
             <div className= "topbar-account">
                 <img className= "topbar-account-arrow" id= "topbar-account-arrow" src= {DropDown}/>
-                <p className= "topbar-account-display">Manav</p>
+                <p className= "topbar-account-display">{localStorage.getItem("user") == null ? "Unknown" : localStorage.getItem("user")}</p>
                 <div className= "topbar-dropdown" id= "topbar-dropdown">
                     <button className= "topbar-dropdown-option" onClick={() => DropTable(2)}>Account</button>
                     <button className= "topbar-dropdown-option" onClick={() => DropTable(3)}>Activity</button>

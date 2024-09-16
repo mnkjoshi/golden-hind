@@ -4,10 +4,11 @@ import ReactDOM from 'react-dom/client'
 import './stylesheets/root.css'
 import './stylesheets/auth.css'
 import './stylesheets/topbar.css'
-
+import './stylesheets/app.css'
 
 import Root from './routes/root.jsx'
 import Auth from './routes/auth.jsx'
+import App from './routes/app.jsx'
 import ErrorPage from './routes/error.jsx'
 
 import {
@@ -29,27 +30,21 @@ const router = createBrowserRouter([
       //   path: "/projects",
       //   element: <Projects/>
       // },
-      // {
-      //   path: "/cyber",
-      //   element: <Cyber/>
-      // },
-      // {
-      //   path: "/resume",
-      //   element: <Resume/>
-      // },
-      // {
-      //   path: "/resources",
-      //   element: <Resources/>
-      // },
-      // {
-      //   path: "/portal",
-      //   element: <Portal/>
-      // },
     ]
   },
   {
     path: "/auth",
     element: <Auth/> ,
+    errorElement: <ErrorPage/>,
+  },
+  {
+    path: "/auth/:id",
+    element: <Auth/> ,
+    errorElement: <ErrorPage/>,
+  },
+  {
+    path: "/app",
+    element: <App/> ,
     errorElement: <ErrorPage/>,
   },
 ])

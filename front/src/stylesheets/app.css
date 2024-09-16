@@ -1,0 +1,34 @@
+body,
+html {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  /* Adjust the color to match the exact background of your image */
+  overflow-x: hidden;
+  overflow-y: hidden;
+  
+}
+
+.html {
+    transition: 1s;
+    mix-blend-mode: difference;
+}
+
+p { 
+    margin: 0;
+}
+
+#root {
+    width: 100%;
+    height: 100%;
+}
+
+.app-main {
+    width: 100%;
+    height: 100%;
+    background-color: #1E1E1E;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: start;
+}
