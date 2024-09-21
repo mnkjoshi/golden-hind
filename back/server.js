@@ -45,12 +45,10 @@ app.post('/login', async (request, response) => {
         if (authenticated) {
             const token = await FetchUserToken(request.body.username);
             if (token.substr(0, 11) == "validation=") {
+                await OfferVerify(username, token)
                 response.status(202);
                 response.send("UNV") // User needs to verify
-                OfferVerify(username, token)
-            }
-            
-            if (token) {
+            } else if (token) {
                 response.status(200);
                 response.send({ username,  token });
             } else {
