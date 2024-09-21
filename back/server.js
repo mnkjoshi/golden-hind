@@ -105,10 +105,10 @@ app.post('/verify', async (request, response) => {
         db.ref(`users/${snapshot.val()}`).update({ token: newToken })
 
         response.status(200);
-        response.send("Verification successful!");
+        response.send("UVS"); //User verified successfully
     } else {
         response.status(202);
-        response.send("Unknown error!");
+        response.send("UKE"); //Unknown error occurred
     }
 
     
