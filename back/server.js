@@ -101,8 +101,8 @@ app.post('/verify', async (request, response) => {
     
     const snapshot = await db.ref(`vlist/${token}/user`).once('value');
     if (snapshot.exists()) {
-        db.ref(`vlist/${snapshot.val()}`).set({ user: null })
-        db.ref(`users/${username}`).update({ token: newToken })
+        db.ref(`vlist/${token}`).set({ user: null })
+        db.ref(`users/${snapshot.val()}`).update({ token: newToken })
 
         response.status(200);
         response.send("Verification successful!");
