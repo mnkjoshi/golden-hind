@@ -201,7 +201,7 @@ async function CheckUser(username, email) {
 
 async function OfferVerify(username, token, email) {
     if (email == null) {
-        const db = ref(getDatabase());
+        const db = admin.database()
         const EmailSnapshot = await db.ref(`users/${username}/email`).once('value');
         email = EmailSnapshot.val();
     }

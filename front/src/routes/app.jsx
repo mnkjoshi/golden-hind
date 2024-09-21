@@ -1,6 +1,8 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import axios from 'axios'
 import React, { useEffect, useState } from 'react';
 import Topbar from "../components/topbar"
+let DisplayData
 
 export default function App() {  
     const [status, setStatus] = useState(0);
@@ -13,6 +15,17 @@ export default function App() {
     useEffect(() => {
         if (user == null) {
             navigate('/auth')
+        } else {
+            axios({
+                method: 'post',
+                url: 'https://golden-hind.onrender.com/home',
+                data: {
+                    user: user,
+                    token: token,
+                }
+            }).then((response) => {
+                DisplayData = response.data
+            });
         }
     })
     

@@ -9,7 +9,7 @@
 
 .topbar-title {
     color: white;
-    font-family: Viga;
+    font-family: Viga, monospace;
     font-size: 30px;
     margin-left: 20px;
     width: 5%;
@@ -48,7 +48,7 @@
     border: none;
     border-style: none;
     color: white;
-    font-family: Viga;
+    font-family: Viga, monospace;
     font-size: 18px;
 }
 
@@ -83,7 +83,7 @@
 }
 
 .topbar-account-display {
-    font-family: Viga;
+    font-family: Viga, monospace;
     color: white;
     font-size: 23px;
 }
@@ -115,7 +115,7 @@
     color: rgba(255, 255, 255, 0.712);
     border: none;
     flex: 1;
-    font-family: Viga;
+    font-family: Viga, monospace;
     font-size: 20px;
     cursor: pointer;
     transition: 0.2s;

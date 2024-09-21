@@ -5,11 +5,12 @@ import Topbar from "../components/topbar"
 
 let infoToShow = "Nothing"
 let infoType = "Error"
+let NotificationCall
 
 export default function Auth() {  
     const [info, setInfo] = useState(0);
     const [status, setStatus] = useState(0);
-    
+    NotificationCall = setInfo
     const navigate = useNavigate();
     const { id } = useParams();
     let user = localStorage.getItem("user")
@@ -42,11 +43,33 @@ function Verify(Token) {
     }
   }).then((response) => {
     console.log(response.data)
+    infoToShow = "Account verified! Please login."
+    infoType = "Success"
+    setInfo(1)
   });
 }
 
-function Attempt(Which, Username, Password, Email, SetInfo) {
+function Notify(InfoType, Information) {
+  infoToShow = Information
+  infoType = InfoType
+  NotificationCall(1)
+  setTimeout(function() {
+    document.getElementById("auth-notification").style.opacity = 1
+  }, 10)
+  setTimeout(function() {
+    document.getElementById("auth-notification").style.opacity = 0;
+    setTimeout(function() {
+      NotificationCall(0)
+    }, 300)
+  }, 2700)
+}
+
+function Attempt(Which, Username, Password, Email) {
   if (Which == "Login") {
+    if (Username == "" || Password == "") {
+      Notify("Error", "Missing information!");
+      return null
+    }
     axios({
       method: 'post',
       url: 'https://golden-hind.onrender.com/login',
@@ -61,24 +84,23 @@ function Attempt(Which, Username, Password, Email, SetInfo) {
         localStorage.setItem("token", response.data.token)
       } else {
         console.log(response.data)
-        
         switch (response.data) {
           case "UNV":
-            infoToShow = "Verify to login! Another email has been sent to your inbox.";
-            infoType = "Error"
+            Notify("Error", "Verify to login! Another email has been sent to your inbox.")
             break;
           case "ILD":
-            infoToShow = "Incorrect login details!";
-            infoType = "Error"
+            Notify("Error", "Incorrect login details!")
             break;
           default:
-            infoToShow = "Unknown error has occurred!"
-            infoType = "Error"
+            Notify("Error", "An unknown error has occurred!")
         }
-        SetInfo(1);
       }
     });
   } else {
+      if (Username == "" || Password == "" || Email == "") {
+        Notify("Error", "Missing information!")
+        return null
+      }
       axios({
         method: 'post',
         url: 'https://golden-hind.onrender.com/register',
@@ -92,23 +114,18 @@ function Attempt(Which, Username, Password, Email, SetInfo) {
         console.log(response.data)
         switch (response.data) {
           case "UNT":
-            infoToShow = "Username is taken, try another name!";
-            infoType = "Error"
+            Notify("Error", "Username is taken, try another name!")
             break;
           case "ET":
-            infoToShow = "This email account is already registered! Try logging in?";
-            infoType = "Error"
+            Notify("Error", "Username is taken, try another name!", "This email account is already registered! Try logging in?")
             break;
           case "UCS":
-            infoToShow = "Account created successfully! Check your email and SPAM folder to verify!";
-            infoType = "Warn"
+            Notify("Success", "Account created successfully! Check your email and SPAM folder to verify!");
             break;
           default:
-            infoToShow = "Unknown error has occurred!"
-            infoType = "Error"
+            Notify("Error", "An unknown error has occurred!")
         }
-        SetInfo(1);
-    });
+      });
   }
 }
 
@@ -120,7 +137,7 @@ export function Notification() {
     color = "#edd81b"
   }
   return (
-    <div className= "auth-notification" style= {`background-color:${color};`}>
+    <div className= "auth-notification" id= "auth-notification" style={{backgroundColor: color}}>
       <p className= "auth-notification-info">{infoToShow}</p>
     </div>
   )
@@ -141,14 +158,14 @@ export function Login({setStatus, setInfo}) {
         <input className= "auth-box-input" id= "auth-pass-input" type= "password"></input>
       </div>
 
-      <button className= "auth-entry" onClick={() => Attempt("Login", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, null, setInfo)}>ENTER</button>
+      <button className= "auth-entry" onClick={() => Attempt("Login", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, null)}>ENTER</button>
       <button className= "auth-switch" onClick={() => setStatus(1)} onMouseEnter={() => document.getElementById("auth-switch-underline").style.width = "12%"} onMouseLeave={() => document.getElementById("auth-switch-underline").style.width = "0%"}>Don't have an account?</button>
       <div className= "auth-switch-underline" id= "auth-switch-underline"/>
     </div>
   );
 }
 
-export function Registration ({setStatus, setInfo}) {
+export function Registration ({setStatus}) {
   return(
     <div className= "auth-holder">
       <p className= "auth-title" id= "auth-title">Register</p>
@@ -168,7 +185,7 @@ export function Registration ({setStatus, setInfo}) {
         <input className= "auth-box-input" id= "auth-pass-input" type= "password"></input>
       </div>
 
-      <button className= "auth-entry">ENTER</button>
+      <button className= "auth-entry" onClick={() => Attempt("Register", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, document.getElementById("auth-email-input").value)}>ENTER</button>
       <button className= "auth-switch" onClick={() => setStatus(0)} onMouseEnter={() => document.getElementById("auth-switch-underline").style.width = "12%"} onMouseLeave={() => document.getElementById("auth-switch-underline").style.width = "0%"}>Already have an account?</button>
       <div className= "auth-switch-underline" id= "auth-switch-underline"/>
     </div>
