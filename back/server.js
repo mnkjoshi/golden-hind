@@ -75,13 +75,16 @@ app.post('/register', async (request, response) => {
         if (Existence === 1) {
             response.status(202);
             response.send("UNT"); //Username is taken
+            return
         } else if (Existence === 2) {
             response.status(202);
             response.send("ET"); //Email is taken
+            return
         }
     } catch(error) {
         response.status(202);
         response.send(error.message);
+        return
     }
 
     try { //Try registering the user!
@@ -89,6 +92,7 @@ app.post('/register', async (request, response) => {
     } catch (error) {
         response.status(202);
         response.send(error.message)
+        return
     }
     response.status(202);
     response.send("UCS") //User created successfully
@@ -110,8 +114,25 @@ app.post('/verify', async (request, response) => {
         response.status(202);
         response.send("UKE"); //Unknown error occurred
     }
+});
 
+app.post('/home', async (request, response) => {
+    const { user, token } = request.body
+    const db = admin.database();
     
+    
+
+    // const snapshot = await db.ref(`vlist/${token}/user`).once('value');
+    // if (snapshot.exists()) {
+    //     db.ref(`vlist/${token}`).set({ user: null })
+    //     db.ref(`users/${snapshot.val()}`).update({ token: newToken })
+
+    //     response.status(200);
+    //     response.send("UVS"); //User verified successfully
+    // } else {
+    //     response.status(202);
+    //     response.send("UKE"); //Unknown error occurred
+    // }
 });
 
 
@@ -164,7 +185,7 @@ async function Register(username, password, email) {
     const newToken = "validation=" + GenerateToken()
     try {
 
-        db.ref(`users/${username}`).set({ 
+        db.ref(`users/${username}`).({ 
             password: password,
             email: email,
             favourites: {1: "Placeholder"},
