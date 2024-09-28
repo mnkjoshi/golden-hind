@@ -185,7 +185,7 @@ async function Register(username, password, email) {
     const newToken = "validation=" + GenerateToken()
     try {
 
-        db.ref(`users/${username}`).({ 
+        db.ref(`users/${username}`).set({ 
             password: password,
             email: email,
             favourites: {1: "Placeholder"},
