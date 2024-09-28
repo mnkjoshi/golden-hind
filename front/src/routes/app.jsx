@@ -14,7 +14,7 @@ export default function App() {
     let token = localStorage.getItem("token")
     useEffect(() => {
         if (user == null) {
-            navigate('/auth')
+            //navigate('/auth')
         } else {
             axios({
                 method: 'post',

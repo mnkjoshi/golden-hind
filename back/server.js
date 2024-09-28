@@ -214,7 +214,7 @@ async function OfferVerify(username, token, email) {
 
     email = email.replace("@@@", ".")
 
-    let link = "https://tgh.com/verify/" + token
+    let link = "https://the-golden-hind.web.app/verify/" + token
     const msg = {
         to: email, // Change to your recipient
         from: 'disvelop@proton.me', // Change to your verified sender

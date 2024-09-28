@@ -6,6 +6,7 @@ import Topbar from "../components/topbar"
 let infoToShow = "Nothing"
 let infoType = "Error"
 let NotificationCall
+let notifyingLogin = false
 
 export default function Auth() {  
     const [info, setInfo] = useState(0);
@@ -16,25 +17,25 @@ export default function Auth() {
     let user = localStorage.getItem("user")
 
     useEffect(() => {
-        if (!(user == null)) {
+        if (!(user == null) && !notifyingLogin) {
             navigate('/app')
         }
     })
 
     if(!(id == null)) {
-      Verify(id)
+      Verify(id, navigate)
     }
 
     return (
         <div className= "auth-main">
           <Topbar/>
-          {status == 0 ? <Login setStatus={setStatus} setInfo= {setInfo}/> : <Registration setStatus={setStatus} setInfo= {setInfo}/>}
+          {status == 0 ? <Login setStatus={setStatus} navigate={navigate}/> : <Registration setStatus={setStatus}/>}
           {info == 0 ? null : <Notification/>}
         </div>
     );
 }
 
-function Verify(Token) {
+function Verify(Token, navigate) {
   axios({
     method: 'post',
     url: 'https://golden-hind.onrender.com/verify',
@@ -43,9 +44,12 @@ function Verify(Token) {
     }
   }).then((response) => {
     console.log(response.data)
-    infoToShow = "Account verified! Please login."
-    infoType = "Success"
-    setInfo(1)
+    if (response.data == "UVS") {
+      Notify("Success", "Account verified! Please login.")
+    } else {
+      Notify("Error", "An unknown error occurred! Please try again later.")
+    }
+    navigate("/auth")
   });
 }
 
@@ -64,7 +68,7 @@ function Notify(InfoType, Information) {
   }, 2700)
 }
 
-function Attempt(Which, Username, Password, Email) {
+function Attempt(Which, Username, Password, Email, navigate) {
   if (Which == "Login") {
     if (Username == "" || Password == "") {
       Notify("Error", "Missing information!");
@@ -82,6 +86,12 @@ function Attempt(Which, Username, Password, Email) {
       if (response.status == 200) {
         localStorage.setItem("user", response.data.username)
         localStorage.setItem("token", response.data.token)
+        notifyingLogin = true
+        Notify("Success", `Ahoy there, ${response.data.username}! Redirecting to the Golden Hind.`)
+        setTimeout(function() {
+          notifyingLogin = false
+          navigate("/app")
+        }, 2000)
       } else {
         console.log(response.data)
         switch (response.data) {
@@ -143,7 +153,7 @@ export function Notification() {
   )
 }
 
-export function Login({setStatus, setInfo}) {
+export function Login({setStatus, navigate}) {
   return(
     <div className= "auth-holder">
       <p className= "auth-title" id= "auth-title">Login</p>
@@ -158,7 +168,7 @@ export function Login({setStatus, setInfo}) {
         <input className= "auth-box-input" id= "auth-pass-input" type= "password"></input>
       </div>
 
-      <button className= "auth-entry" onClick={() => Attempt("Login", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, null)}>ENTER</button>
+      <button className= "auth-entry" onClick={() => Attempt("Login", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, null, navigate)}>ENTER</button>
       <button className= "auth-switch" onClick={() => setStatus(1)} onMouseEnter={() => document.getElementById("auth-switch-underline").style.width = "12%"} onMouseLeave={() => document.getElementById("auth-switch-underline").style.width = "0%"}>Don't have an account?</button>
       <div className= "auth-switch-underline" id= "auth-switch-underline"/>
     </div>

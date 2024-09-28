@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import DropDown from "../assets/dropDown.png"
 import React, { useState } from 'react'
 let currRotation = 180;
@@ -19,11 +20,19 @@ function DropTable(toggle, data) {
             document.getElementById("topbar-dropdown").style.opacity = 0;
             data(0);
             break;
+        case 4:
+            if (localStorage.getItem("user")) {
+                localStorage.removeItem("user");
+                localStorage.removeItem("token");
+                data("/auth");
+                DropTable(1);
+            }
     }
 }
 
 export default function Topbar ({ Account }) {
     const [status, setStatus] = useState(0);
+    const navigate = useNavigate();
 
     return (
         <div className= "topbar-main">
@@ -39,7 +48,7 @@ export default function Topbar ({ Account }) {
                 <div className= "topbar-dropdown" id= "topbar-dropdown">
                     <button className= "topbar-dropdown-option" onClick={() => DropTable(2)}>Account</button>
                     <button className= "topbar-dropdown-option" onClick={() => DropTable(3)}>Activity</button>
-                    <button className= "topbar-dropdown-option" onClick={() => DropTable(4)}>Logout</button>
+                    <button className= "topbar-dropdown-option" onClick={() => DropTable(4, navigate)}>Logout</button>
                 </div>
                 <button className= "topbar-account-button" onClick= {() => DropTable(status, setStatus)}>
                     HOLDER
