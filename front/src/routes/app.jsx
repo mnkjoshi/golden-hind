@@ -7,14 +7,17 @@ let DisplayData
 export default function App() {  
     const [status, setStatus] = useState(0);
     const [movement, setMove] = useState(0);
+    const [videoSrc, setVideoSrc] = useState(null);
     let location = useLocation();
     const navigate = useNavigate();
     
+    
+
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
     useEffect(() => {
         if (user == null) {
-            //navigate('/auth')
+            navigate('/auth')
         } else {
             axios({
                 method: 'post',
@@ -30,9 +33,22 @@ export default function App() {
     })
     
 
+    useEffect(() => {
+        fetch("https://gbf7wrqapjg1js045ye8.com/53f6d143-8366-4208-882d-7246fa7c097b", {
+            mode: 'cors'
+        })
+        .then(response => response.blob())
+        .then(blob => {
+            const url = URL.createObjectURL(blob);
+            setVideoSrc(url);
+        })
+        .catch(error => console.error("Error loading video:", error));
+    }, []);
+
     return (
         <div className= "app-main" id= "app-main">
             <Topbar/>
+        
             <div className= "app-display-continue">
 
             </div>

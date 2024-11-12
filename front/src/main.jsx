@@ -5,10 +5,12 @@ import './stylesheets/root.css'
 import './stylesheets/auth.css'
 import './stylesheets/topbar.css'
 import './stylesheets/app.css'
+import './stylesheets/watch.css'
 
 import Root from './routes/root.jsx'
 import Auth from './routes/auth.jsx'
 import App from './routes/app.jsx'
+import Watch from './routes/watch.jsx'
 import ErrorPage from './routes/error.jsx'
 
 import {
@@ -47,6 +49,11 @@ const router = createBrowserRouter([
     element: <App/> ,
     errorElement: <ErrorPage/>,
   },
+  {
+    path: "/watch/:id",
+    element: <Watch/>,
+    errorElement: <ErrorPage/>
+  }
 ])
 
 ReactDOM.createRoot(document.getElementById('root')).render(

@@ -1,0 +1,250 @@
+body,
+html {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  /* Adjust the color to match the exact background of your image */
+  overflow-x: hidden;
+  overflow-y: hidden;
+  
+}
+
+.html {
+    transition: 1s;
+    mix-blend-mode: difference;
+}
+
+p { 
+    margin: 0;
+}
+
+#root {
+    width: 100%;
+    height: 100%;
+}
+
+.watch-main {
+    width: 100%;
+    height: 100%;
+    background-color: #1E1E1E;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: start;
+}
+
+.watch-system {
+    margin-top: 0.1%;
+    display: flex;
+    height: 98%;
+    flex-direction: column;
+    width: 100%;
+    align-items: center;
+    justify-content: start;
+}
+
+.watch-player {
+    height: 90%;
+    width: 95%;
+    background-color:#0e0e0e;
+    border-radius: 5px;
+}
+
+.watch-player-file {
+    width: 100%;
+    height: 100%;
+    border-radius: 5px;
+}
+
+.watch-options {
+    margin-top: 0.2%;
+    height: 9%;
+    width: 95%;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.watch-left {
+    flex: 0.5;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    align-items: start;
+}
+
+.watch-episode {
+    height: 100%;
+    flex: 0.5;
+    margin-left: 5px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-right: 40px;
+    align-items: center;
+}
+
+.watch-episode-arrow {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-family: Viga;
+    font-size: 20px;
+}
+
+.watch-episode-display {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.watch-episode-display-title {
+    color: white;
+    font-family: Viga;
+    text-align: center;
+    font-size: 20px;
+    flex: 1;
+}
+
+.watch-movie {
+    height: 100%;
+    flex: 0.5;
+    margin-left: 5px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-right: 40px;
+    align-items: center;
+}
+
+.watch-movie-title {
+    color: white;
+    font-family: Viga;
+    text-align: center;
+    font-size: 25px;
+    flex: 1;
+}
+
+.watch-season-display {
+    justify-content: center;
+    text-align: center;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex: 1;
+}
+
+.watch-season-arrow {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-family: Viga;
+    font-size: 14px;
+    flex: 0.1;
+}
+
+.watch-season-title {
+    background: none;
+    border: none;
+    color: white;
+    font-family: Viga;
+    font-size: 12px;
+    flex: 1;
+}
+
+.watch-toggles1 {
+    height: 100%;
+    flex: 0.5;
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    align-items: center;
+}
+
+.watch-rating {
+    height: 60%;
+    width:25%;
+    margin-left: 5px;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: start;
+    margin-right: 3px;
+}
+
+.watch-rating-underline {
+    background-color: white;
+    width: 95%;
+    height: 3%;
+}
+
+.watch-rating-info {
+    margin-left: 5px;
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    font-size: 25px;
+    font-family: Viga;
+    color: white;
+}
+
+.watch-rating-stars {
+    height: 100%;
+    padding: 0;
+    margin-left: 10px;
+}
+
+.watch-star-icon {
+    height: 20px;
+    aspect-ratio: 1;
+}
+
+.watch-toggles2 {
+    height: 100%;
+    flex: 0.1;
+    display: flex;
+    flex-direction: row;
+    justify-content: end;
+    align-items: center;
+    margin-right: 5px;
+}
+
+.watch-right {
+    flex: 0.5;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: end;
+    align-items: center;
+}
+
+.watch-toggles-button {
+    height: 60%;
+    aspect-ratio: 1;
+    margin-left: 2px;
+    margin-right: 2px;
+    background: none;
+    border: solid;
+    border-color: white;
+    border-radius: 5px;
+    border-width: 3px;
+    padding: 0;
+    background-color: #1E1E1E;
+    transition: 0.3s;
+    cursor: pointer;
+}
+
+.watch-toggles-button:hover {
+    filter: invert(100%);
+    border-color: black;
+}
+
+.watch-toggles-button-icon {
+    height: 70%;
+    aspect-ratio: 1;
+    align-self: center;
+}
