@@ -11,7 +11,6 @@ export default function Search(query) {
                 List.splice(Index, 1)
             }
         }
-        console.log(JSON.stringify(List))
         return List;
     });
 }

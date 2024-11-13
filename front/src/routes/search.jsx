@@ -29,7 +29,7 @@ export default function Search() {
                 query: searched,
             }
         }).then((response) => {
-            console.log(response.data)
+            console.log(response)
         }); 
     })
 
