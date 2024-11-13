@@ -120,7 +120,9 @@ app.post('/verify', async (request, response) => {
 });
 
 app.get('/search', async (request, response) => {
+    console.log("Search: ") 
     const { query } = request.body;
+    console.log(query);
     let Data = Search(query)
     response.status(200);
     response.send(Data);
