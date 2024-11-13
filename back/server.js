@@ -15,6 +15,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true}));
 app.use(cors())
 
+app.use(cors({ origin: '*' }));
+
 dotenv.config();
 
 const adminCert = JSON.parse(process.env.GOOGLE_CREDENTIALS);
