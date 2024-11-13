@@ -121,12 +121,10 @@ app.post('/verify', async (request, response) => {
 
 app.post('/search', async (request, response) => {
     const { query } = request.body;
-    let Data = Search(query)
-    console.log("Results below: ")
-    console.log(Data)
-    console.log(JSON.stringify(Data))
-    response.status(200);
-    response.send(Data);
+    Search(query).then((Data) => {
+        response.status(200);
+        response.send(Data);
+    })
 });
 
 app.post('/home', async (request, response) => {

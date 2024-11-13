@@ -1,16 +1,18 @@
-import axios from 'axios'
+import axios from 'axios';
 
-export default function Search(query) {
-    axios({
-        method: 'get',
-        url: 'https://api.themoviedb.org/3/search/multi?query=' + query + '&api_key=' + process.env.TMDB_Credentials,
-    }).then((response) => {
-        let List = response.data["results"]
-        for (let Index = 0; Index < List.length; Index++) {
-            if (!(List[Index]["media_type"] == "tv" || List[Index]["media_type"] == "movie")) {
-                List.splice(Index, 1)
-            }
-        }
-        return List;
-    });
+export default async function Search(query) {
+    try {
+        const response = await axios({
+            method: 'get',
+            url: 'https://api.themoviedb.org/3/search/multi?query=' + query + '&api_key=' + process.env.TMDB_Credentials,
+        });
+
+        let List = response.data["results"];
+        List = List.filter(item => item["media_type"] === "tv" || item["media_type"] === "movie");
+
+        return JSON.stringify(List);
+    } catch (error) {
+        console.error("Error fetching data:", error);
+        return null;
+    }
 }
