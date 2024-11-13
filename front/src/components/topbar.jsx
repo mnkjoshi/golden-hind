@@ -36,10 +36,13 @@ export default function Topbar ({ Account }) {
 
     return (
         <div className= "topbar-main">
-            <button className= "topbar-title">TGH</button>
+            <button className= "topbar-title" onClick={() => navigate("/app")}>TGH</button>
             <div className= "topbar-gap"/>
             <div className= "topbar-search">
-                <input className= "topbar-search-input" placeholder= "Search.."/>
+                <input className= "topbar-search-input" placeholder= "Search.." id= "topbar-search-input" onKeyUp={(event) => { if (event.key == "Enter") {navigate('/search', {
+                    
+                    state: {searched: document.getElementById("topbar-search-input").value}})}}}
+                />
                 <div className= "topbar-search-underline"/>
             </div>
             <div className= "topbar-account">

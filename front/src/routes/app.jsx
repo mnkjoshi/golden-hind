@@ -1,5 +1,6 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import axios from 'axios'
+import Authenticate  from "../components/authenticate.jsx";
 import React, { useEffect, useState } from 'react';
 import Topbar from "../components/topbar"
 let DisplayData
@@ -19,31 +20,9 @@ export default function App() {
         if (user == null) {
             navigate('/auth')
         } else {
-            axios({
-                method: 'post',
-                url: 'https://golden-hind.onrender.com/home',
-                data: {
-                    user: user,
-                    token: token,
-                }
-            }).then((response) => {
-                DisplayData = response.data
-            });
+            Authenticate(user, token, navigate);
         }
     })
-    
-
-    useEffect(() => {
-        fetch("https://gbf7wrqapjg1js045ye8.com/53f6d143-8366-4208-882d-7246fa7c097b", {
-            mode: 'cors'
-        })
-        .then(response => response.blob())
-        .then(blob => {
-            const url = URL.createObjectURL(blob);
-            setVideoSrc(url);
-        })
-        .catch(error => console.error("Error loading video:", error));
-    }, []);
 
     return (
         <div className= "app-main" id= "app-main">
