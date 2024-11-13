@@ -126,28 +126,30 @@ app.post('/home', async (request, response) => {
 
     const snapshot = await db.ref(`users/${user}/token`).once('value');
     if (snapshot.exists()) {
-        if (snapshot.val() == token) {
-            const favlenshot = await db.ref(`users/${user}/favourites/length`).once('value');
-            const favouritesLength = favlenshot.val()
+        // if (snapshot.val() == token) {
+        //     const favlenshot = await db.ref(`users/${user}/favourites/length`).once('value');
+        //     const favouritesLength = favlenshot.val()
 
-            const conlenshot = await db.ref(`users/${user}/continue/length`).once('value');
-            const continueLength = conlenshot.val()
+        //     const conlenshot = await db.ref(`users/${user}/continue/length`).once('value');
+        //     const continueLength = conlenshot.val()
             
-            let favourites = {}
-            let continues = {}
+        //     let favourites = {}
+        //     let continues = {}
 
-            for(Index = 0; Index < continueLength; Index++) {
-                const valueSnapshot = await db.ref(`users/${user}/continue/${Index}`).once('value');
-                continues[Index] = valueSnapshot.val()
-            }
+        //     for(Index = 0; Index < continueLength; Index++) {
+        //         const valueSnapshot = await db.ref(`users/${user}/continue/${Index}`).once('value');
+        //         continues[Index] = valueSnapshot.val()
+        //     }
 
-            for(Index = 0; Index < favouritesLength; Index++) {
-                const valueSnapshot = await db.ref(`users/${user}/favourites/${Index}`).once('value');
-                favourites[Index] = valueSnapshot.val()
-            }
-            response.status(200);
-            response.json({ favourites: favourites, continues: continues }); //User data retrieved successfully
-        }
+        //     for(Index = 0; Index < favouritesLength; Index++) {
+        //         const valueSnapshot = await db.ref(`users/${user}/favourites/${Index}`).once('value');
+        //         favourites[Index] = valueSnapshot.val()
+        //     }
+        //     response.status(200);
+        //     response.json({ favourites: favourites, continues: continues }); //User data retrieved successfully
+        // }
+        response.status(200);
+        response.send("Hello");
     } else {
         response.status(202);
         response.send("UDE"); //User does not exist
