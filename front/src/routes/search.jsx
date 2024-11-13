@@ -21,17 +21,19 @@ export default function Search() {
         } else {
             Authenticate(user, token, navigate);
         }
+        console.log(searched)
+        axios({
+            method: 'get',
+            url: 'https://golden-hind.onrender.com/search',
+            data: {
+                query: searched,
+            }
+        }).then((response) => {
+            console.log(response.data)
+        }); 
     })
 
-    axios({
-        method: 'post',
-        url: 'https://golden-hind.onrender.com/search',
-        data: {
-            query: searched,
-        }
-    }).then((response) => {
-        console.log(response.data)
-    });
+    
 
     return (
         <div className= "search-main">
