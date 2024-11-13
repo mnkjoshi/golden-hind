@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 
 import cors from 'cors'
 import admin from "firebase-admin";
+import Search from "./endpoints/search.js"
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -116,6 +117,13 @@ app.post('/verify', async (request, response) => {
         response.status(202);
         response.send("UKE"); //Unknown error occurred
     }
+});
+
+app.get('/search', async (request, response) => {
+    const { query } = request.body;
+    let Data = Search(query)
+    response.status(200);
+    response.send(Data);
 });
 
 app.post('/home', async (request, response) => {
