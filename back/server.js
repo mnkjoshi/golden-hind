@@ -119,7 +119,7 @@ app.post('/verify', async (request, response) => {
     }
 });
 
-app.get('/search', async (request, response) => {
+app.post('/search', async (request, response) => {
     console.log("Search: ") 
     const { query } = request.body;
     console.log(request.body);

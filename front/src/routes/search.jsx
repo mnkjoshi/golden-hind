@@ -23,7 +23,7 @@ export default function Search() {
         }
         console.log(searched)
         axios({
-            method: 'get',
+            method: 'post',
             url: 'https://golden-hind.onrender.com/search',
             data: {
                 query: searched,
