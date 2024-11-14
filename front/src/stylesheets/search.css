@@ -33,19 +33,72 @@ p {
     justify-content: start;
 }
 
+.search-title-options {
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+
+    height: 5%;
+    width: 100%;
+}
+
 .search-title {
     font-family: Viga;
     color: white;
-    font-size: 30px;
+    font-size: 20px;
     text-align: left;
-    align-self: flex-start;
     margin-top: 1%;
     margin-left: 1%;
+    width: 50%;
+}
+
+.search-options {
+    display: flex;
+    flex-direction: row;
+    justify-content: end;
+    align-items: end;
+    width: 48%;
+    height: 100%;
+}
+
+.search-options-arrow {
+    color: white;
+    border: none;
+    outline: none;
+    background: none;
+    font-family: Viga;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.search-options-title {
+    color: white;
+    font-family: Viga;
+    font-size: 20px;
+    margin: 0px 5px 0px 5px;
 }
 
 .search-results {
     background-color: black;
-    height: 82%;
-    margin-top: 1%;
+    margin-top: 0.5%;
+    height: 86%;
     width: 98%;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    grid-template-rows: 49% 49%;
+    row-gap: 2%;
+    column-gap: 1%;
+}
+
+.search-results-component {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: start;
+    align-items: center;
+    background-color: gray;
+}
+
+.search-results-component-poster {
+    height: 70%;
 }

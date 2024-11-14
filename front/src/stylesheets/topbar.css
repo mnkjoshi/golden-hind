@@ -108,6 +108,7 @@
     transition: 0.5s;
     transform: translateY(-15px);
     opacity: 0;
+    z-index: -1;
 }
 
 .topbar-dropdown-option {

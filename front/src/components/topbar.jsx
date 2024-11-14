@@ -1,16 +1,16 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import DropDown from "../assets/dropDown.png"
 import React, { useState } from 'react'
 let currRotation = 180;
 
 function DropTable(toggle, data) {
-    console.log(toggle)
     switch(toggle) {
         case 0: //drop it
             currRotation += 180;
             document.getElementById("topbar-account-arrow").style.transform = "rotate(" + currRotation + "deg)"
             document.getElementById("topbar-dropdown").style.transform = "translateY(0px)";
             document.getElementById("topbar-dropdown").style.opacity = 1;
+            document.getElementById("topbar-dropdown").style.zIndex = 5;
             data(1);
             break;
         case 1: //lift it
@@ -18,6 +18,7 @@ function DropTable(toggle, data) {
             document.getElementById("topbar-account-arrow").style.transform = "rotate(" + currRotation + "deg)"
             document.getElementById("topbar-dropdown").style.transform = "translateY(-15px)";
             document.getElementById("topbar-dropdown").style.opacity = 0;
+            document.getElementById("topbar-dropdown").style.zIndex = -1;
             data(0);
             break;
         case 4:
@@ -33,15 +34,28 @@ function DropTable(toggle, data) {
 export default function Topbar ({ Account }) {
     const [status, setStatus] = useState(0);
     const navigate = useNavigate();
+    const location = useLocation();
+
+    function KeyUpSearch(event) {
+        if (event.key == "Enter") {navigate('/search', {
+            state: {searched: document.getElementById("topbar-search-input").value}
+        }
+    )}
+    }
+
+    function OnInputSearch() {
+        if (location.pathname == "/search") { navigate('/search', {
+            state: {searched: document.getElementById("topbar-search-input").value}
+        }
+    )}
+    }
 
     return (
         <div className= "topbar-main">
             <button className= "topbar-title" onClick={() => navigate("/app")}>TGH</button>
             <div className= "topbar-gap"/>
             <div className= "topbar-search">
-                <input className= "topbar-search-input" placeholder= "Search.." id= "topbar-search-input" onKeyUp={(event) => { if (event.key == "Enter") {navigate('/search', {
-                    
-                    state: {searched: document.getElementById("topbar-search-input").value}})}}}
+                <input className= "topbar-search-input" placeholder= "Search.." id= "topbar-search-input" onKeyUp={KeyUpSearch} onInput={OnInputSearch}
                 />
                 <div className= "topbar-search-underline"/>
             </div>
