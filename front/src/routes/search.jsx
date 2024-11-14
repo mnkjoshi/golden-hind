@@ -32,6 +32,7 @@ export default function Search() {
                 }
             }).then((response) => {
                 UpdateSearch(searched)
+                changePage(0)
                 displayResults(response.data)
             });
         } 
@@ -47,15 +48,20 @@ export default function Search() {
                     Results for "{searched}":
                 </p>
                 <div className= "search-options">
+                    {page == 0 ? null : 
                     <button className= "search-options-arrow" onClick={() => changePage(page - 1)}>
                         {"<"}
                     </button>
+                    }
                     <p className= "search-options-title">
                         Page {page + 1}
                     </p>
+                    {(page + 1) >= (results.length/8) ? null :
                     <button className= "search-options-arrow" onClick={() => changePage(page + 1)}>
                         {">"}
                     </button>
+                    }
+                    
                 </div>
             </div>
             <div className= "search-results">
@@ -64,7 +70,16 @@ export default function Search() {
                 {results === "" ? <p>Loading Results...</p> : 
                     (results.slice((page * 8), (page * 8) + 8)).map( result =>
                         <div className= "search-results-component"> 
-                            <img className= "search-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => navigate("/watch/" + result.id)}/>
+                            <div className= "search-results-component-details">
+                                <img className= "search-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => navigate("/watch/" + result.id)}/>
+                                <div className= "search-results-component-info">
+                                    <p className= "search-results-component-title">{result.name == null ? (result.title == null ? "Untitled" : result.title) : result.name}</p>
+                                    <p className= "search-results-component-overview">{result.overview.slice(0, 570)}</p>
+                                </div>  
+                            </div>
+                            <div className= "search-results-component-options">
+
+                            </div>
                         </div>
                      ) 
                 }
