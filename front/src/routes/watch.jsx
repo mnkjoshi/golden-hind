@@ -15,15 +15,35 @@ let video = "null"
 let DisplayData
 
 export default function App() {  
-    const [status, setStatus] = useState(0);
-    const [movement, setMove] = useState(0);
-    const [videoSrc, setVideoSrc] = useState(null);
+    const [season, setSeason] = useState(1);
+    const [episode, setEpisode] = useState(1);
+    const [movID, setMovID] = useState("")
+    const [data, setData] = useState("")
     let location = useLocation();
     const navigate = useNavigate();
     const { id } = useParams();
+    let type = id.slice(0, 1)
+    let vidID = id.slice(1, 100000)
+
+    console.log(type)
+    console.log(vidID)
+
+    if (type == "m") {
+        type = "movie"
+    } else if (type == "t") {
+        type = "tv"
+    } else {
+        useEffect(() => {
+            navigate('/app')
+        })
+    }
 
     if (!(id == null)) {
-        video = "https://vidlink.pro/movie/" + id + "?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=true&poster=true&muted=false"
+        if (type == 'movie') {
+            video = `https://vidlink.pro/${type}/${vidID}/?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=true&poster=true&muted=false`
+        } else {
+            video = `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=true&poster=true&muted=false`
+        }
     }
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
@@ -41,6 +61,24 @@ export default function App() {
             }).then((response) => {
                 DisplayData = response.data
             });
+        }
+
+        if (type == "movie") {
+            if (!(vidID = movID)) {
+                axios({
+                    method: 'post',
+                    url: 'https://golden-hind.onrender.com/mretrieve',
+                    data: {
+                        user: user,
+                        token: token,
+                        movie: vidID,
+                    }
+                }).then((response) => {
+                    setMovID(vidID)
+                    setData(response.data)
+                    console.log(response.data)
+                });
+            }
         }
     })
 
@@ -76,7 +114,7 @@ export default function App() {
                     <div className= "watch-left">
                         
 
-                        <MovieDisplay/>
+                        {type == "movie" ? <MovieDisplay/> : <EpisodeDisplay/>}
 
                         <div className= "watch-toggles1">
                             <button className = "watch-toggles-button watch-toggles-list" onClick={() => console.log("Test")}>

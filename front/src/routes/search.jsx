@@ -78,7 +78,7 @@ export default function Search() {
                     (results.slice((page * 8), (page * 8) + 8)).map( result =>
                         <div className= "search-results-component"> 
                             <div className= "search-results-component-details">
-                                <img className= "search-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => navigate("/watch/" + result.id)}/>
+                                <img className= "search-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => {if (result.media_type == "movie") {navigate("/watch/m" + result.id)} else {navigate("/watch/t" + result.id)} }}/>
                                 <div className= "search-results-component-info">
                                     <p className= "search-results-component-title">{result.name == null ? (result.title == null ? "Untitled" : result.title) : result.name}</p>
                                     <p className= "search-results-component-overview">{result.overview.slice(0, 450)}</p>

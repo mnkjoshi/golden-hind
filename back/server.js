@@ -5,6 +5,7 @@ import dotenv from 'dotenv'
 import cors from 'cors'
 import admin from "firebase-admin";
 import Search from "./endpoints/search.js"
+import axios from 'axios';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -144,6 +145,53 @@ app.post('/home', async (request, response) => {
         response.status(202);
         response.send("UDE"); //User does not exist
     }
+});
+
+app.post('/eretrieve', async (request, response) => {
+    const { user, token, series, season, episode } = request.body
+
+    if (Authenticate(user, token)) {
+        try {
+            const apiResponse = await axios({
+                method: 'get',
+                url: `https://api.themoviedb.org/3/tv/${series}/season/${season}/episode/${episode}?api_key=${process.env.TMDB_Credentials}`,
+            });
+    
+            response.status(200)
+            response.send(JSON.stringify(apiResponse.data))
+        } catch(error) {
+            console.log(error)
+            response.status(202)
+            response.send("UKE")
+        }
+    } else {
+        response.status(202)
+        response.send("UNV")
+    }
+});
+
+app.post('/mretrieve', async (request, response) => {
+    const { user, token, movie } = request.body
+
+    if (Authenticate(user, token)) {
+        try {
+            const apiResponse = await axios({
+                method: 'get',
+                url: 'https://api.themoviedb.org/3/movie/' + movie + '?api_key=' + process.env.TMDB_Credentials,
+            });
+    
+            response.status(200)
+            response.send(JSON.stringify(apiResponse.data))
+        } catch(error) {
+            console.log(error)
+            response.status(202)
+            response.send("UKE")
+        }
+    } else {
+        response.status(202)
+        response.send("UNV")
+    }
+    
 });
 
 app.post('/favourite', async (request, response) => {
