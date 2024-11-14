@@ -6,9 +6,6 @@ import Topbar from "../components/topbar"
 let DisplayData
 
 export default function App() {  
-    const [status, setStatus] = useState(0);
-    const [movement, setMove] = useState(0);
-    const [videoSrc, setVideoSrc] = useState(null);
     let location = useLocation();
     const navigate = useNavigate();
     

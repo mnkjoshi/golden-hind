@@ -10,7 +10,7 @@ function DropTable(toggle, data) {
             document.getElementById("topbar-account-arrow").style.transform = "rotate(" + currRotation + "deg)"
             document.getElementById("topbar-dropdown").style.transform = "translateY(0px)";
             document.getElementById("topbar-dropdown").style.opacity = 1;
-            document.getElementById("topbar-dropdown").style.zIndex = 5;
+            document.getElementById("topbar-dropdown").style.zIndex = 10;
             data(1);
             break;
         case 1: //lift it

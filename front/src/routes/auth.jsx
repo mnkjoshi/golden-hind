@@ -22,6 +22,8 @@ export default function Auth() {
         }
     })
 
+    
+
     if(!(id == null)) {
       Verify(id, navigate)
     }
@@ -154,18 +156,25 @@ export function Notification() {
 }
 
 export function Login({setStatus, navigate}) {
+
+
+  function KeyUpSearch(event) {
+    console.log("Hi??")
+    if (event.key == "Enter") {Attempt("Login", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, null, navigate)}
+  }
+
   return(
     <div className= "auth-holder">
       <p className= "auth-title" id= "auth-title">Login</p>
 
       <div className= "auth-box" id= "username-entry">
         <p className= "auth-box-info" id= "auth-box-user">Username</p>
-        <input className= "auth-box-input" id= "auth-user-input"></input>
+        <input className= "auth-box-input" id= "auth-user-input" onKeyUp={KeyUpSearch}></input>
       </div>
 
       <div className= "auth-box" id= "password-entry">
         <p className= "auth-box-info" id= "auth-box-pass">Password</p>
-        <input className= "auth-box-input" id= "auth-pass-input" type= "password"></input>
+        <input className= "auth-box-input" id= "auth-pass-input" type= "password" onKeyUp={KeyUpSearch}></input>
       </div>
 
       <button className= "auth-entry" onClick={() => Attempt("Login", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, null, navigate)}>ENTER</button>
@@ -176,23 +185,28 @@ export function Login({setStatus, navigate}) {
 }
 
 export function Registration ({setStatus}) {
+
+  function KeyUpSearch(event) {
+    if (event.key == "Enter") {Attempt("Register", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, document.getElementById("auth-email-input").value)}
+  }
+
   return(
     <div className= "auth-holder">
       <p className= "auth-title" id= "auth-title">Register</p>
 
       <div className= "auth-box" id= "username-entry">
         <p className= "auth-box-info" id= "auth-box-user">Username</p>
-        <input className= "auth-box-input" id= "auth-user-input"></input>
+        <input className= "auth-box-input" id= "auth-user-input" onKeyUp={KeyUpSearch}></input>
       </div>
 
       <div className= "auth-box" id= "email-entry">
         <p className= "auth-box-info" id= "auth-box-email">Email</p>
-        <input className= "auth-box-input" id= "auth-email-input"></input>
+        <input className= "auth-box-input" id= "auth-email-input" onKeyUp={KeyUpSearch}></input>
       </div>
 
       <div className= "auth-box" id= "password-entry">
         <p className= "auth-box-info" id= "auth-box-pass">Password</p>
-        <input className= "auth-box-input" id= "auth-pass-input" type= "password"></input>
+        <input className= "auth-box-input" id= "auth-pass-input" type= "password" onKeyUp={KeyUpSearch}></input>
       </div>
 
       <button className= "auth-entry" onClick={() => Attempt("Register", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, document.getElementById("auth-email-input").value)}>ENTER</button>

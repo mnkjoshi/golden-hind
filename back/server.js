@@ -130,40 +130,107 @@ app.post('/search', async (request, response) => {
 app.post('/home', async (request, response) => {
     const { user, token } = request.body
     const db = admin.database();
-    
-    
 
     const snapshot = await db.ref(`users/${user}/token`).once('value');
     if (snapshot.exists()) {
-        // if (snapshot.val() == token) {
-        //     const favlenshot = await db.ref(`users/${user}/favourites/length`).once('value');
-        //     const favouritesLength = favlenshot.val()
+        if (snapshot.val() == token) {
+            const favourites = await db.ref(`users/${user}/favourites`).once('value');
+            const continues = await db.ref(`users/${user}/continues`).once('value');
 
-        //     const conlenshot = await db.ref(`users/${user}/continue/length`).once('value');
-        //     const continueLength = conlenshot.val()
-            
-        //     let favourites = {}
-        //     let continues = {}
-
-        //     for(Index = 0; Index < continueLength; Index++) {
-        //         const valueSnapshot = await db.ref(`users/${user}/continue/${Index}`).once('value');
-        //         continues[Index] = valueSnapshot.val()
-        //     }
-
-        //     for(Index = 0; Index < favouritesLength; Index++) {
-        //         const valueSnapshot = await db.ref(`users/${user}/favourites/${Index}`).once('value');
-        //         favourites[Index] = valueSnapshot.val()
-        //     }
-        //     response.status(200);
-        //     response.json({ favourites: favourites, continues: continues }); //User data retrieved successfully
-        // }
-        response.status(200);
-        response.send("Hello");
+            response.status(200);
+            response.json({ favourites: favourites.val(), continues: continues.val() }); //User data retrieved successfully
+        }
     } else {
         response.status(202);
         response.send("UDE"); //User does not exist
     }
 });
+
+app.port('/favourite', async (request, response) => {
+    const {user, token, favId} = request.body
+    const db = admin.database();
+
+    if (Authenticate(user, token)) {
+        const snapshot = await db.ref(`users/${user}/favourites`).once('value');
+        if (snapshot.val() == "nil") {
+            db.ref(`users/${user}`).set({ favourites: JSON.stringify([favId])})
+        } else {
+            let favourites = JSON.parse(snapshot.val())
+            favourites.push(favId)
+            db.ref(`users/${user}`).update({ favourites: JSON.stringify(favourites)})
+        }
+        response.status(200)
+        response.send("Success")
+    } else {
+        response.status(202)
+        response.send("UNV")
+    }
+})
+
+app.port('/unfavourite', async (request, response) => {
+    const {user, token, favId} = request.body
+    const db = admin.database();
+
+    if (Authenticate(user, token)) {
+        const snapshot = await db.ref(`users/${user}/favourites`).once('value');
+        if (snapshot.val() == "nil") {
+            response.status(202)
+            response.send("UFE")
+        } else {
+            let favourites = JSON.parse(snapshot.val())
+            favourites.splice(favourites.indexOf(favId), 1)
+            db.ref(`users/${user}`).update({ favourites: JSON.stringify(favourites)})
+        }
+        response.status(200)
+        response.send("Success")
+    } else {
+        response.status(202)
+        response.send("UNV")
+    }
+})
+
+app.port('/continue', async (request, response) => {
+    const {user, token, favId} = request.body
+    const db = admin.database();
+
+    if (Authenticate(user, token)) {
+        const snapshot = await db.ref(`users/${user}/continues`).once('value');
+        if (snapshot.val() == "nil") {
+            db.ref(`users/${user}`).set({ continues: JSON.stringify([favId])})
+        } else {
+            let continues = JSON.parse(snapshot.val())
+            continues.push(favId)
+            db.ref(`users/${user}`).update({ continues: JSON.stringify(continues)})
+        }
+        response.status(200)
+        response.send("Success")
+    } else {
+        response.status(202)
+        response.send("UNV")
+    }
+})
+
+app.port('/uncontinue', async (request, response) => {
+    const {user, token, favId} = request.body
+    const db = admin.database();
+
+    if (Authenticate(user, token)) {
+        const snapshot = await db.ref(`users/${user}/continues`).once('value');
+        if (snapshot.val() == "nil") {
+            response.status(202)
+            response.send("UFE")
+        } else {
+            let continues = JSON.parse(snapshot.val())
+            continues.splice(continues.indexOf(favId), 1)
+            db.ref(`users/${user}`).update({ continues: JSON.stringify(continues)})
+        }
+        response.status(200)
+        response.send("Success")
+    } else {
+        response.status(202)
+        response.send("UNV")
+    }
+})
 
 
 
@@ -177,6 +244,18 @@ const listener = app.listen(3000, (error) => {
         console.log(error)
     }
 });
+
+async function Authenticate(user, token) {
+    const db = admin.database();
+
+    const snapshot = await db.ref(`users/${user}/token`).once('value');
+    if (snapshot.exists()) {
+        if (token == snapshot.val()) {
+            return true
+        }
+    }
+    return false
+}
 
 async function AttemptAuth(username, password) {
     const db = admin.database();
@@ -218,7 +297,8 @@ async function Register(username, password, email) {
         db.ref(`users/${username}`).set({ 
             password: password,
             email: email,
-            favourites: {1: "Placeholder"},
+            favourites: "nil",
+            continues: "nil",
             token: newToken,
         })
 
