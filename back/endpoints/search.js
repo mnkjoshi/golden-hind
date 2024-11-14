@@ -8,7 +8,7 @@ export default async function Search(query) {
         });
 
         let List = response.data["results"];
-        List = List.filter(item => item["media_type"] === "tv" || item["media_type"] === "movie" && !(item["poster_path"] == null));
+        List = List.filter(item => item["media_type"] === "tv" || item["media_type"] === "movie" && !(item["poster_path"] == null) && !(item["poster_path"] == "null"));
 
         return JSON.stringify(List);
     } catch (error) {
