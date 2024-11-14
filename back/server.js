@@ -146,7 +146,7 @@ app.post('/home', async (request, response) => {
     }
 });
 
-app.port('/favourite', async (request, response) => {
+app.post('/favourite', async (request, response) => {
     const {user, token, favId} = request.body
     const db = admin.database();
 
@@ -167,7 +167,7 @@ app.port('/favourite', async (request, response) => {
     }
 })
 
-app.port('/unfavourite', async (request, response) => {
+app.post('/unfavourite', async (request, response) => {
     const {user, token, favId} = request.body
     const db = admin.database();
 
@@ -189,7 +189,7 @@ app.port('/unfavourite', async (request, response) => {
     }
 })
 
-app.port('/continue', async (request, response) => {
+app.post('/continue', async (request, response) => {
     const {user, token, favId} = request.body
     const db = admin.database();
 
@@ -210,7 +210,7 @@ app.port('/continue', async (request, response) => {
     }
 })
 
-app.port('/uncontinue', async (request, response) => {
+app.post('/uncontinue', async (request, response) => {
     const {user, token, favId} = request.body
     const db = admin.database();
 
