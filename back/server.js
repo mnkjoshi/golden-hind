@@ -174,16 +174,11 @@ app.post('/mretrieve', async (request, response) => {
     const { user, token, movie } = request.body
 
     if (Authenticate(user, token)) {
-        console.log("Authenticates!")
-        console.log("MovieID: ")
-        console.log(movie)
-        console.log("Then:")
         try {
             const apiResponse = await axios({
                 method: 'get',
                 url: 'https://api.themoviedb.org/3/movie/' + movie + '?api_key=' + process.env.TMDB_Credentials,
             });
-            console.log(JSON.stringify(apiResponse.data))
             response.status(200)
             response.send(JSON.stringify(apiResponse.data))
         } catch(error) {

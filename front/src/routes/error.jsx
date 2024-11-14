@@ -7,7 +7,7 @@ export default function ErrorPage() {
     let error = useRouteError();
     setTimeout(function() { 
         Navigation(-1);
-    }, 2000)
+    }, 20000)
 
     return (
         <div>

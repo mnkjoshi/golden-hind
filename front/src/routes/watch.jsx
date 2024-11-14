@@ -17,17 +17,15 @@ let DisplayData
 export default function App() {  
     const [season, setSeason] = useState(1);
     const [episode, setEpisode] = useState(1);
+    const [seriesID, setSeries] = useState("")
     const [movID, setMovID] = useState("")
-    const [data, setData] = useState("")
+    const [data, setData] = useState({})
+    const [voteAvg, setVotes] = useState(0.00);
     let location = useLocation();
     const navigate = useNavigate();
     const { id } = useParams();
     let type = id.slice(0, 1)
     let vidID = id.slice(1, 100000)
-
-    console.log(type)
-    console.log(vidID)
-
     if (type == "m") {
         type = "movie"
     } else if (type == "t") {
@@ -50,21 +48,9 @@ export default function App() {
     useEffect(() => {
         if (user == null) {
             navigate('/auth')
-        } else {
-            axios({
-                method: 'post',
-                url: 'https://golden-hind.onrender.com/home',
-                data: {
-                    user: user,
-                    token: token,
-                }
-            }).then((response) => {
-                DisplayData = response.data
-            });
         }
-
         if (type == "movie") {
-            if (!(vidID = movID)) {
+            if (!(vidID == movID) && !(vidID == null) && !(vidID == "")) {
                 axios({
                     method: 'post',
                     url: 'https://golden-hind.onrender.com/mretrieve',
@@ -75,8 +61,28 @@ export default function App() {
                     }
                 }).then((response) => {
                     setMovID(vidID)
-                    setData(response.data)
-                    console.log(response.data)
+                    const ToData = response.data
+                    setVotes(response.data.vote_average)
+                    setData(ToData)
+                });
+            }
+        } else if (type == "tv") {
+            if (!((vidID + episode + season) == seriesID) && !(vidID == null) && !(vidID == "")) {
+                axios({
+                    method: 'post',
+                    url: 'https://golden-hind.onrender.com/eretrieve',
+                    data: {
+                        user: user,
+                        token: token,
+                        series: vidID,
+                        season: season,
+                        episode: episode
+                    }
+                }).then((response) => {
+                    setSeries(vidID + episode + season)
+                    const ToData = response.data
+                    setVotes(response.data.vote_average)
+                    setData(ToData)
                 });
             }
         }
@@ -113,8 +119,7 @@ export default function App() {
                 <div className= "watch-options">
                     <div className= "watch-left">
                         
-
-                        {type == "movie" ? <MovieDisplay/> : <EpisodeDisplay/>}
+                        {type == "movie" ? <MovieDisplay data= {data}/> : <EpisodeDisplay data = {data} season = {season} episode = {episode} setSeason = {setSeason} setEpisode = {setEpisode}/>}
 
                         <div className= "watch-toggles1">
                             <button className = "watch-toggles-button watch-toggles-list" onClick={() => console.log("Test")}>
@@ -132,7 +137,7 @@ export default function App() {
                         <div className= "watch-rating">
                             <div className= "watch-rating-info">
                                 <p className= "watch-rating-score">
-                                    5.0
+                                    {voteAvg}
                                 </p>
                                 <div className= "watch-rating-stars">
                                     <img className= "watch-star-icon" src= {StarIcon}/>
@@ -159,27 +164,29 @@ export default function App() {
     );
   }
 
-export function EpisodeDisplay() {
+export function EpisodeDisplay(input) {
+    const {data, season, episode, setSeason, setEpisode} = input
     return (
     <div className="watch-episode">
-        <button className="watch-episode-arrow">{"<<"}</button>
+        <button className="watch-episode-arrow" onClick={() => setEpisode(episode + - 1)}>{"<<"}</button>
         <div className="watch-episode-display">
-            <p className="watch-episode-display-title">EPISODE NAME</p>
+            <p className="watch-episode-display-title">{data == null ? "Loading.." : "Ep " + episode+ ": " + data.name}</p>
             <div className="watch-season-display">
-                <button className="watch-season-arrow">{"<<"}</button>
-                <p className="watch-season-title">SEASON 1</p>
-                <button className="watch-season-arrow">{">>"}</button>
+                <button className="watch-season-arrow" onClick={() => setSeason(season - 1)}>{"<<"}</button>
+                <p className="watch-season-title">{"SEASON " + season}</p>
+                <button className="watch-season-arrow" onClick={() => setSeason(season + 1)}>{">>"}</button>
             </div>
         </div>
-        <button className="watch-episode-arrow">{">>"}</button>
+        <button className="watch-episode-arrow" onClick={() => setEpisode(episode + 1)}>{">>"}</button>
     </div>
     );
   }
 
-export function MovieDisplay() {
+export function MovieDisplay(data) {
+    console.log(data)
     return (
     <div className= "watch-movie">
-        <p className= "watch-movie-title">Movie Name</p>
+        <p className= "watch-movie-title">{data == "" ? "Loading.." : data.data.title}</p>
     </div>
     );
 }
