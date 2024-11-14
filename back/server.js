@@ -175,6 +175,9 @@ app.post('/mretrieve', async (request, response) => {
 
     if (Authenticate(user, token)) {
         console.log("Authenticates!")
+        console.log("MovieID: ")
+        console.log(movie)
+        console.log("Then:")
         try {
             const apiResponse = await axios({
                 method: 'get',
