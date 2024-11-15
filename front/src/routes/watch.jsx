@@ -17,10 +17,15 @@ let DisplayData
 export default function App() {  
     const [season, setSeason] = useState(1);
     const [episode, setEpisode] = useState(1);
-    const [seriesID, setSeries] = useState("")
+    const [episodeID, setEpisodeID] = useState("")
+    
     const [movID, setMovID] = useState("")
     const [data, setData] = useState({})
-    const [voteAvg, setVotes] = useState(0.00);
+    const [voteAvg, setVotes] = useState(0.000);
+
+    const [seriesData, setSeriesData] = useState("")
+    const [seriesID, setSeriesID] = useState("")
+
     let location = useLocation();
     const navigate = useNavigate();
     const { id } = useParams();
@@ -67,7 +72,7 @@ export default function App() {
                 });
             }
         } else if (type == "tv") {
-            if (!((vidID + episode + season) == seriesID) && !(vidID == null) && !(vidID == "")) {
+            if (!((vidID + episode + season) == episodeID) && !(vidID == null) && !(vidID == "")) {
                 axios({
                     method: 'post',
                     url: 'https://golden-hind.onrender.com/eretrieve',
@@ -79,10 +84,27 @@ export default function App() {
                         episode: episode
                     }
                 }).then((response) => {
-                    setSeries(vidID + episode + season)
+                    setEpisodeID(vidID + episode + season)
                     const ToData = response.data
                     setVotes(response.data.vote_average)
                     setData(ToData)
+                });
+            }
+
+            if (!(vidID == seriesID)  && !(vidID == null) && !(vidID == "")){
+                axios({
+                    method: 'post',
+                    url: 'https://golden-hind.onrender.com/sretrieve',
+                    data: {
+                        user: user,
+                        token: token,
+                        series: vidID,
+                    }
+                }).then((response) => {
+                    setSeriesID(vidID)
+                    const ToData = response.data
+                    setSeriesData(ToData)
+                    console.log(seriesData)
                 });
             }
         }
