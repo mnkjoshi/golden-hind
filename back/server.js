@@ -193,6 +193,29 @@ app.post('/mretrieve', async (request, response) => {
     
 });
 
+app.post('/sretrieve', async (request, response) => {
+    const { user, token, series } = request.body
+
+    if (Authenticate(user, token)) {
+        try {
+            const apiResponse = await axios({
+                method: 'get',
+                url: 'https://api.themoviedb.org/3/tv/' + series + '?api_key=' + process.env.TMDB_Credentials,
+            });
+            response.status(200)
+            response.send(JSON.stringify(apiResponse.data))
+        } catch(error) {
+            // console.log(error)
+            response.status(202)
+            response.send("UKE")
+        }
+    } else {
+        response.status(202)
+        response.send("UNV")
+    }
+    
+});
+
 app.post('/favourite', async (request, response) => {
     const {user, token, favId} = request.body
     const db = admin.database();
