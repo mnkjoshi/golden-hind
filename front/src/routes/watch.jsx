@@ -280,11 +280,11 @@ export default function App() {
                                     {voteAvg}
                                 </p>
                                 <div className= "watch-rating-stars">
-                                    {voteAvg > 2 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 1.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
-                                    {voteAvg > 4 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 3.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
-                                    {voteAvg > 6 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 5.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
-                                    {voteAvg > 8 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 7.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
-                                    {voteAvg > 9.5 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg >= 9 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
+                                    {voteAvg >= 2 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 1.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
+                                    {voteAvg >= 4 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 3.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
+                                    {voteAvg >= 6 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 5.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
+                                    {voteAvg >= 8 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 7.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
+                                    {voteAvg >= 9.5 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg >= 8.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
                                 </div>
                             </div>
                             {/* <div className= "watch-rating-underline"/> */}

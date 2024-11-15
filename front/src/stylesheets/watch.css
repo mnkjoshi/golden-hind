@@ -175,7 +175,7 @@ p {
 
 .watch-rating {
     height: 60%;
-    width:30%;
+    width:50%;
     margin-left: 5px;
     align-self: center;
     display: flex;
@@ -264,7 +264,7 @@ p {
     margin-right: 2px;
     background: none;
     border: solid;
-    border-color: black;
+    border-color: black ;
     border-radius: 5px;
     border-width: 3px;
     padding: 0;
