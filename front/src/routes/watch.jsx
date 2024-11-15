@@ -17,6 +17,14 @@ let DisplayData
 export default function App() {  
     const [season, setSeason] = useState(1);
     const [episode, setEpisode] = useState(1);
+
+    const [relData, reloadVideo] = useState(1);
+
+    const [maxEp, setMaxEp] = useState(1);
+    const [maxSe, setMaxSe] = useState(1);
+
+    const[bookmarked, setBookmark] = useState(-1);
+
     const [episodeID, setEpisodeID] = useState("")
     
     const [movID, setMovID] = useState("")
@@ -25,6 +33,8 @@ export default function App() {
 
     const [seriesData, setSeriesData] = useState("")
     const [seriesID, setSeriesID] = useState("")
+
+    const [listStatus, openList] = useState(-1);
 
     let location = useLocation();
     const navigate = useNavigate();
@@ -43,9 +53,9 @@ export default function App() {
 
     if (!(id == null)) {
         if (type == 'movie') {
-            video = `https://vidlink.pro/${type}/${vidID}/?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=true&poster=true&muted=false`
+            video = `https://vidlink.pro/${type}/${vidID}/?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
         } else {
-            video = `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=true&poster=true&muted=false`
+            video = `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
         }
     }
     let user = localStorage.getItem("user")
@@ -87,7 +97,7 @@ export default function App() {
                     setEpisodeID(vidID + episode + season)
                     const ToData = response.data
                     setVotes(response.data.vote_average)
-                    setData(ToData)
+                    setData(ToData)               
                 });
             }
 
@@ -104,9 +114,51 @@ export default function App() {
                     setSeriesID(vidID)
                     const ToData = response.data
                     setSeriesData(ToData)
-                    console.log(seriesData)
+                    setMaxSe(response.data.seasons.length)
+                    setMaxEp(response.data.seasons[season - 1].episode_count)
                 });
             }
+
+            if (season == 1 && episode == 1) {
+                if (localStorage.getItem("episode" + id)) {
+                    if (!(localStorage.getItem("episode" + id) == episode)) {
+                        setEpisode(localStorage.getItem("episode" + id))
+                    }
+                } else {
+                    localStorage.setItem("episode" + id, episode)
+                }
+    
+                if (localStorage.getItem("season" + id)) {
+                    if (!(localStorage.getItem("season" + id) == season)) {
+                        setSeason(localStorage.getItem("season" + id))
+                    }
+                } else {
+                    localStorage.setItem("season" + id, season)
+                }
+            }
+        }
+
+        if (!(localStorage.getItem("bookmarks").indexOf(id) == -1) && bookmarked == -1) {
+            setBookmark(1)
+        }
+
+        if(localStorage.getItem("continues").indexOf(id) == -1) {
+            let continues = localStorage.getItem("continues")
+            continues = JSON.parse(continues)
+
+            continues.push(id)
+            continues = JSON.stringify(continues)
+            localStorage.setItem("continues", continues)
+
+            axios({
+                method: 'post',
+                url: 'https://golden-hind.onrender.com/continue',
+                data: {
+                    user: user,
+                    token: token,
+                    favId: id,
+                }
+            });
         }
     })
 
@@ -130,10 +182,56 @@ export default function App() {
     useEffect(() => {
         blockPopups();
     }, []);
+
+    const arrayRange = (start, stop, step) =>
+        Array.from(
+        { length: (stop - start) / step + 1 },
+        (value, index) => start + index * step
+    );
+
+    function Bookmark() {
+        let bookmarks = localStorage.getItem("bookmarks")
+        bookmarks = JSON.parse(bookmarks)
+        
+        if (bookmarks.indexOf(id) == -1) {
+            bookmarks.push(id)
+            bookmarks = JSON.stringify(bookmarks)
+            localStorage.setItem("bookmarks", bookmarks)
+
+            axios({
+                method: 'post',
+                url: 'https://golden-hind.onrender.com/favourite',
+                data: {
+                    user: user,
+                    token: token,
+                    favId: id,
+                }
+            });
+            setBookmark(1)
+        } else {
+            bookmarks.splice(bookmarks.indexOf(id), 1)
+            bookmarks = JSON.stringify(bookmarks)
+            localStorage.setItem("bookmarks", bookmarks)
+
+            axios({
+                method: 'post',
+                url: 'https://golden-hind.onrender.com/unfavourite',
+                data: {
+                    user: user,
+                    token: token,
+                    favId: id,
+                }
+            });
+            setBookmark(-1)
+        }
+    }
     
     return (
         <div className= "watch-main" id= "watch-main">
             <Topbar/>
+            <div className= "watch-choices">
+
+            </div>
             <div className= "watch-system">
                 <div className= "watch-player">
                     <iframe className= "watch-player-file" id="watch-player-file" src= {video} frameBorder="0" allowFullScreen="yes" allow="autoplay"></iframe>
@@ -141,16 +239,36 @@ export default function App() {
                 <div className= "watch-options">
                     <div className= "watch-left">
                         
-                        {type == "movie" ? <MovieDisplay data= {data}/> : <EpisodeDisplay data = {data} season = {season} episode = {episode} setSeason = {setSeason} setEpisode = {setEpisode}/>}
+                        {type == "movie" ? <MovieDisplay data= {data}/> : <EpisodeDisplay data = {data} season = {season} episode = {episode} setSeason = {setSeason} setEpisode = {setEpisode} maxEp= {maxEp} maxSe= {maxSe} id= {id}/>}
 
                         <div className= "watch-toggles1">
-                            <button className = "watch-toggles-button watch-toggles-list" onClick={() => console.log("Test")}>
+                            {type == "tv" ? 
+                            <button className = "watch-toggles-button watch-toggles-list" onClick={() => openList(-1 * listStatus)}>
                                 <img className = "watch-toggles-button-icon watch-toggles-list-icon" src = {ListIcon}/>
+                            </button> : null
+                            }
+                            {listStatus == 1 ? 
+                            <div className = "watch-list" style= {{width: (maxEp * 10)+ "%"}}>
+                                {arrayRange(1, maxEp, 1).map( result =>
+                                    <button className= "watch-list-episode" onClick={() => {localStorage.setItem("episode" + id, result); setEpisode(result)}}>
+                                        {result}
+                                    </button>
+                                )}
+                            </div>
+                            :
+                            <div className = "watch-list" style= {{width: "0%", visibility: "false", border: "none", padding: "0px"}}>
+                            </div>
+                            }
+                            {localStorage.getItem("bookmarks").indexOf(id) == -1 ? 
+                            <button className = "watch-toggles-button" onClick={() => Bookmark()}>
+                                <img className = "watch-toggles-button-icon" src = {BookmarkIcon}/>
                             </button>
-                            <button className = "watch-toggles-button watch-toggles-bookmark" onClick={() => console.log("Test")}>
-                                <img className = "watch-toggles-button-icon watch-toggles-bookmark-icon" src = {BookmarkIcon}/>
+                            :
+                            <button className = "watch-toggles-button-selected" onClick={() => Bookmark()}>
+                                <img className = "watch-toggles-button-icon" src = {BookmarkIcon}/>
                             </button>
-                            <button className = "watch-toggles-button watch-toggles-reload" onClick={() => console.log("Test")}>
+                            }
+                            <button className = "watch-toggles-button watch-toggles-reload" onClick={() => {reloadVideo(relData + 1); console.log(relData); window.location.reload()}}>
                                 <img className = "watch-toggles-button-icon watch-toggles-reload-icon" src = {ReloadIcon}/>
                             </button>
                         </div>
@@ -162,14 +280,14 @@ export default function App() {
                                     {voteAvg}
                                 </p>
                                 <div className= "watch-rating-stars">
-                                    <img className= "watch-star-icon" src= {StarIcon}/>
-                                    <img className= "watch-star-icon" src= {StarIcon}/>
-                                    <img className= "watch-star-icon" src= {StarIcon}/>
-                                    <img className= "watch-star-icon" src= {StarIcon}/>
-                                    <img className= "watch-star-icon" src= {StarIcon}/>
+                                    {voteAvg > 2 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 1.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
+                                    {voteAvg > 4 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 3.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
+                                    {voteAvg > 6 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 5.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
+                                    {voteAvg > 8 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 7.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
+                                    {voteAvg > 9.5 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg >= 9 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
                                 </div>
                             </div>
-                            <div className= "watch-rating-underline"/>
+                            {/* <div className= "watch-rating-underline"/> */}
                         </div>
                         <div className= "watch-toggles2">
                             <button className = "watch-toggles-button watch-toggles-server" onClick={() => console.log("Test")}>
@@ -187,19 +305,19 @@ export default function App() {
   }
 
 export function EpisodeDisplay(input) {
-    const {data, season, episode, setSeason, setEpisode} = input
+    const {data, season, episode, setSeason, setEpisode, maxEp, maxSe, id} = input
     return (
     <div className="watch-episode">
-        <button className="watch-episode-arrow" onClick={() => setEpisode(episode + - 1)}>{"<<"}</button>
+        {episode == 1 ? <button className="watch-episode-arrow">{" "}</button> : <button className="watch-episode-arrow" onClick={() => {localStorage.setItem("episode" + id, parseInt(episode) - 1); setEpisode(parseInt(episode) - 1)}}>{"<<"}</button>}
         <div className="watch-episode-display">
             <p className="watch-episode-display-title">{data == null ? "Loading.." : "Ep " + episode+ ": " + data.name}</p>
             <div className="watch-season-display">
-                <button className="watch-season-arrow" onClick={() => setSeason(season - 1)}>{"<<"}</button>
+                {season == 1 ? <button className="watch-season-arrow">{" "}</button> : <button className="watch-season-arrow" onClick={() => {localStorage.setItem("season" + id, parseInt(season) - 1); localStorage.setItem("episode" + id, 1); setSeason(parseInt(season) - 1); setEpisode(1)}}>{"<<"}</button>}
                 <p className="watch-season-title">{"SEASON " + season}</p>
-                <button className="watch-season-arrow" onClick={() => setSeason(season + 1)}>{">>"}</button>
+                {season == maxSe ? <button className="watch-season-arrow">{" "}</button> : <button className="watch-season-arrow" onClick={() => {localStorage.setItem("season" + id, parseInt(season) + 1); localStorage.setItem("episode" + id, 1); setSeason(parseInt(season) + 1); setEpisode(1)}}>{">>"}</button>}
             </div>
         </div>
-        <button className="watch-episode-arrow" onClick={() => setEpisode(episode + 1)}>{">>"}</button>
+        {episode == maxEp ? <button className="watch-episode-arrow" >{" "}</button> : <button className="watch-episode-arrow" onClick={() => {localStorage.setItem("episode" + id, parseInt(episode) + 1); setEpisode(parseInt(episode) + 1)}}>{">>"}</button>}
     </div>
     );
   }

@@ -367,8 +367,8 @@ async function Register(username, password, email) {
         db.ref(`users/${username}`).set({ 
             password: password,
             email: email,
-            favourites: "nil",
-            continues: "nil",
+            favourites: "[]",
+            continues: "[]",
             token: newToken,
         })
 

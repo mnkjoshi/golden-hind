@@ -51,7 +51,11 @@ export default function Search() {
                     Results for "{searched}":
                 </p>
                 <div className= "search-options">
-                    {page == 0 ? null : 
+                    {page == 0 ? 
+                    <button className= "search-options-arrow" onClick={() => changePage(page - 1)}>
+                        {" "}
+                    </button>
+                    : 
                     <button className= "search-options-arrow" onClick={() => changePage(page - 1)}>
                         {"<"}
                     </button>
@@ -61,7 +65,7 @@ export default function Search() {
                     </p>
                     {(page + 1) >= (results.length/8) ? 
                     <button className= "search-options-arrow">
-                        {"_"}
+                        {" "}
                     </button>
                     :
                     <button className= "search-options-arrow" onClick={() => changePage(page + 1)}>
@@ -100,9 +104,7 @@ export default function Search() {
                                     {result.origin_country == null ? <img className="search-results-component-country" src={`https://flagsapi.com/AQ/flat/64.png`}/> : <img className="search-results-component-country" src={`https://flagsapi.com/${result.origin_country[0]}/flat/64.png`}/>}
                                 </div>
                                 <div className= "search-results-component-options-bottom">
-                                    <button className = "search-results-component-button search-results-component-button-deselected" onClick={() => console.log("Test")}>
-                                        <img className = "search-results-component-icon" src = {BookmarkIcon}/>
-                                    </button>
+
                                 </div>
                             </div>
                         </div>
