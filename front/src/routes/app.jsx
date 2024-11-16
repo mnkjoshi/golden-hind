@@ -208,7 +208,7 @@ export default function App() {
                                     {result.origin_country == null ? <img className="app-results-component-country" src={`https://flagsapi.com/AQ/flat/64.png`}/> : <img className="app-results-component-country" src={`https://flagsapi.com/${result.origin_country[0]}/flat/64.png`}/>}
                                 </div>
                                 <div className= "app-results-component-options-bottom">
-                                    <button className= "app-results-component-button" onClick={() => removeHandle(result.number_of_episodes == null, result.id, false)}>X</button>
+                                    <button className= "app-results-component-button" onClick={() => removeHandle(result.number_of_episodes == null, result.id, true)}>X</button>
                                 </div>
                             </div>
                         </div>
