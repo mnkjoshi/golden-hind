@@ -26,10 +26,10 @@ export default function Search() {
             Authenticate(user, token, navigate);
         }
         console.log(searched)
-        if (!(searched === currSearch)) {
+        if (!(searched === currSearch) && !(searched == null)) {
             axios({
                 method: 'post',
-                url: 'https:/golden-hind.onrender.com/search',
+                url: 'https://golden-hind.onrender.com/search',
                 data: {
                     query: searched,
                 }
@@ -37,6 +37,9 @@ export default function Search() {
                 UpdateSearch(searched)
                 changePage(0)
                 displayResults(response.data)
+                console.log("API RESPONSE:")
+                console.log(response.data)
+                console.log(response)
             });
         } 
     })
@@ -76,9 +79,10 @@ export default function Search() {
                 </div>
             </div>
             <div className= "search-results">
+                {console.log("RESULTS:")}
                 {console.log(results)}
                 {console.log(results.slice((page * 8), (page * 8) + 8))}
-                {results === "" ? <p className= "search-results-loading">Loading Results...</p> : 
+                {(results === "" || results == null) ? <p className= "search-results-loading">Loading Results...</p> : 
                     (results.slice((page * 8), (page * 8) + 8)).map( result =>
                         <div className= "search-results-component"> 
                             <div className= "search-results-component-details">

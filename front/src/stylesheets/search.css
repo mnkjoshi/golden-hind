@@ -90,19 +90,19 @@ p {
     height: 84%;
     width: 98%;
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
-    grid-template-rows: 49% 49%;
-    row-gap: 2.2%;
+    grid-template-columns: 24.6% 24.6% 24.6% 24.6%;
+    grid-template-rows: 50% 50%;
+    row-gap: 2%;
     column-gap: 0.5%;
+
 }
 
 .search-results-component {
-    height: 100%;
     display: flex;
     flex-direction: column;
     justify-content: start;
     align-items: center;
-    background-color:#151515;
+    background-color:hsl(0, 0%, 8%);
     padding: 3px 3px 3px 3px;
     border-radius: 5px;
     z-index: 1;
