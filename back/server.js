@@ -137,20 +137,17 @@ app.post('/home', async (request, response) => {
         if (snapshot.val() == token) {
             const favourites = await db.ref(`users/${user}/favourites`).once('value');
             const continues = await db.ref(`users/${user}/continues`).once('value');
+            let favArray = JSON.parse(favourites.val())
+            let conArray = JSON.parse(continues.val())
 
-            let favArray = JSON.parse(favourites)
-            let conArray = JSON.parse(continues)
+            favArray = await Promise.all(favArray.map(item => GetInfo(item)));
+            console.log(favArray);
 
-            let ToDo = favArray
-            for (Index = 0; Index < ToDo.length; Index++) {
-                ToDo[Index] = GetInfo(ToDo[Index])
-            }
+            conArray = await Promise.all(conArray.map(item => GetInfo(item)));
+            console.log(conArray);
 
-            ToDo = conArray
-            for (Index = 0; Index < ToDo.length; Index++) {
-                ToDo[Index] = GetInfo(ToDo[Index])
-            }
 
+            console.log(conArray)
             response.status(200);
             response.json({ favourites: favourites.val(), continues: continues.val(), favouritesData: favArray, continuesData: conArray}); //User data retrieved successfully
         }
@@ -162,28 +159,15 @@ app.post('/home', async (request, response) => {
 
 async function GetInfo(ID) {
     const Key = ID.slice(1, 100000)
-    if (ID[1] = "t") {
-        try {
-            const apiResponse = await axios({
-                method: 'get',
-                url: 'https://api.themoviedb.org/3/tv/' + Key + '?api_key=' + process.env.TMDB_Credentials,
-            });
-    
-            return apiResponse.data
-        } catch(error) {
-            console.log(error)
-        }
-    } else if (ID[1] == "m") {
-        try {
-            const apiResponse = await axios({
-                method: 'get',
-                url: 'https://api.themoviedb.org/3/movie/' + Key + '?api_key=' + process.env.TMDB_Credentials,
-            });
-
-            return apiResponse.data
-        } catch(error) {
-            console.log(error)
-        }
+    const Link = (ID.slice(0, 1) == "t" ? 'https://api.themoviedb.org/3/tv/' + Key + '?api_key=' + process.env.TMDB_Credentials: 'https://api.themoviedb.org/3/movie/' + Key + '?api_key=' + process.env.TMDB_Credentials)
+    try {
+        const apiResponse = await axios({
+            method: 'get',
+            url: Link,
+        });
+        return apiResponse.data
+    } catch(error) {
+        console.log(error)
     }
 }
 
@@ -349,7 +333,6 @@ const listener = app.listen(3000, (error) => {
     if (error == null) {
         console.log("Server now running on port " + listener.address().port)
         console.log("http://localhost:" + listener.address().port)
-        console.log(GenerateToken())
     } else {
         console.log(error)
     }
