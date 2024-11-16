@@ -141,15 +141,16 @@ app.post('/home', async (request, response) => {
             let conArray = JSON.parse(continues.val())
 
             favArray = await Promise.all(favArray.map(item => GetInfo(item)));
-            console.log(favArray);
 
             conArray = await Promise.all(conArray.map(item => GetInfo(item)));
-            console.log(conArray);
 
+            const Trending = await axios({
+                method: 'get',
+                url: 'https://api.themoviedb.org/3/trending/all/week?api_key=' + process.env.TMDB_Credentials,
+            });
 
-            console.log(conArray)
             response.status(200);
-            response.json({ favourites: favourites.val(), continues: continues.val(), favouritesData: favArray, continuesData: conArray}); //User data retrieved successfully
+            response.json({ favourites: favourites.val(), continues: continues.val(), favouritesData: favArray, continuesData: conArray, trendingData: Trending.data}); //User data retrieved successfully
         }
     } else {
         response.status(202);
