@@ -123,6 +123,7 @@ app.post('/verify', async (request, response) => {
 app.post('/search', async (request, response) => {
     const { query } = request.body;
     Search(query).then((Data) => {
+        console.log(Data)
         response.status(200);
         response.send(Data);
     })
