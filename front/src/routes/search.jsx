@@ -29,7 +29,7 @@ export default function Search() {
         if (!(searched === currSearch)) {
             axios({
                 method: 'post',
-                url: 'https://golden-hind.onrender.com/search',
+                url: 'https:/golden-hind.onrender.com/search',
                 data: {
                     query: searched,
                 }

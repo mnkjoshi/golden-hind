@@ -138,14 +138,54 @@ app.post('/home', async (request, response) => {
             const favourites = await db.ref(`users/${user}/favourites`).once('value');
             const continues = await db.ref(`users/${user}/continues`).once('value');
 
+            let favArray = JSON.parse(favourites)
+            let conArray = JSON.parse(continues)
+
+            let ToDo = favArray
+            for (Index = 0; Index < ToDo.length; Index++) {
+                ToDo[Index] = GetInfo(ToDo[Index])
+            }
+
+            ToDo = conArray
+            for (Index = 0; Index < ToDo.length; Index++) {
+                ToDo[Index] = GetInfo(ToDo[Index])
+            }
+
             response.status(200);
-            response.json({ favourites: favourites.val(), continues: continues.val() }); //User data retrieved successfully
+            response.json({ favourites: favourites.val(), continues: continues.val(), favouritesData: favArray, continuesData: conArray}); //User data retrieved successfully
         }
     } else {
         response.status(202);
         response.send("UDE"); //User does not exist
     }
 });
+
+async function GetInfo(ID) {
+    const Key = ID.slice(1, 100000)
+    if (ID[1] = "t") {
+        try {
+            const apiResponse = await axios({
+                method: 'get',
+                url: 'https://api.themoviedb.org/3/tv/' + Key + '?api_key=' + process.env.TMDB_Credentials,
+            });
+    
+            return apiResponse.data
+        } catch(error) {
+            console.log(error)
+        }
+    } else if (ID[1] == "m") {
+        try {
+            const apiResponse = await axios({
+                method: 'get',
+                url: 'https://api.themoviedb.org/3/movie/' + Key + '?api_key=' + process.env.TMDB_Credentials,
+            });
+
+            return apiResponse.data
+        } catch(error) {
+            console.log(error)
+        }
+    }
+}
 
 app.post('/eretrieve', async (request, response) => {
     const { user, token, series, season, episode } = request.body
