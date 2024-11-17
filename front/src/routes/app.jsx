@@ -67,7 +67,7 @@ export default function App() {
     return (
         <div className= "app-main" id= "app-main">
             <Topbar/>
-        
+            {!(trendingData == null) ? (!(trendingData.results == null) ? <img className= "app-backdrop" src = {"https://image.tmdb.org/t/p/original/" + trendingData.results[Math.round(Math.random() * 3)].backdrop_path}/>  : null): null}
             <div className= "app-display">
                 <div className= "app-display-title-box">
                     <p className= "app-display-title">Trending Now</p>
@@ -82,6 +82,7 @@ export default function App() {
                     </div>
                 </div>
                 <div className= "app-display-results">
+                
                 {trendingData == "" ? "" : 
                     (trendingData.results.slice((trendingPage * 4), (trendingPage * 4) + 4).map( result =>
                         <div className= "app-results-component"> 

@@ -16,6 +16,7 @@ html {
 
 p { 
     margin: 0;
+    z-index: 1;
 }
 
 #root {
@@ -31,6 +32,15 @@ p {
     flex-direction: column;
     align-items: center;
     justify-content: start;
+}
+
+.app-backdrop {
+    z-index: 0;
+    position: absolute;
+    width: 100%;
+    left: 0;
+    top: 0%;
+    -webkit-mask-image: -webkit-gradient(linear, left top, left bottom, from(rgba(0,0,0,0)), color-stop(0.4, rgba(0,0,0,1)), to(rgba(0,0,0,0)));
 }
 
 .app-display {
