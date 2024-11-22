@@ -1,5 +1,7 @@
 # The Golden Hind
 
+![The Golden Hind Logo](https://github.com/mnkjoshi/golden-hind/blob/main/front/src/assets/HindEntry.png)
+
 The Golden Hind is a comprehensive media management application designed to help users keep track of their favorite TV shows, movies, and series. The application provides a robust backend with various endpoints for retrieving media details, adding and removing favorites, and managing user authentication. The frontend is built using modern web technologies and offers a seamless user experience for browsing and managing media content.
 
 ### Key Features
