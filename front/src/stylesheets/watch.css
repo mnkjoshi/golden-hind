@@ -47,7 +47,7 @@ p {
     height: 93%;
     /* aspect-ratio: 16/9; */
     width: 94%;
-    background-color:#050505;
+    
     border-radius: 5px;
     display: flex;
     flex-direction: row;
@@ -58,16 +58,19 @@ p {
     aspect-ratio: 16/9;
     /* width: 100%; */
     height: 100%;
-
+    box-shadow: 0px 0px 8px 0px #000000;
 }
 
 .watch-options {
-    margin-top: 0.2%;
-    height: 7%;
-    width: 95%;
+    padding-top: 2px;
+    height: 6%;
+    width: 78.4%;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
+    box-shadow: 0px 0px 8px 0px #000000;
+    border-radius: 0px 0px 5px 5px;
+    background: rgba(0, 0, 0, 0.462);
 }
 
 .watch-left {
@@ -125,6 +128,7 @@ p {
     justify-content: space-between;
     margin-right: 40px;
     align-items: center;
+    
 }
 
 .watch-movie-title {
@@ -242,7 +246,7 @@ p {
 }
 
 .watch-toggles-button {
-    height: 75%;
+    height: 85%;
     aspect-ratio: 1;
     margin-left: 2px;
     margin-right: 2px;
@@ -255,10 +259,11 @@ p {
     background-color: #1E1E1E;
     transition: 0.3s;
     cursor: pointer;
+    box-shadow: 0px 0px 8px 0px #000000;
 }
 
 .watch-toggles-button-selected {
-    height: 75%;
+    height: 85%;
     aspect-ratio: 1;
     margin-left: 2px;
     margin-right: 2px;
@@ -272,6 +277,7 @@ p {
     transition: 0.3s;
     cursor: pointer;
     filter: invert(100%);
+    box-shadow: 0px 0px 8px 0px #000000;
 }
 
 .watch-toggles-button-selected:hover {
@@ -306,6 +312,7 @@ p {
     align-items: center;
     padding-left: 2px;
     padding-right: 2px;
+    box-shadow: 0px 0px 8px 0px #000000;
 }
 
 .watch-list-episode {
@@ -322,8 +329,19 @@ p {
     aspect-ratio: 1;
     cursor: pointer;
     transition: 0.3s;
+    box-shadow: 0px 0px 8px 0px #000000;
 }
 
 .watch-list-episode:hover {
     filter: invert(100%);
+}
+
+.watch-backdrop {
+    z-index: 0;
+    position: absolute;
+    width: 100%;
+    left: 0;
+    top: 0%;
+    -webkit-mask-image: -webkit-gradient(linear, left top, left bottom, from(rgba(0,0,0,0)), color-stop(0.4, rgba(0,0,0,1)), to(rgba(0,0,0,0)));
+    filter: blur(4px);
 }

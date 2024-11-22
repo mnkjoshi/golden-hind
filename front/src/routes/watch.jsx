@@ -232,6 +232,8 @@ export default function App() {
             <div className= "watch-choices">
 
             </div>
+            {!(seriesData == null) ? (!(seriesData.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + seriesData.backdrop_path}/>  : null): null}
+            {!(data == null) ? (!(data.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + data.backdrop_path}/>  : null): null}
             <div className= "watch-system">
                 <div className= "watch-player">
                     <iframe className= "watch-player-file" id="watch-player-file" src= {video} frameBorder="0" allowFullScreen="yes" allow="autoplay"></iframe>
