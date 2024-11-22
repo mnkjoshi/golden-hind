@@ -263,8 +263,8 @@ export default function App() {
         document.getElementById("watch-similar").style.right = "-22%"
         document.getElementById("watch-holder").style.marginRight = "0%"
     } else if (document.getElementById("watch-similar") && document.getElementById("watch-holder")) {
-        document.getElementById("watch-similar").style.right = "1%"
-        document.getElementById("watch-holder").style.marginRight = "22%"
+        document.getElementById("watch-similar").style.right = "0.5%"
+        document.getElementById("watch-holder").style.marginRight = "19.5%"
     }
     
     return (

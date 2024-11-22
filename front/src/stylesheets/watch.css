@@ -50,7 +50,7 @@ p {
 }
 
 .watch-system {
-    margin-top: 0.1%;
+    margin-top: 0.3%;
     display: flex;
     height: 100%;
     width: 100%;
@@ -60,9 +60,8 @@ p {
 }
 
 .watch-player {
-    /* height: 93%; */
     aspect-ratio: 16/9;
-    width: 75.8%;
+    width: 79%;
     
     border-radius: 5px 5px 0px 0px;
     display: flex;
@@ -82,7 +81,7 @@ p {
     padding-top: 2px;
     padding-right: 5px;
     height: 5.5%;
-    width: 75.5%;
+    width: 79%;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -382,7 +381,7 @@ p {
 .watch-similar {
     transition: 0.5s;
     height: 91%; 
-    width: 21%;
+    width: 19%;
     background-color: #000000;
     border-radius: 5px;
     top: 5.6%;
