@@ -348,7 +348,7 @@ export default function App() {
                     (similarData.map( result =>
                         <div className= "watch-results-component"> 
                             <div className= "watch-results-component-details">
-                                <img className= "watch-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => {if (type == "movie") {navigate("/watch/m" + result.id)} else {navigate("/watch/t" + result.id)} }}/>
+                                <img className= "watch-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => {setSimilar(-1 * similarOn); if (type == "movie") {navigate("/watch/m" + result.id)} else {navigate("/watch/t" + result.id)} }}/>
                                 <div className= "watch-results-component-info">
                                     <p className= "watch-results-component-title">{result.name == null ? (result.title == null ? "Untitled" : result.title) : result.name}</p>
                                     <p className= "watch-results-component-overview">{result.overview.slice(0, 200)}</p>

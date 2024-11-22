@@ -169,12 +169,12 @@ export function Login({setStatus, navigate}) {
 
       <div className= "auth-box" id= "username-entry">
         <p className= "auth-box-info" id= "auth-box-user">Username</p>
-        <input className= "auth-box-input" id= "auth-user-input" onKeyUp={KeyUpSearch}></input>
+        <input className= "auth-box-input" id= "auth-user-input" onKeyUp={KeyUpSearch} autoComplete="off"></input>
       </div>
 
       <div className= "auth-box" id= "password-entry">
         <p className= "auth-box-info" id= "auth-box-pass">Password</p>
-        <input className= "auth-box-input" id= "auth-pass-input" type= "password" onKeyUp={KeyUpSearch}></input>
+        <input className= "auth-box-input" id= "auth-pass-input" type= "password" onKeyUp={KeyUpSearch} autoComplete="off"></input>
       </div>
 
       <button className= "auth-entry" onClick={() => Attempt("Login", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, null, navigate)}>ENTER</button>
@@ -196,17 +196,17 @@ export function Registration ({setStatus}) {
 
       <div className= "auth-box" id= "username-entry">
         <p className= "auth-box-info" id= "auth-box-user">Username</p>
-        <input className= "auth-box-input" id= "auth-user-input" onKeyUp={KeyUpSearch}></input>
+        <input className= "auth-box-input" id= "auth-user-input" onKeyUp={KeyUpSearch} autoComplete="off"></input>
       </div>
 
       <div className= "auth-box" id= "email-entry">
         <p className= "auth-box-info" id= "auth-box-email">Email</p>
-        <input className= "auth-box-input" id= "auth-email-input" onKeyUp={KeyUpSearch}></input>
+        <input className= "auth-box-input" id= "auth-email-input" onKeyUp={KeyUpSearch} autoComplete="off"></input>
       </div>
 
       <div className= "auth-box" id= "password-entry">
         <p className= "auth-box-info" id= "auth-box-pass">Password</p>
-        <input className= "auth-box-input" id= "auth-pass-input" type= "password" onKeyUp={KeyUpSearch}></input>
+        <input className= "auth-box-input" id= "auth-pass-input" type= "password" onKeyUp={KeyUpSearch} autoComplete="off"></input>
       </div>
 
       <button className= "auth-entry" onClick={() => Attempt("Register", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, document.getElementById("auth-email-input").value)}>ENTER</button>
