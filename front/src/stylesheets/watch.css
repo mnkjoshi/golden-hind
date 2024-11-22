@@ -1,3 +1,6 @@
+* {
+    z-index: 1;
+}
 body,
 html {
   height: 100%;
