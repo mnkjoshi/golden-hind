@@ -1,5 +1,22 @@
 # The Golden Hind
 
+The Golden Hind is a comprehensive media management application designed to help users keep track of their favorite TV shows, movies, and series. The application provides a robust backend with various endpoints for retrieving media details, adding and removing favorites, and managing user authentication. The frontend is built using modern web technologies and offers a seamless user experience for browsing and managing media content.
+
+### Key Features
+- **Retrieve Media Details**: Users can retrieve detailed information about TV episodes, movies, and series.
+- **Manage Favorites**: Users can add or remove media items from their favorites list.
+- **User Authentication**: Secure user authentication to ensure personalized media management.
+- **Responsive Frontend**: A responsive and user-friendly frontend built with Vite and modern web technologies.
+- **Deployment Ready**: Easy deployment using Firebase for the frontend.
+
+### Technologies Used
+- **Backend**: Node.js, Express.js
+- **Frontend**: Vite, React
+- **Database**: Firebase
+- **APIs**: The Movie Database (TMDB), SendGrid for email services
+
+This project aims to provide a seamless and efficient way for users to manage their media content, ensuring they never miss an episode or movie they love.
+
 ## Backend Endpoints
 
 ### Authentication
@@ -119,7 +136,7 @@ This will start the Vite development server and you can access the application a
 To build the project for production, run:
 
 ```sh
-    npm run build
+npm run build
 ```
 
 The production-ready files will be generated in the build directory.
