@@ -32,6 +32,8 @@ export default function App() {
     const [data, setData] = useState({})
     const [voteAvg, setVotes] = useState(0.000);
 
+    const[similarData, setSimilarData] = useState("")
+
     const [seriesData, setSeriesData] = useState("")
     const [seriesID, setSeriesID] = useState("")
 
@@ -65,6 +67,9 @@ export default function App() {
         if (user == null) {
             navigate('/auth')
         }
+
+       
+
         if (type == "movie") {
             if (!(vidID == movID) && !(vidID == null) && !(vidID == "")) {
                 axios({
@@ -80,6 +85,19 @@ export default function App() {
                     const ToData = response.data
                     setVotes(response.data.vote_average)
                     setData(ToData)
+                });
+
+                axios({
+                    method: 'post',
+                    url: 'https://golden-hind.onrender.com/similar',
+                    data: {
+                        user: user,
+                        token: token,
+                        ID: id,
+                    }
+                }).then((response) => {
+                    setSimilarData(response.data)
+                    console.log(response.data)
                 });
             }
         } else if (type == "tv") {
@@ -117,6 +135,19 @@ export default function App() {
                     setSeriesData(ToData)
                     setMaxSe(response.data.seasons.length)
                     setMaxEp(response.data.seasons[season - 1].episode_count)
+                });
+
+                axios({
+                    method: 'post',
+                    url: 'https://golden-hind.onrender.com/similar',
+                    data: {
+                        user: user,
+                        token: token,
+                        ID: id,
+                    }
+                }).then((response) => {
+                    setSimilarData(response.data)
+                    console.log(response.data)
                 });
             }
 
@@ -228,10 +259,10 @@ export default function App() {
         }
     }
 
-    if(similarOn == -1) {
+    if(similarOn == -1 && document.getElementById("watch-similar") && document.getElementById("watch-holder")) {
         document.getElementById("watch-similar").style.right = "-22%"
         document.getElementById("watch-holder").style.marginRight = "0%"
-    } else {
+    } else if (document.getElementById("watch-similar") && document.getElementById("watch-holder")) {
         document.getElementById("watch-similar").style.right = "1%"
         document.getElementById("watch-holder").style.marginRight = "22%"
     }
@@ -313,7 +344,37 @@ export default function App() {
                 </div>
                 </div>
                 <div className= "watch-similar" id= "watch-similar">
-                            
+                    {similarData == "" ? "" : 
+                    (similarData.map( result =>
+                        <div className= "watch-results-component"> 
+                            <div className= "watch-results-component-details">
+                                <img className= "watch-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => {if (type == "movie") {navigate("/watch/m" + result.id)} else {navigate("/watch/t" + result.id)} }}/>
+                                <div className= "watch-results-component-info">
+                                    <p className= "watch-results-component-title">{result.name == null ? (result.title == null ? "Untitled" : result.title) : result.name}</p>
+                                    <p className= "watch-results-component-overview">{result.overview.slice(0, 200)}</p>
+                                    {result.overview.length > 200 ? <button className= "watch-results-component-expand" onClick={() => {document.getElementById("watch-results-component-overview-expanded" + result.id).style.visibility = "visible"; document.getElementById("watch-results-component-overview-expanded" + result.id).style.zIndex = 6}}>EXPAND</button> : null}
+                                </div>  
+                            </div>
+                            <p className= "watch-results-component-overview-expanded" id= {"watch-results-component-overview-expanded" + result.id} onClick={() => {document.getElementById("watch-results-component-overview-expanded" + result.id).style.visibility = "hidden"; document.getElementById("watch-results-component-overview-expanded" + result.id).style.zIndex = -1}}>{result.overview}</p>
+                            <div className= "watch-results-component-options">
+                                <div className= "watch-results-component-options-top">
+                                    {result.media_type == "movie" ? 
+                                    <p id="watch-results-component-format" className= "watch-results-component-format watch-results-component-data watch-movie">mv</p>
+                                    :
+                                    <p id="watch-results-component-format" className= "watch-results-component-format watch-results-component-data watch-tv">{result.media_type}</p>
+                                    }
+                                    <p id="watch-results-component-rating" className= "watch-results-component-rating watch-results-component-data" style={{background: `color-mix(in srgb, red ${( 1- result.vote_average/10) * 100}%, green ${(result.vote_average/10) * 100}%)`}}>{result.vote_average}</p>
+                                    <p className= "watch-results-component-language watch-results-component-data">{result.original_language}</p>
+                                    {result.first_air_date == null ? 
+                                    (result.release_date == null ? <p className= "watch-results-component-date watch-results-component-data">0000-00-00</p> : <p className= "watch-results-component-date watch-results-component-data">{result.release_date}</p>) : <p className= "watch-results-component-date watch-results-component-data">{result.first_air_date}</p>}
+                                    {result.origin_country == null ? <img className="watch-results-component-country" src={`https://flagsapi.com/AQ/flat/64.png`}/> : <img className="watch-results-component-country" src={`https://flagsapi.com/${result.origin_country[0]}/flat/64.png`}/>}
+                                </div>
+                                <div className= "watch-results-component-options-bottom">
+
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
             
