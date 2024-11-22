@@ -358,10 +358,10 @@ export default function App() {
                             <p className= "watch-results-component-overview-expanded" id= {"watch-results-component-overview-expanded" + result.id} onClick={() => {document.getElementById("watch-results-component-overview-expanded" + result.id).style.visibility = "hidden"; document.getElementById("watch-results-component-overview-expanded" + result.id).style.zIndex = -1}}>{result.overview}</p>
                             <div className= "watch-results-component-options">
                                 <div className= "watch-results-component-options-top">
-                                    {result.media_type == "movie" ? 
-                                    <p id="watch-results-component-format" className= "watch-results-component-format watch-results-component-data watch-movie">mv</p>
+                                    {type == "movie" ? 
+                                    <p id="watch-results-component-format" className= "watch-results-component-format watch-results-component-data watch-results-component-movie">mv</p>
                                     :
-                                    <p id="watch-results-component-format" className= "watch-results-component-format watch-results-component-data watch-tv">{result.media_type}</p>
+                                    <p id="watch-results-component-format" className= "watch-results-component-format watch-results-component-data watch-results-component-tv">{result.media_type}</p>
                                     }
                                     <p id="watch-results-component-rating" className= "watch-results-component-rating watch-results-component-data" style={{background: `color-mix(in srgb, red ${( 1- result.vote_average/10) * 100}%, green ${(result.vote_average/10) * 100}%)`}}>{result.vote_average}</p>
                                     <p className= "watch-results-component-language watch-results-component-data">{result.original_language}</p>

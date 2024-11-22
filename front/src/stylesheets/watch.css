@@ -556,12 +556,12 @@ p {
     font-size: 10px;
 }
 
-.watch-movie {
+.watch-results-component-movie {
     background-color: #4897fe;
     font-size: 10px;
 }
 
-.watch-tv {
+.watch-results-component-tv {
     background-color: #670097;
     font-size: 10px;
 }
