@@ -36,22 +36,46 @@ p {
     justify-content: start;
 }
 
+.watch-similar {
+    transition: 0.5s;
+    height: 93.7%; 
+    width: 21%;
+    background-color: #000000;
+    border-radius: 5px;
+    top: 5.6%;
+    position: absolute;
+    right: -22%; /* Change to 1 when moving in, -22 if not */
+    background: rgba(0, 0, 0, 0.462);
+    box-shadow: 0px 0px 8px 0px #000000;
+}
+
+.watch-holder {
+    transition: 0.5s;
+    margin-right: 0%; /* Change to 22 when moving in, 0 if not */
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: top;
+}
+
 .watch-system {
     margin-top: 0.1%;
     display: flex;
-    height: 98%;
-    flex-direction: column;
+    height: 100%;
     width: 100%;
+    flex-direction: column;
     align-items: center;
     justify-content: start;
 }
 
 .watch-player {
-    height: 93%;
-    /* aspect-ratio: 16/9; */
-    width: 94%;
+    /* height: 93%; */
+    aspect-ratio: 16/9;
+    width: 75.8%;
     
-    border-radius: 5px;
+    border-radius: 5px 5px 0px 0px;
     display: flex;
     flex-direction: row;
     justify-content: center;
@@ -61,13 +85,15 @@ p {
     aspect-ratio: 16/9;
     /* width: 100%; */
     height: 100%;
+    border-radius: 5px 5px 0px 0px;
     box-shadow: 0px 0px 8px 0px #000000;
 }
 
 .watch-options {
     padding-top: 2px;
-    height: 6%;
-    width: 78.4%;
+    padding-right: 5px;
+    height: 5.5%;
+    width: 75.8%;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -249,7 +275,7 @@ p {
 }
 
 .watch-toggles-button {
-    height: 85%;
+    height: 80%;
     aspect-ratio: 1;
     margin-left: 2px;
     margin-right: 2px;
@@ -263,6 +289,7 @@ p {
     transition: 0.3s;
     cursor: pointer;
     box-shadow: 0px 0px 8px 0px #000000;
+    align-items: center;
 }
 
 .watch-toggles-button-selected {
@@ -298,10 +325,19 @@ p {
     height: 70%;
     aspect-ratio: 1;
     align-self: center;
+    padding-top: 15%;
+}
+
+.watch-toggles-similar-icon {
+    height: 100%;
+    aspect-ratio: 1;
+    align-self: center;
+    padding-top: 0%;
 }
 
 .watch-list {
-    height: 65%;
+    overflow-x: auto;
+    height: 70%;
     width: 20%;
     background-color: #1E1E1E;
     transition: 0.3s;
@@ -318,8 +354,11 @@ p {
     box-shadow: 0px 0px 8px 0px #000000;
 }
 
+.watch-list::-webkit-scrollbar {
+    display: none;
+}
+
 .watch-list-episode {
-    flex: 0.09;
     background-color: #050505;
     color: white;
     border: solid white 2px;
@@ -328,6 +367,8 @@ p {
     padding-bottom: 1px;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     font-weight: 800;
+    font-size: 8px;
+    text-overflow: none;
     border-radius: 50%;
     aspect-ratio: 1;
     cursor: pointer;

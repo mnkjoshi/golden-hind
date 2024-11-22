@@ -7,7 +7,7 @@ import ListIcon from "../assets/list.png"
 import BookmarkIcon from "../assets/bookmark.png"
 import ReloadIcon from "../assets/reload.png"
 import StarIcon from "../assets/star.png"
-import ReviewIcon from "../assets/review.png"
+import SimilarIcon from "../assets/GoldenHind.png"
 import ServerIcon from "../assets/server.png"
 
 let video = "null"
@@ -24,6 +24,7 @@ export default function App() {
     const [maxSe, setMaxSe] = useState(1);
 
     const[bookmarked, setBookmark] = useState(-1);
+    const[similarOn, setSimilar] = useState(-1);
 
     const [episodeID, setEpisodeID] = useState("")
     
@@ -160,6 +161,7 @@ export default function App() {
                 }
             });
         }
+
     })
 
     window.open = function (open) {
@@ -225,16 +227,22 @@ export default function App() {
             setBookmark(-1)
         }
     }
+
+    if(similarOn == -1) {
+        document.getElementById("watch-similar").style.right = "-22%"
+        document.getElementById("watch-holder").style.marginRight = "0%"
+    } else {
+        document.getElementById("watch-similar").style.right = "1%"
+        document.getElementById("watch-holder").style.marginRight = "22%"
+    }
     
     return (
         <div className= "watch-main" id= "watch-main">
-            <Topbar/>
-            <div className= "watch-choices">
-
-            </div>
             {!(seriesData == null) ? (!(seriesData.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + seriesData.backdrop_path}/>  : null): null}
             {!(data == null) ? (!(data.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + data.backdrop_path}/>  : null): null}
-            <div className= "watch-system">
+            <Topbar/>
+            <div className= "watch-holder" id= "watch-holder">
+                <div className= "watch-system">
                 <div className= "watch-player">
                     <iframe className= "watch-player-file" id="watch-player-file" src= {video} frameBorder="0" allowFullScreen="yes" allow="autoplay"></iframe>
                 </div>
@@ -250,7 +258,7 @@ export default function App() {
                             </button> : null
                             }
                             {listStatus == 1 ? 
-                            <div className = "watch-list" style= {{width: (maxEp * 10)+ "%"}}>
+                            <div className = "watch-list" style= {{width: (maxEp * 3)+ "%"}}>
                                 {arrayRange(1, maxEp, 1).map( result =>
                                     <button className= "watch-list-episode" onClick={() => {localStorage.setItem("episode" + id, result); setEpisode(result)}}>
                                         {result}
@@ -295,13 +303,21 @@ export default function App() {
                             <button className = "watch-toggles-button watch-toggles-server" onClick={() => console.log("Test")}>
                                 <img className = "watch-toggles-button-icon watch-toggles-server-icon" src = {ServerIcon}/>
                             </button>
-                            <button className = "watch-toggles-button watch-toggles-review" onClick={() => console.log("Test")}>
-                                <img className = "watch-toggles-button-icon watch-toggles-review-icon" src = {ReviewIcon}/>
+                            <button className = "watch-toggles-button watch-toggles-review" onClick={() => {
+                                setSimilar(-1 * similarOn)
+                            }}>
+                                <img className = "watch-toggles-button-icon watch-toggles-similar-icon" src = {SimilarIcon}/>
                             </button>
                         </div>
                     </div>
                 </div>
+                </div>
+                <div className= "watch-similar" id= "watch-similar">
+                            
+                </div>
             </div>
+            
+            
         </div>
     );
   }
