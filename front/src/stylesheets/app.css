@@ -32,6 +32,7 @@ p {
     flex-direction: column;
     align-items: center;
     justify-content: start;
+    z-index: 2;
 }
 
 .app-backdrop {
@@ -94,6 +95,7 @@ p {
     font-family: Viga;
     font-size: 20px;
     cursor: pointer;
+    z-index: 1;
 }
 
 

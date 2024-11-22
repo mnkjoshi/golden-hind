@@ -4,13 +4,15 @@ import React, { useState } from 'react'
 let currRotation = 180;
 
 function DropTable(toggle, data) {
+    console.log(document.getElementById("topbar-main"))
     switch(toggle) {
         case 0: //drop it
             currRotation += 180;
             document.getElementById("topbar-account-arrow").style.transform = "rotate(" + currRotation + "deg)"
             document.getElementById("topbar-dropdown").style.transform = "translateY(0px)";
             document.getElementById("topbar-dropdown").style.opacity = 1;
-            document.getElementById("topbar-dropdown").style.zIndex = 20;
+            document.getElementById("topbar-main").style.zIndex = 2;
+            document.getElementById("topbar-dropdown").style.zIndex = 10;
             data(1);
             break;
         case 1: //lift it
@@ -18,6 +20,7 @@ function DropTable(toggle, data) {
             document.getElementById("topbar-account-arrow").style.transform = "rotate(" + currRotation + "deg)"
             document.getElementById("topbar-dropdown").style.transform = "translateY(-15px)";
             document.getElementById("topbar-dropdown").style.opacity = 0;
+            document.getElementById("topbar-main").style.zIndex = 1;
             document.getElementById("topbar-dropdown").style.zIndex = -1;
             data(0);
             break;
@@ -51,7 +54,7 @@ export default function Topbar ({ Account }) {
     }
 
     return (
-        <div className= "topbar-main">
+        <div className= "topbar-main" id= "topbar-main">
             <button className= "topbar-title" onClick={() => navigate("/app")}>TGH</button>
             <div className= "topbar-gap"/>
             <div className= "topbar-search">

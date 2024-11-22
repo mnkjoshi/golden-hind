@@ -1,7 +1,3 @@
-* {
-    z-index: 1;
-}
-
 .topbar-main {
     width: 100%;
     height: 7%;
@@ -9,6 +5,7 @@
     flex-direction: row;
     justify-content: start;
     align-items: center;
+    z-index: 1;
 }
 
 .topbar-title {
