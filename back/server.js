@@ -172,6 +172,31 @@ async function GetInfo(ID) {
     }
 }
 
+app.post('/similar', async (request, response) => {
+    const { user, token, ID} = request.body
+
+    if (Authenticate(user, token)) {
+        try {
+            const Key = ID.slice(1, 100000)
+            const Link = (ID.slice(0, 1) == "t" ? 'https://api.themoviedb.org/3/tv/' + Key + '/similar?api_key=' + process.env.TMDB_Credentials : 'https://api.themoviedb.org/3/movie/' + Key + '/similar?api_key=' + process.env.TMDB_Credentials)
+           
+            const apiResponse = await axios({
+                method: 'get',
+                url: Link,
+            });
+            response.status(200)
+            response.send(JSON.stringify(apiResponse.data.results.slice(0,4)))
+        } catch(error) {
+            console.log(error)
+            response.status(202)
+            response.send("UKE")
+        }
+    } else {
+        response.status(202)
+        response.send("UNV")
+    }
+});
+
 app.post('/eretrieve', async (request, response) => {
     const { user, token, series, season, episode } = request.body
 
@@ -330,7 +355,7 @@ app.post('/uncontinue', async (request, response) => {
 
 
 //process.env.PORT
-const listener = app.listen(process.env.PORT, (error) => {
+const listener = app.listen(3000, (error) => {
     if (error == null) {
         console.log("Server now running on port " + listener.address().port)
         console.log("http://localhost:" + listener.address().port)
