@@ -343,7 +343,10 @@ export default function App() {
                     </div>
                 </div>
                 </div>
-                <div className= "watch-similar" id= "watch-similar">
+                
+            </div>
+            
+            <div className= "watch-similar" id= "watch-similar">
                     {similarData == "" ? "" : 
                     (similarData.map( result =>
                         <div className= "watch-results-component"> 
@@ -376,9 +379,6 @@ export default function App() {
                         </div>
                     ))}
                 </div>
-            </div>
-            
-            
         </div>
     );
   }

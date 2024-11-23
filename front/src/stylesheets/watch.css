@@ -41,8 +41,8 @@ p {
 .watch-holder {
     transition: 0.5s;
     margin-right: 0%; /* Change to 22 when moving in, 0 if not */
-    width: 100%;
-    height: 100%;
+    height: 93%;
+    aspect-ratio: 16/10;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -60,9 +60,8 @@ p {
 }
 
 .watch-player {
-    aspect-ratio: 16/9;
-    width: 79%;
-    
+    height: 92.5%;
+    width: 100%;
     border-radius: 5px 5px 0px 0px;
     display: flex;
     flex-direction: row;
@@ -70,8 +69,7 @@ p {
 }
 
 .watch-player-file {
-    aspect-ratio: 16/9;
-    /* width: 100%; */
+    width: 100%;
     height: 100%;
     border-radius: 5px 5px 0px 0px;
     box-shadow: 0px 0px 8px 0px #000000;
@@ -80,8 +78,8 @@ p {
 .watch-options {
     padding-top: 2px;
     padding-right: 5px;
-    height: 5.5%;
-    width: 79%;
+    height: 7.5%;
+    aspect-ratio: 21.5/1;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -263,7 +261,7 @@ p {
 }
 
 .watch-toggles-button {
-    height: 80%;
+    height: 60%;
     aspect-ratio: 1;
     margin-left: 2px;
     margin-right: 2px;
@@ -281,7 +279,7 @@ p {
 }
 
 .watch-toggles-button-selected {
-    height: 85%;
+    height: 60%;
     aspect-ratio: 1;
     margin-left: 2px;
     margin-right: 2px;
