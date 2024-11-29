@@ -58,7 +58,7 @@ export default function Topbar ({ Account }) {
             <button className= "topbar-title" onClick={() => navigate("/app")}>TGH</button>
             <div className= "topbar-gap"/>
             <div className= "topbar-search">
-                <input className= "topbar-search-input" placeholder= "Search.." id= "topbar-search-input" onKeyUp={KeyUpSearch} onInput={OnInputSearch} autoComplete="off"
+                <input className= "topbar-search-input" placeholder= "Search.." id= "topbar-search-input" onKeyUp={KeyUpSearch} autoComplete="off"
                 />
                 <div className= "topbar-search-underline"/>
             </div>

@@ -9,8 +9,11 @@ html {
   
 }
 
+
+
 .html {
     transition: 1s;
+    width: 100%;
     mix-blend-mode: difference;
 }
 
@@ -296,4 +299,63 @@ p {
 .app-results-component-icon {
     height: 100%;
     aspect-ratio: 1;
+}
+
+
+
+@media (max-width: 800px){
+
+    .root {
+        width: 100%;
+        height: 100%;
+        overflow-x: hidden;
+        overflow-y: hidden;
+    }
+    .app-results-component {
+        width: 48%;
+    }
+
+    .root {
+        width: 100%;
+        min-height: 100%; /* Add this line */
+    }
+
+    .html {
+        width: 100%;
+        min-height: 100%; /* Add this line */
+    }
+
+    .app-results-component-overview {
+        font-size: 8px;
+    }
+
+    .app-results-component-title {
+        font-size: 10px;
+    }
+
+    
+
+    .app-display-title {
+        width: 40%;
+    }
+
+    .app-display-page-box {
+        width: 40%;
+    }
+
+    .app-results-component-data {
+        font-size: 8px;
+    }
+
+    .app-results-component-overview-expanded {
+        font-size: 10px;
+    }
+
+    .app-results-component-expand {
+        font-size: 8px;
+        width: 80%;
+        left: 10%;
+        height: 20%;
+        top: 80%;
+    }
 }

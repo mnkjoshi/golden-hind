@@ -146,3 +146,13 @@ p {
     font-family: Viga, monospace;
     font-size: 20px;
 }
+
+@media (max-width: 768px) {
+    .auth-box {
+        width: 60%;
+    }
+
+    .auth-notification {
+        width: 80%;
+    }
+}

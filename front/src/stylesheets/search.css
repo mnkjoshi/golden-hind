@@ -295,3 +295,31 @@ p {
     height: 100%;
     aspect-ratio: 1;
 }
+
+@media (max-width: 800px) {
+    .search-results {
+        grid-template-columns: 96%;
+        grid-template-rows: 50% 50%;
+        column-gap: 5px;
+    }
+
+    .search-title {
+        width: 100%;
+        align-self: flex-end;
+    }
+
+    .search-options {
+        width: 48%;
+        margin-right: 10px;
+        height: 100%;
+    }
+
+    .search-results-component {
+        width: 100%;
+        margin-left: 1%;
+    }
+
+    .search-results-component-overview {
+        font-size: 11px;
+    }
+}

@@ -60,7 +60,8 @@ p {
 }
 
 .landing-banner {
-    flex: 0.6;
+    aspect-ratio: 1.779;
+    max-width: 90%;
     opacity: 0;
     transition: 1s;
 }
@@ -94,15 +95,31 @@ p {
 }
 
 
-/* @media (width <= 400px) {
+@media (width <= 800px) {
 
     .landing-welcome {
-        font-size: 250%;
-        margin-left: 0%;
+        font-size: 30px;
+        margin-bottom: 30px;
     }
 
-    .landing-toggles {
-        font-size: 16px;
+    .landing-title {
+        font-size: 40px;
+    }
+
+    .landing-title-special {
+        font-size: 50px;
+    }
+
+    .landing-banner {
+        flex: 0.2;
+    }
+
+    .landing-entry {
+        font-size: 30px;
+    }
+
+    .landing-entry-underline {
+        margin-top: 3px;
     }
     
-} */
+}

@@ -8,7 +8,10 @@ let DisplayData
 export default function App() {  
     let location = useLocation();
     const navigate = useNavigate();
-    
+    let PageLength = 4;
+    if (window.innerWidth < 800) {
+        PageLength = 2;
+    }
     const [bookmarkData, setBookmarkData] = useState("")
     const [continueData, setContinueData] = useState("")
     const [trendingData, setTrendingData] = useState("")
@@ -75,7 +78,7 @@ export default function App() {
                         {trendingPage == 0 ? <button className= "app-display-page-arrow">{" "}</button> : <button className= "app-display-page-arrow" onClick={() => setTrandingPage(parseInt(trendingPage) - 1)}>{"<"}</button>}
                         <p className= "app-display-page-title">Page {trendingPage + 1}</p>
                         {trendingData == "" ? null :
-                            trendingPage == Math.ceil(trendingData.results.length/4) - 1 ?
+                            trendingPage == Math.ceil(trendingData.results.length/PageLength) - 1 ?
                             <button className= "app-display-page-arrow">{" "}</button> :
                             <button className= "app-display-page-arrow" onClick={() => setTrandingPage(parseInt(trendingPage) + 1)}>{">"}</button>
                         }
@@ -84,14 +87,14 @@ export default function App() {
                 <div className= "app-display-results">
                 
                 {trendingData == "" ? "" : 
-                    (trendingData.results.slice((trendingPage * 4), (trendingPage * 4) + 4).map( result =>
+                    (trendingData.results.slice((trendingPage * PageLength), (trendingPage * PageLength) + PageLength).map( result =>
                         <div className= "app-results-component"> 
                             <div className= "app-results-component-details">
                                 <img className= "app-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => {if (result.media_type == "movie") {navigate("/watch/m" + result.id)} else {navigate("/watch/t" + result.id)} }}/>
                                 <div className= "app-results-component-info">
                                     <p className= "app-results-component-title">{result.name == null ? (result.title == null ? "Untitled" : result.title) : result.name}</p>
-                                    <p className= "app-results-component-overview">{result.overview.slice(0, 450)}</p>
-                                    {result.overview.length > 450 ? <button className= "app-results-component-expand" onClick={() => {document.getElementById("app-results-component-overview-expanded" + result.id).style.visibility = "visible"; document.getElementById("app-results-component-overview-expanded" + result.id).style.zIndex = 6}}>EXPAND</button> : null}
+                                    <p className= "app-results-component-overview">{result.overview.slice(0, (PageLength == 4 ? (PageLength == 4 ? 450 : 200) : 200))}</p>
+                                    {result.overview.length > (PageLength == 4 ? 450 : 200) ? <button className= "app-results-component-expand" onClick={() => {document.getElementById("app-results-component-overview-expanded" + result.id).style.visibility = "visible"; document.getElementById("app-results-component-overview-expanded" + result.id).style.zIndex = 6}}>EXPAND</button> : null}
                                 </div>  
                             </div>
                             <p className= "app-results-component-overview-expanded" id= {"app-results-component-overview-expanded" + result.id} onClick={() => {document.getElementById("app-results-component-overview-expanded" + result.id).style.visibility = "hidden"; document.getElementById("app-results-component-overview-expanded" + result.id).style.zIndex = -1}}>{result.overview}</p>
@@ -124,9 +127,9 @@ export default function App() {
                     <div className= "app-display-page-box">
                         {continuePage == 0 ? <button className= "app-display-page-arrow">{" "}</button> : <button className= "app-display-page-arrow" onClick={() => setContinuePage(parseInt(continuePage) - 1)}>{"<"}</button>}
                         <p className= "app-display-page-title">Page {continuePage + 1}</p>
-                        {console.log(continuePage == Math.ceil(continueData.length/4))}
+                        {console.log(continuePage == Math.ceil(continueData.length/PageLength))}
                         {continueData == "" ? null :
-                            continuePage == Math.ceil(continueData.length/4) - 1 ?
+                            continuePage == Math.ceil(continueData.length/PageLength) - 1 ?
                             <button className= "app-display-page-arrow">{" "}</button>:
                             <button className= "app-display-page-arrow" onClick={() => setContinuePage(parseInt(continuePage) + 1)}>{">"}</button>
                         }
@@ -134,14 +137,14 @@ export default function App() {
                 </div>
                 <div className= "app-display-results">
                     {continueData == "" ? "" : 
-                    (continueData.slice((continuePage * 4), (continuePage * 4) + 4).map( result =>
+                    (continueData.slice((continuePage * PageLength), (continuePage * PageLength) + PageLength).map( result =>
                         <div className= "app-results-component"> 
                             <div className= "app-results-component-details">
                                 <img className= "app-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => {if (result.number_of_episodes == null) {navigate("/watch/m" + result.id)} else {navigate("/watch/t" + result.id)} }}/>
                                 <div className= "app-results-component-info">
                                     <p className= "app-results-component-title">{result.name == null ? (result.title == null ? "Untitled" : result.title) : result.name}</p>
-                                    <p className= "app-results-component-overview">{result.overview.slice(0, 450)}</p>
-                                    {result.overview.length > 450 ? <button className= "app-results-component-expand" onClick={() => {document.getElementById("app-results-component-overview-expanded" + result.id).style.visibility = "visible"; document.getElementById("app-results-component-overview-expanded" + result.id).style.zIndex = 6}}>EXPAND</button> : null}
+                                    <p className= "app-results-component-overview">{result.overview.slice(0, (PageLength == 4 ? 450 : 200))}</p>
+                                    {result.overview.length > (PageLength == 4 ? 450 : 200) ? <button className= "app-results-component-expand" onClick={() => {document.getElementById("app-results-component-overview-expanded" + result.id).style.visibility = "visible"; document.getElementById("app-results-component-overview-expanded" + result.id).style.zIndex = 6}}>EXPAND</button> : null}
                                 </div>  
                             </div>
                             <p className= "app-results-component-overview-expanded" id= {"app-results-component-overview-expanded" + result.id} onClick={() => {document.getElementById("app-results-component-overview-expanded" + result.id).style.visibility = "hidden"; document.getElementById("app-results-component-overview-expanded" + result.id).style.zIndex = -1}}>{result.overview}</p>
@@ -174,9 +177,9 @@ export default function App() {
                     <div className= "app-display-page-box">
                         {bookmarkPage == 0 ? <button className= "app-display-page-arrow">{" "}</button> : <button className= "app-display-page-arrow" onClick={() => setBookmarkPage(parseInt(bookmarkPage) - 1)}>{"<"}</button>}
                         <p className= "app-display-page-title">Page {bookmarkPage + 1}</p>
-                        {console.log(bookmarkPage == Math.ceil(bookmarkData.length/4))}
+                        {console.log(bookmarkPage == Math.ceil(bookmarkData.length/PageLength))}
                         {bookmarkData == "" ? null :
-                            bookmarkPage == Math.ceil(bookmarkData.length/4) - 1 ?
+                            bookmarkPage == Math.ceil(bookmarkData.length/PageLength) - 1 ?
                             <button className= "app-display-page-arrow">{" "}</button>:
                             <button className= "app-display-page-arrow" onClick={() => setBookmarkPage(parseInt(bookmarkPage) + 1)}>{">"}</button>
                         }
@@ -184,14 +187,14 @@ export default function App() {
                 </div>
                 <div className= "app-display-results">
                 {bookmarkData == "" ? "" : 
-                    (bookmarkData.slice((bookmarkPage * 4), (bookmarkPage * 4) + 4).map( result =>
+                    (bookmarkData.slice((bookmarkPage * PageLength), (bookmarkPage * PageLength) + PageLength).map( result =>
                         <div className= "app-results-component"> 
                             <div className= "app-results-component-details">
                                 <img className= "app-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => {if (result.number_of_episodes == null) {navigate("/watch/m" + result.id)} else {navigate("/watch/t" + result.id)} }}/>
                                 <div className= "app-results-component-info">
                                     <p className= "app-results-component-title">{result.name == null ? (result.title == null ? "Untitled" : result.title) : result.name}</p>
-                                    <p className= "app-results-component-overview">{result.overview.slice(0, 450)}</p>
-                                    {result.overview.length > 450 ? <button className= "app-results-component-expand" onClick={() => {document.getElementById("app-results-component-overview-expanded" + result.id).style.visibility = "visible"; document.getElementById("app-results-component-overview-expanded" + result.id).style.zIndex = 6}}>EXPAND</button> : null}
+                                    <p className= "app-results-component-overview">{result.overview.slice(0, (PageLength == 4 ? 450 : 200))}</p>
+                                    {result.overview.length > (PageLength == 4 ? 450 : 200) ? <button className= "app-results-component-expand" onClick={() => {document.getElementById("app-results-component-overview-expanded" + result.id).style.visibility = "visible"; document.getElementById("app-results-component-overview-expanded" + result.id).style.zIndex = 6}}>EXPAND</button> : null}
                                 </div>  
                             </div>
                             <p className= "app-results-component-overview-expanded" id= {"app-results-component-overview-expanded" + result.id} onClick={() => {document.getElementById("app-results-component-overview-expanded" + result.id).style.visibility = "hidden"; document.getElementById("app-results-component-overview-expanded" + result.id).style.zIndex = -1}}>{result.overview}</p>

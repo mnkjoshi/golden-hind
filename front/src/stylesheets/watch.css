@@ -43,6 +43,7 @@ p {
     margin-right: 0%; /* Change to 22 when moving in, 0 if not */
     height: 94%;
     aspect-ratio: 16/10;
+    max-width: 90%;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -80,6 +81,7 @@ p {
     padding-right: 5px;
     height: 7.5%;
     aspect-ratio: 21.5/1;
+    max-width: 100%;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -606,4 +608,37 @@ p {
 .watch-results-component-icon {
     height: 100%;
     aspect-ratio: 1;
+}
+
+@media (max-width: 800px) {
+
+    .watch-episode-display-title {
+        font-size: 12px;
+    }
+
+    .watch-season-title {
+        font-size: 10px;
+
+    }
+
+    .watch-episode {
+        margin-right: 10px;
+    }
+
+    .watch-star-icon {
+        height: 10px;
+        aspect-ratio: 1;
+    }
+    
+    .watch-left {
+        flex: 0.5;
+    }
+
+    .watch-toggles1 {
+        flex: 0.4;
+    }
+
+    .watch-rating-info {
+        font-size: 15px;
+    }
 }

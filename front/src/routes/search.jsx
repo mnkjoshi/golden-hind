@@ -16,6 +16,10 @@ export default function Search() {
     const [page, changePage] = useState(0);
     const { state } = useLocation();
     const { searched } = state;
+    let PageLength = 8;
+    if (window.innerWidth < 800) {
+        PageLength = 2;
+    }
     
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
@@ -55,7 +59,7 @@ export default function Search() {
                 </p>
                 <div className= "search-options">
                     {page == 0 ? 
-                    <button className= "search-options-arrow" onClick={() => changePage(page - 1)}>
+                    <button className= "search-options-arrow">
                         {" "}
                     </button>
                     : 
@@ -66,7 +70,7 @@ export default function Search() {
                     <p className= "search-options-title">
                         Page {page + 1}
                     </p>
-                    {(page + 1) >= (results.length/8) ? 
+                    {(page + 1) >= (results.length/PageLength) ? 
                     <button className= "search-options-arrow">
                         {" "}
                     </button>
@@ -81,9 +85,9 @@ export default function Search() {
             <div className= "search-results">
                 {console.log("RESULTS:")}
                 {console.log(results)}
-                {console.log(results.slice((page * 8), (page * 8) + 8))}
+                {console.log(results.slice((page * PageLength), (page * PageLength) + PageLength))}
                 {(results === "" || results == null) ? <p className= "search-results-loading">Loading Results...</p> : 
-                    (results.slice((page * 8), (page * 8) + 8)).map( result =>
+                    (results.slice((page * PageLength), (page * PageLength) + PageLength)).map( result =>
                         <div className= "search-results-component"> 
                             <div className= "search-results-component-details">
                                 <img className= "search-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => {if (result.media_type == "movie") {navigate("/watch/m" + result.id)} else {navigate("/watch/t" + result.id)} }}/>

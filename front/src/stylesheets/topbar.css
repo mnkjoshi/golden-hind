@@ -130,3 +130,30 @@
 .topbar-dropdown-option:active {
     color: #3FA3FF;
 }
+
+@media (max-width: 768px) {
+
+    .topbar-search-input {
+        font-size: 15px;
+
+    }
+
+    .topbar-account-display {
+        font-size: 20px;
+    }
+
+    .topbar-dropdown-option {
+        font-size: 15px;
+    }
+
+    .topbar-account-button {
+        width: 25%;
+    }
+
+    .topbar-dropdown {
+        position: absolute;
+        width: 25%;
+        height: 15%;
+        margin-top: 40%;
+    }
+}
