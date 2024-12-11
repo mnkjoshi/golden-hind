@@ -63,11 +63,17 @@ export default function App() {
             } else {
                 video = `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
             }
-        } else {
+        } else if (provider == 2) {
             if (type == 'movie') {
                 video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}`
             } else {
                 video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}&season=${season}&episode=${episode}`
+            }
+        } else if(provider == 3) {
+            if (type == 'movie') {
+                video = `https://vidsrc.icu/embed/${type}/${vidID}`
+            } else {
+                video = `https://vidsrc.icu/embed/${type}/${vidID}/${season}/${episode}`
             }
         }
         
@@ -342,7 +348,7 @@ export default function App() {
                             {/* <div className= "watch-rating-underline"/> */}
                         </div>
                         <div className= "watch-toggles2">
-                            <button className = "watch-toggles-button watch-toggles-server" onClick={() => setProvider(-1 * provider)}>
+                            <button className = "watch-toggles-button watch-toggles-server" onClick={() => {if (provider == 3) {setProvider(1)} else {setProvider(provider + 1)}}}>
                                 <img className = "watch-toggles-button-icon watch-toggles-server-icon" src = {ServerIcon}/>
                             </button>
                             <button className = "watch-toggles-button watch-toggles-review" onClick={() => {
