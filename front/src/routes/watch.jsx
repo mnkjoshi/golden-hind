@@ -23,6 +23,8 @@ export default function App() {
     const [maxEp, setMaxEp] = useState(1);
     const [maxSe, setMaxSe] = useState(1);
 
+    const [provider, setProvider] = useState(1);
+
     const[bookmarked, setBookmark] = useState(-1);
     const[similarOn, setSimilar] = useState(-1);
 
@@ -55,11 +57,20 @@ export default function App() {
     }
 
     if (!(id == null)) {
-        if (type == 'movie') {
-            video = `https://vidlink.pro/${type}/${vidID}/?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
+        if (provider == 1) {
+            if (type == 'movie') {
+                video = `https://vidlink.pro/${type}/${vidID}/?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
+            } else {
+                video = `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
+            }
         } else {
-            video = `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
+            if (type == 'movie') {
+                video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}`
+            } else {
+                video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}&season=${season}&episode=${episode}`
+            }
         }
+        
     }
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
@@ -331,7 +342,7 @@ export default function App() {
                             {/* <div className= "watch-rating-underline"/> */}
                         </div>
                         <div className= "watch-toggles2">
-                            <button className = "watch-toggles-button watch-toggles-server" onClick={() => console.log("Test")}>
+                            <button className = "watch-toggles-button watch-toggles-server" onClick={() => setProvider(-1 * provider)}>
                                 <img className = "watch-toggles-button-icon watch-toggles-server-icon" src = {ServerIcon}/>
                             </button>
                             <button className = "watch-toggles-button watch-toggles-review" onClick={() => {
