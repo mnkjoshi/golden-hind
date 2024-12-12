@@ -85,7 +85,9 @@ export default function App() {
             navigate('/auth')
         }
 
-       
+        if (!(localStorage.getItem("provider" + vidID) == null)) {
+            setProvider(localStorage.getItem("provider" + vidID))
+        }
 
         if (type == "movie") {
             if (!(vidID == movID) && !(vidID == null) && !(vidID == "")) {
@@ -283,7 +285,7 @@ export default function App() {
         document.getElementById("watch-similar").style.right = "0.5%"
         document.getElementById("watch-holder").style.marginRight = "19.5%"
     }
-    
+
     return (
         <div className= "watch-main" id= "watch-main">
             {!(seriesData == null) ? (!(seriesData.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + seriesData.backdrop_path}/>  : null): null}
@@ -348,7 +350,7 @@ export default function App() {
                             {/* <div className= "watch-rating-underline"/> */}
                         </div>
                         <div className= "watch-toggles2">
-                            <button className = "watch-toggles-button watch-toggles-server" onClick={() => {if (provider == 3) {setProvider(1)} else {setProvider(provider + 1)}}}>
+                            <button className = "watch-toggles-button watch-toggles-server" onClick={() => {if (provider == 3) {setProvider(1); localStorage.setItem("provider" + vidID, 1)} else {setProvider(provider + 1); localStorage.setItem("provider" + vidID, provider + 1)}}}>
                                 <img className = "watch-toggles-button-icon watch-toggles-server-icon" src = {ServerIcon}/>
                             </button>
                             <button className = "watch-toggles-button watch-toggles-review" onClick={() => {
