@@ -3,7 +3,7 @@ import DropDown from "../assets/dropDown.png"
 import React, { useState } from 'react'
 let currRotation = 180;
 
-function DropTable(toggle, data) {
+function DropTable(toggle, data, currentStatus) {
     console.log(document.getElementById("topbar-main"))
     switch(toggle) {
         case 0: //drop it
@@ -25,11 +25,13 @@ function DropTable(toggle, data) {
             data(0);
             break;
         case 4:
-            if (localStorage.getItem("user")) {
-                localStorage.removeItem("user");
-                localStorage.removeItem("token");
-                data("/auth");
-                DropTable(1);
+            if (currentStatus == 1) {
+                if (localStorage.getItem("user")) {
+                    localStorage.removeItem("user");
+                    localStorage.removeItem("token");
+                    data("/auth");
+                    DropTable(1);
+                }
             }
     }
 }
@@ -68,7 +70,7 @@ export default function Topbar ({ Account }) {
                 <div className= "topbar-dropdown" id= "topbar-dropdown">
                     <button className= "topbar-dropdown-option" onClick={() => DropTable(2)}>Account</button>
                     <button className= "topbar-dropdown-option" onClick={() => DropTable(3)}>Activity</button>
-                    <button className= "topbar-dropdown-option" onClick={() => DropTable(4, navigate)}>Logout</button>
+                    <button className= "topbar-dropdown-option" onClick={() => DropTable(4, navigate, status)}>Logout</button>
                 </div>
                 <button className= "topbar-account-button" onClick= {() => DropTable(status, setStatus)}>
                     HOLDER
