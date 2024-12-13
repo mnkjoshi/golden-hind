@@ -355,7 +355,7 @@ export default function App() {
                             {/* <div className= "watch-rating-underline"/> */}
                         </div>
                         <div className= "watch-toggles2">
-                            <button className = "watch-toggles-button watch-toggles-server" onClick={() => {if (parseInt(provider) > 3) {setProvider(1); localStorage.setItem("provider" + vidID, parseInt(1))} else {console.log("setting provider" + parseInt(parseInt(provider) + 1)); setProvider(parseInt(provider) + 1); localStorage.setItem("provider" + vidID, parseInt(parseInt(provider) + parseInt(1)))}}}>
+                            <button className = "watch-toggles-button watch-toggles-server" onClick={() => {if (parseInt(provider) >= 3) {setProvider(1); localStorage.setItem("provider" + vidID, parseInt(1))} else {console.log("setting provider" + parseInt(parseInt(provider) + 1)); setProvider(parseInt(provider) + 1); localStorage.setItem("provider" + vidID, parseInt(parseInt(provider) + parseInt(1)))}}}>
                                 <img className = "watch-toggles-button-icon watch-toggles-server-icon" src = {ServerIcon}/>
                             </button>
                             <button className = "watch-toggles-button watch-toggles-review" onClick={() => {
