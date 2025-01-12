@@ -291,6 +291,24 @@ export default function App() {
         document.getElementById("watch-holder").style.marginRight = "19.5%"
     }
 
+    if (!(document.querySelectorAll("video")[0] == null)) {
+        document.querySelectorAll("video")[0].addEventListener("ended" , (event) => {
+            if (episode == maxEp) {
+                if (season == maxSe) {
+                    //It's the latest ep, do nothing.
+                } else {
+                    localStorage.setItem("season" + id, parseInt(season) + 1)
+                    localStorage.setItem("episode" + id, 1)
+                    setSeason(parseInt(season) + 1)
+                    setEpisode(1)
+                }
+            } else {
+                localStorage.setItem("episode" + id, parseInt(episode) + 1)
+                setEpisode(parseInt(episode) + 1)
+            }
+        })
+    }
+
     return (
         <div className= "watch-main" id= "watch-main">
             {!(seriesData == null) ? (!(seriesData.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + seriesData.backdrop_path}/>  : null): null}
@@ -358,19 +376,18 @@ export default function App() {
                             <button className = "watch-toggles-button watch-toggles-server" onClick={() => {if (parseInt(provider) >= 3) {setProvider(1); localStorage.setItem("provider" + vidID, parseInt(1))} else {console.log("setting provider" + parseInt(parseInt(provider) + 1)); setProvider(parseInt(provider) + 1); localStorage.setItem("provider" + vidID, parseInt(parseInt(provider) + parseInt(1)))}}}>
                                 <img className = "watch-toggles-button-icon watch-toggles-server-icon" src = {ServerIcon}/>
                             </button>
-                            <button className = "watch-toggles-button watch-toggles-review" onClick={() => {
+                            {window.innerWidth < 800 ? <button className = "watch-toggles-button watch-toggles-review" onClick={() => {
                                 setSimilar(-1 * similarOn)
                             }}>
                                 <img className = "watch-toggles-button-icon watch-toggles-similar-icon" src = {SimilarIcon}/>
-                            </button>
+                            </button> : null}
                         </div>
                     </div>
                 </div>
                 </div>
                 
             </div>
-            
-            <div className= "watch-similar" id= "watch-similar">
+            {window.innerWidth < 800 ? null : <div className= "watch-similar" id= "watch-similar">
                     {similarData == "" ? "" : 
                     (similarData.map( result =>
                         <div className= "watch-results-component"> 
@@ -402,7 +419,8 @@ export default function App() {
                             </div>
                         </div>
                     ))}
-                </div>
+                </div>}
+            
         </div>
     );
   }
