@@ -291,20 +291,28 @@ export default function App() {
         document.getElementById("watch-holder").style.marginRight = "19.5%"
     }
 
-    if (!(document.querySelectorAll("video")[0] == null)) {
-        document.querySelectorAll("video")[0].addEventListener("ended" , (event) => {
-            if (episode == maxEp) {
-                if (season == maxSe) {
-                    //It's the latest ep, do nothing.
+    if (type == "tv") {
+        document.getElementById("watch-player-file").addEventListener("message" , (event) => {
+            if (event.origin !== 'https://vidlink.pro') return;
+  
+            if (event.data?.type === 'PLAYER_EVENT') {
+              const { event: eventType, currentTime, duration } = event.data.data;
+              // Handle the event
+              if (eventType == "ended") {
+                if (episode == maxEp) {
+                    if (season == maxSe) {
+                        //It's the latest ep, do nothing.
+                    } else {
+                        localStorage.setItem("season" + id, parseInt(season) + 1)
+                        localStorage.setItem("episode" + id, 1)
+                        setSeason(parseInt(season) + 1)
+                        setEpisode(1)
+                    }
                 } else {
-                    localStorage.setItem("season" + id, parseInt(season) + 1)
-                    localStorage.setItem("episode" + id, 1)
-                    setSeason(parseInt(season) + 1)
-                    setEpisode(1)
+                    localStorage.setItem("episode" + id, parseInt(episode) + 1)
+                    setEpisode(parseInt(episode) + 1)
                 }
-            } else {
-                localStorage.setItem("episode" + id, parseInt(episode) + 1)
-                setEpisode(parseInt(episode) + 1)
+              }
             }
         })
     }
