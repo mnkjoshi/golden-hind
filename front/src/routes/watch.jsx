@@ -157,8 +157,15 @@ export default function App() {
                     setSeriesID(vidID)
                     const ToData = response.data
                     setSeriesData(ToData)
-                    setMaxSe(response.data.seasons.length)
-                    setMaxEp(response.data.seasons[season - 1].episode_count)
+            
+                    const currentSeason = ToData.seasons.find(s => s.season_number === season);
+                    if (currentSeason) {
+                        setMaxSe(ToData.seasons.length);
+                        setMaxEp(currentSeason.episode_count);
+                    } else {
+                        setMaxSe(response.data.seasons.length)
+                        setMaxEp(response.data.seasons[season - 1].episode_count)
+                    }
                 });
 
                 axios({
@@ -454,7 +461,7 @@ export function EpisodeDisplay(input) {
                 {season == maxSe ? <button className="watch-season-arrow">{" "}</button> : <button className="watch-season-arrow" onClick={() => {localStorage.setItem("season" + id, parseInt(season) + 1); localStorage.setItem("episode" + id, 1); setSeason(parseInt(season) + 1); setEpisode(1)}}>{">>"}</button>}
             </div>
         </div>
-        {episode == maxEp ? <button className="watch-episode-arrow" >{" "}</button> : <button className="watch-episode-arrow" onClick={() => {localStorage.setItem("episode" + id, parseInt(episode) + 1); setEpisode(parseInt(episode) + 1)}}>{">>"}</button>}
+        {episode == maxEp ? <button className="watch-episode-arrow" onClick={() => {localStorage.setItem("episode" + id, parseInt(episode) + 1); setEpisode(parseInt(episode) + 1)}}>{" >"}</button> : <button className="watch-episode-arrow" onClick={() => {localStorage.setItem("episode" + id, parseInt(episode) + 1); setEpisode(parseInt(episode) + 1)}}>{">>"}</button>}
     </div>
     );
   }
