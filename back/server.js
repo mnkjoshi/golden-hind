@@ -361,10 +361,10 @@ app.post('/progress_update', async (request, response) => {
         const snapshot = await db.ref(`users/${user}/progress/${progID}`).once('value');
         
         if (snapshot.exists()) {
-            await db.ref(`users/${user}/progress/${progID}`).update({ status: progStatus })
+            await db.ref(`users/${user}/progress/${progID}`).update({progStatus })
         } else {
             // add data
-            await db.ref(`users/${user}/progress/${progID}`).set({ status: progStatus })
+            await db.ref(`users/${user}/progress/${progID}`).set({progStatus })
         }
         response.status(200)
         response.send("Success")
