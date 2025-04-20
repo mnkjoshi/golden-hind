@@ -383,6 +383,7 @@ app.post('/progress_retrieve', async (request, response) => {
 
         if (snapshot.exists()) {
             let ReturnVal = snapshot.val()
+            console.log("RETURNING PROGRESS")
             console.log(ReturnVal)
             response.status(200)
             response.send({

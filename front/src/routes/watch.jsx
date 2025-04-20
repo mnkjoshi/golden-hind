@@ -205,7 +205,7 @@ export default function App() {
                                     localStorage.setItem("episode" + id, response.data.episode)
                                     localStorage.setItem("season" + id, response.data.season)
                                 }
-                                console.log(response.data)
+                                console.log(response.data);
                             });
                             setFirst(1)
                         }
