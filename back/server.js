@@ -380,10 +380,14 @@ app.post('/progress_retrieve', async (request, response) => {
 
     if (Authenticate(user, token)) {
         const snapshot = await db.ref(`users/${user}/progress/${progID}`).once('value');
-        
+
         if (snapshot.exists()) {
+            let ReturnVal = snapshot.val()
             response.status(200)
-            response.send(JSON.stringify(snapshot.val()))
+            response.send({
+                season: ReturnVal.split(";")[0],
+                episode: ReturnVal.split(";")[1]
+            })
         } else {
             response.status(404)
             response.send("VNF")

@@ -18,6 +18,8 @@ export default function App() {
     const [season, setSeason] = useState(1);
     const [episode, setEpisode] = useState(1);
 
+    const [first, setFirst] = useState(0);
+
     const [relData, reloadVideo] = useState(1);
 
     const [maxEp, setMaxEp] = useState(1);
@@ -185,6 +187,36 @@ export default function App() {
             if (season == 1 && episode == 1) {
                 if (localStorage.getItem("episode" + id)) {
                     if (!(localStorage.getItem("episode" + id) == episode)) {
+                        if (first == 0) {
+                            axios({
+                                method: 'post',
+                                url: 'https://golden-hind.onrender.com/progress_retrieve',
+                                data: {
+                                    user: user,
+                                    token: token,
+                                    progID: vidID
+                                }
+                            }).then((response) => {
+                                const ToData = response.data
+                                if (ToData !== "VNF") {
+                                    localStorage.setItem("episode" + id, response.data.episode)
+                                    localStorage.setItem("season" + id, response.data.season)
+                                }
+                            });
+                            setFirst(1)
+                        } else {
+                            axios({
+                                method: 'post',
+                                url: 'https://golden-hind.onrender.com/progress_update',
+                                data: {
+                                    user: user,
+                                    token: token,
+                                    progID: vidID,
+                                    progStatus: stringify(season).concat(";").concat(episode)
+                                }
+                            })
+                        }
+
                         setEpisode(localStorage.getItem("episode" + id))
                     }
                 } else {
@@ -205,7 +237,7 @@ export default function App() {
             setBookmark(1)
         }
 
-        if(localStorage.getItem("continues").indexOf(id) == -1) {
+        if(localStorage.getItem("continues").indexOf(id) == -1) { 
             let continues = localStorage.getItem("continues")
             continues = JSON.parse(continues)
 
