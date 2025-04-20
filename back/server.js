@@ -361,10 +361,10 @@ app.post('/progress_update', async (request, response) => {
         const snapshot = await db.ref(`users/${user}/progress/${progID}`).once('value');
         
         if (snapshot.exists()) {
-            await db.ref(`users/${user}/progress/${progID}`).update({progStatus })
+            await db.ref(`users/${user}/progress/${progID}`).update({status: progStatus })
         } else {
             // add data
-            await db.ref(`users/${user}/progress/${progID}`).set({progStatus })
+            await db.ref(`users/${user}/progress/${progID}`).set({status: progStatus })
         }
         response.status(200)
         response.send("Success")
@@ -384,11 +384,11 @@ app.post('/progress_retrieve', async (request, response) => {
         if (snapshot.exists()) {
             let ReturnVal = snapshot.val()
             console.log("RETURNING PROGRESS")
-            console.log(ReturnVal)
+            console.log(ReturnVal.status)
             response.status(200)
             response.send({
-                season: ReturnVal.split(";")[0],
-                episode: ReturnVal.split(";")[1]
+                season: ReturnVal.status.split(";")[0],
+                episode: ReturnVal.status.split(";")[1]
             })
         } else {
             response.status(404)
