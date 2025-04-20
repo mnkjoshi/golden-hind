@@ -184,17 +184,20 @@ export default function App() {
                 });
             }
 
+
+
             if (season == 1 && episode == 1) {
                 if (localStorage.getItem("episode" + id)) {
                     if (!(localStorage.getItem("episode" + id) == episode)) {
                         if (first == 0) {
+                            console.log("Retrieving data")
                             axios({
                                 method: 'post',
                                 url: 'https://golden-hind.onrender.com/progress_retrieve',
                                 data: {
                                     user: user,
                                     token: token,
-                                    progID: vidID
+                                    progID: id
                                 }
                             }).then((response) => {
                                 const ToData = response.data
@@ -202,19 +205,9 @@ export default function App() {
                                     localStorage.setItem("episode" + id, response.data.episode)
                                     localStorage.setItem("season" + id, response.data.season)
                                 }
+                                console.log(response.data)
                             });
                             setFirst(1)
-                        } else {
-                            axios({
-                                method: 'post',
-                                url: 'https://golden-hind.onrender.com/progress_update',
-                                data: {
-                                    user: user,
-                                    token: token,
-                                    progID: vidID,
-                                    progStatus: stringify(season).concat(";").concat(episode)
-                                }
-                            })
                         }
 
                         setEpisode(localStorage.getItem("episode" + id))
@@ -229,6 +222,20 @@ export default function App() {
                     }
                 } else {
                     localStorage.setItem("season" + id, season)
+                }
+            } else {
+                if (first == 1) {
+                    console.log("Setting data")
+                    axios({
+                        method: 'post',
+                        url: 'https://golden-hind.onrender.com/progress_update',
+                        data: {
+                            user: user,
+                            token: token,
+                            progID: id,
+                            progStatus: String(season).concat(";").concat(episode)
+                        }
+                    })
                 }
             }
         }
