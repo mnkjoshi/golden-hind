@@ -353,6 +353,49 @@ app.post('/uncontinue', async (request, response) => {
 })
 
 
+app.post('/progress_update', async (request, response) => {
+    const {user, token, progID, progStatus} = request.body
+    const db = admin.database();
+
+    if (Authenticate(user, token)) {
+        const snapshot = await db.ref(`users/${user}/progress/${progID}`).once('value');
+        
+        if (snapshot.exists()) {
+            await db.ref(`users/${user}/progress/${progID}`).update({ status: progStatus })
+        } else {
+            // add data
+            await db.ref(`users/${user}/progress/${progID}`).set({ status: progStatus })
+        }
+        response.status(200)
+        response.send("Success")
+    } else {
+        response.status(202)
+        response.send("UNV")
+    }
+})
+
+app.post('/progress_retrieve', async (request, response) => {
+    const {user, token, progID} = request.body
+    const db = admin.database();
+
+    if (Authenticate(user, token)) {
+        const snapshot = await db.ref(`users/${user}/progress/${progID}`).once('value');
+        
+        if (snapshot.exists()) {
+            response.status(200)
+            response.send(JSON.stringify(snapshot.val()))
+        } else {
+            response.status(404)
+            response.send("VNF")
+        }
+        
+    } else {
+        response.status(202)
+        response.send("UNV")
+    }
+})
+
+
 
 //process.env.PORT
 const listener = app.listen(3000, (error) => {
