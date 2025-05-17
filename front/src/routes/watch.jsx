@@ -125,7 +125,7 @@ export default function App() {
                     }
                 }).then((response) => {
                     setSimilarData(response.data)
-                    console.log(response.data)
+                    
                 });
             }
         } else if (type == "tv") {
@@ -145,8 +145,6 @@ export default function App() {
                     const ToData = response.data
                     setVotes(response.data.vote_average)
                     setData(ToData)             
-                    let result = response.data
-                    result.name == null ? (result.title == null ? document.title = "The Golden Hind" : document.title = result.title) : document.title = result.name  
                 });
             }
 
@@ -163,7 +161,8 @@ export default function App() {
                     setSeriesID(vidID)
                     const ToData = response.data
                     setSeriesData(ToData)
-            
+                    let result = response.data
+                    result.name == null ? (result.title == null ? document.title = "The Golden Hind" : document.title = result.title) : document.title = result.name  
                     const currentSeason = ToData.seasons.find(s => s.season_number === season);
                     if (currentSeason) {
                         setMaxSe(ToData.seasons.length);
@@ -184,7 +183,6 @@ export default function App() {
                     }
                 }).then((response) => {
                     setSimilarData(response.data)
-                    console.log(response.data)
                 });
             }
 

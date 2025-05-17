@@ -24,6 +24,7 @@ export default function App() {
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
     useEffect(() => {
+        document.title = "The Golden Hind"
         if (user == null) {
             navigate('/auth')
         } else {

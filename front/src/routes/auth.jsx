@@ -20,6 +20,7 @@ export default function Auth() {
         if (!(user == null) && !notifyingLogin) {
             navigate('/app')
         }
+        document.title = "The Golden Hind"
     })
 
     
