@@ -111,6 +111,8 @@ export default function App() {
                     const ToData = response.data
                     setVotes(response.data.vote_average)
                     setData(ToData)
+                    let result = response.data
+                    result.name == null ? (result.title == null ? document.title = "The Golden Hind" : document.title = result.title) : document.title = result.name
                 });
 
                 axios({
@@ -142,7 +144,9 @@ export default function App() {
                     setEpisodeID(vidID + episode + season)
                     const ToData = response.data
                     setVotes(response.data.vote_average)
-                    setData(ToData)               
+                    setData(ToData)             
+                    let result = response.data
+                    result.name == null ? (result.title == null ? document.title = "The Golden Hind" : document.title = result.title) : document.title = result.name  
                 });
             }
 
@@ -374,7 +378,6 @@ export default function App() {
 
     return (
         <div className= "watch-main" id= "watch-main">
-            {result.name == null ? (result.title == null ? document.title = "The Golden Hind" : document.title = result.title) : document.title = result.name}
             {!(seriesData == null) ? (!(seriesData.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + seriesData.backdrop_path}/>  : null): null}
             {!(data == null) ? (!(data.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + data.backdrop_path}/>  : null): null}
             <Topbar/>
