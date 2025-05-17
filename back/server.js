@@ -383,8 +383,6 @@ app.post('/progress_retrieve', async (request, response) => {
 
         if (snapshot.exists()) {
             let ReturnVal = snapshot.val()
-            console.log("RETURNING PROGRESS")
-            console.log(ReturnVal.status)
             response.status(200)
             response.send({
                 season: ReturnVal.status.split(";")[0],

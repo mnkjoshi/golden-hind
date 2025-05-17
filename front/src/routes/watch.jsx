@@ -184,35 +184,50 @@ export default function App() {
                 });
             }
 
+            if (first == 0) {
+                console.log("Retrieving data")
+                axios({
+                    method: 'post',
+                    url: 'https://golden-hind.onrender.com/progress_retrieve',
+                    data: {
+                        user: user,
+                        token: token,
+                        progID: id
+                    }
+                }).then((response) => {
+                    const ToData = response.data
+                    if (ToData !== "VNF") {
+                        localStorage.setItem("episode" + id, response.data.episode)
+                        localStorage.setItem("season" + id, response.data.season)
+                    }
+                    setEpisode(response.data.episode)
+                    setSeason(response.data.season)
+                });
+                setFirst(1)
+            } else {
+                axios({
+                    method: 'post',
+                    url: 'https://golden-hind.onrender.com/progress_update',
+                    data: {
+                        user: user,
+                        token: token,
+                        progID: id,
+                        progStatus: String(season).concat(";").concat(episode)
+                    }
+                })
+            }
 
+            
 
             if (season == 1 && episode == 1) {
                 if (localStorage.getItem("episode" + id)) {
                     if (!(localStorage.getItem("episode" + id) == episode)) {
-                        if (first == 0) {
-                            console.log("Retrieving data")
-                            axios({
-                                method: 'post',
-                                url: 'https://golden-hind.onrender.com/progress_retrieve',
-                                data: {
-                                    user: user,
-                                    token: token,
-                                    progID: id
-                                }
-                            }).then((response) => {
-                                const ToData = response.data
-                                if (ToData !== "VNF") {
-                                    localStorage.setItem("episode" + id, response.data.episode)
-                                    localStorage.setItem("season" + id, response.data.season)
-                                }
-                                console.log(response.data);
-                            });
-                            setFirst(1)
-                        }
+                        
 
                         setEpisode(localStorage.getItem("episode" + id))
                     }
                 } else {
+                    
                     localStorage.setItem("episode" + id, episode)
                 }
     
@@ -222,20 +237,6 @@ export default function App() {
                     }
                 } else {
                     localStorage.setItem("season" + id, season)
-                }
-            } else {
-                if (first == 1) {
-                    console.log("Setting data")
-                    axios({
-                        method: 'post',
-                        url: 'https://golden-hind.onrender.com/progress_update',
-                        data: {
-                            user: user,
-                            token: token,
-                            progID: id,
-                            progStatus: String(season).concat(";").concat(episode)
-                        }
-                    })
                 }
             }
         }
@@ -373,13 +374,14 @@ export default function App() {
 
     return (
         <div className= "watch-main" id= "watch-main">
+            {result.name == null ? (result.title == null ? document.title = "The Golden Hind" : document.title = result.title) : document.title = result.name}
             {!(seriesData == null) ? (!(seriesData.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + seriesData.backdrop_path}/>  : null): null}
             {!(data == null) ? (!(data.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + data.backdrop_path}/>  : null): null}
             <Topbar/>
             <div className= "watch-holder" id= "watch-holder">
                 <div className= "watch-system">
                 <div className= "watch-player">
-                    <iframe className= "watch-player-file" id="watch-player-file" src= {video} frameBorder="0" allowFullScreen="yes" allow="autoplay"></iframe>
+                    <iframe referrerpolicy="origin" className= "watch-player-file" id="watch-player-file" src= {video} frameBorder="0" allowFullScreen="yes" allow="autoplay"></iframe>
                 </div>
                 <div className= "watch-options">
                     <div className= "watch-left">
@@ -457,6 +459,7 @@ export default function App() {
                                 <img className= "watch-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => {setSimilar(-1 * similarOn); if (type == "movie") {navigate("/watch/m" + result.id)} else {navigate("/watch/t" + result.id)} }}/>
                                 <div className= "watch-results-component-info">
                                     <p className= "watch-results-component-title">{result.name == null ? (result.title == null ? "Untitled" : result.title) : result.name}</p>
+                                    
                                     <p className= "watch-results-component-overview">{result.overview.slice(0, 200)}</p>
                                     {result.overview.length > 200 ? <button className= "watch-results-component-expand" onClick={() => {document.getElementById("watch-results-component-overview-expanded" + result.id).style.visibility = "visible"; document.getElementById("watch-results-component-overview-expanded" + result.id).style.zIndex = 6}}>EXPAND</button> : null}
                                 </div>  
