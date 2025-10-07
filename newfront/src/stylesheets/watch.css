@@ -1,0 +1,778 @@
+* {
+    z-index: 1;
+}
+body,
+html {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  /* Adjust the color to match the exact background of your image */
+  overflow-x: hidden;
+}
+
+/* Applied when watch page is active */
+body.watch-page,
+html.watch-page {
+  overflow-y: hidden;
+}
+
+.html {
+    transition: 1s;
+    mix-blend-mode: difference;
+}
+
+p { 
+    margin: 0;
+}
+
+#root {
+    width: 100%;
+    height: 100%;
+}
+
+.watch-main {
+    width: 100%;
+    height: 100%;
+    background-color: #1E1E1E;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: start;
+}
+
+
+
+.watch-holder {
+    transition: 0.5s;
+    margin-right: 0%; /* Change to 22 when moving in, 0 if not */
+    height: 90%;
+    aspect-ratio: 16/10;
+    max-width: 90%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: top;
+}
+
+.watch-system {
+    margin-top: 1%;
+    display: flex;
+    height: 87%;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: start;
+}
+
+.watch-player {
+    height: 90%;
+    width: 100%;
+    border-radius: 5px 5px 0px 0px;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.watch-player-file {
+    width: 100%;
+    height: 100%;
+    border-radius: 5px 5px 0px 0px;
+    box-shadow: 0px 0px 8px 0px #000000;
+    overflow: hidden;
+}
+
+.watch-options {
+    padding-top: 2px;
+    padding-right: 5px;
+    height: 7%;
+    width: 100%;
+    
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    box-shadow: 0px 0px 8px 0px #000000;
+    border-radius: 0px 0px 5px 5px;
+    background: rgba(0, 0, 0, 0.462);
+}
+
+.watch-left {
+    flex: 0.8;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    align-items: start;
+}
+
+.watch-episode {
+    height: 100%;
+    flex: 0.4;
+    margin-left: 5px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-right: 40px;
+    align-items: center;
+}
+
+.watch-episode-arrow {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-family: Viga;
+    font-size: 20px;
+    z-index: 10;
+}
+
+.watch-episode-display {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex:0.6;
+}
+
+.watch-episode-display-title {
+    color: white;
+    font-family: Viga;
+    text-align: center;
+    align-self: center;
+    font-size: 17px;
+    width: 200%;
+}
+
+.watch-movie {
+    height: 100%;
+    flex: 0.4;
+    margin-left: 5px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-right: 40px;
+    align-items: center;
+    
+}
+
+.watch-movie-title {
+    color: white;
+    font-family: Viga;
+    text-align: center;
+    font-size: 25px;
+    flex: 1;
+}
+
+.watch-season-display {
+    justify-content: center;
+    text-align: center;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex: 1;
+}
+
+.watch-season-arrow {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-family: Viga;
+    font-size: 14px;
+    flex: 0.1;
+    z-index: 10;
+}
+
+.watch-season-title {
+    background: none;
+    border: none;
+    color: white;
+    font-family: Viga;
+    font-size: 12px;
+    flex: 1;
+}
+
+.watch-toggles1 {
+    height: 100%;
+    flex: 0.5;
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    align-items: center;
+}
+
+.watch-rating {
+    height: 60%;
+    width:50%;
+    margin-left: 5px;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: start;
+    margin-right: 3px;
+}
+
+/* .watch-rating-underline {
+    background-color: white;
+    width: 95%;
+    height: 10%;
+    margin-top: 5px;
+} */
+
+.watch-rating-info {
+    margin-left: 5px;
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    font-size: 25px;
+    font-family: Viga;
+    color: white;
+    height: 100%;
+}
+
+.watch-rating-stars {
+    height: 100%;
+    padding: 0;
+    margin-left: 10px;
+}
+
+.watch-star-icon {
+    height: 20px;
+    aspect-ratio: 1;
+}
+
+.watch-star-half {
+    -webkit-mask-image: -webkit-gradient(linear, left center, right center, from(rgba(0,0,0,1)), to(rgba(0,0,0,0)));
+}
+
+.watch-star-empty {
+    opacity: 0;
+}
+
+.watch-toggles2 {
+    height: 100%;
+    flex: 0.1;
+    display: flex;
+    flex-direction: row;
+    justify-content: end;
+    align-items: center;
+    margin-right: 5px;
+}
+
+.watch-right {
+    flex: 0.4;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: end;
+    align-items: center;
+}
+
+.watch-toggles-button {
+    height: 60%;
+    aspect-ratio: 1;
+    margin-left: 2px;
+    margin-right: 2px;
+    background: none;
+    border: solid;
+    border-color: white;
+    border-radius: 5px;
+    border-width: 3px;
+    padding: 0;
+    background-color: #1E1E1E;
+    transition: 0.3s;
+    cursor: pointer;
+    box-shadow: 0px 0px 8px 0px #000000;
+    align-items: center;
+}
+
+.watch-toggles-button-selected {
+    height: 60%;
+    aspect-ratio: 1;
+    margin-left: 2px;
+    margin-right: 2px;
+    background: none;
+    border: solid;
+    border-color: black ;
+    border-radius: 5px;
+    border-width: 3px;
+    padding: 0;
+    background-color: #1E1E1E;
+    transition: 0.3s;
+    cursor: pointer;
+    filter: invert(100%);
+    box-shadow: 0px 0px 8px 0px #000000;
+}
+
+.watch-toggles-button-selected:hover {
+    filter: invert(0%);
+    border-color: white;
+}
+
+
+.watch-toggles-button:hover {
+    filter: invert(100%);
+    border-color: black;
+}
+
+.watch-toggles-button-icon {
+    height: 70%;
+    aspect-ratio: 1;
+    align-self: center;
+    padding-top: 15%;
+}
+
+.watch-toggles-similar-icon {
+    height: 100%;
+    aspect-ratio: 1;
+    align-self: center;
+    padding-top: 0%;
+}
+
+.watch-list {
+    overflow-x: auto;
+    height: 70%;
+    width: 20%;
+    background-color: #1E1E1E;
+    transition: 0.3s;
+    border: solid;
+    border-color: white;
+    border-radius: 5px;
+    border-width: 2px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-evenly;
+    align-items: center;
+    padding-left: 2px;
+    padding-right: 2px;
+    box-shadow: 0px 0px 8px 0px #000000;
+}
+
+.watch-list::-webkit-scrollbar {
+    display: none;
+}
+
+.watch-list-episode {
+    background-color: #050505;
+    color: white;
+    border: solid white 2px;
+    height: 90%;
+    padding-top: 1px;
+    padding-bottom: 1px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    font-weight: 800;
+    font-size: 8px;
+    text-overflow: none;
+    border-radius: 50%;
+    aspect-ratio: 1;
+    cursor: pointer;
+    transition: 0.3s;
+    box-shadow: 0px 0px 8px 0px #000000;
+}
+
+.watch-list-episode:hover {
+    filter: invert(100%);
+}
+
+.watch-backdrop {
+    z-index: 0;
+    position: absolute;
+    width: 100%;
+    left: 0;
+    top: 0%;
+    -webkit-mask-image: -webkit-gradient(linear, left top, left bottom, from(rgba(0,0,0,0)), color-stop(0.4, rgba(0,0,0,1)), to(rgba(0,0,0,0)));
+    filter: blur(4px);
+}
+
+.watch-similar {
+    transition: 0.5s;
+    height: 91%; 
+    width: 19%;
+    background-color: #000000;
+    border-radius: 5px;
+    top: 6.2%;
+    position: absolute;
+    right: -22%; /* Change to 1 when moving in, -22 if not */
+    background: rgba(0, 0, 0, 0.462);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 0.5%;
+    padding-bottom: 0.5%;
+}
+
+.watch-results-component {
+    height: 23%;
+    width: 94%;
+    display: flex;
+    flex-direction: column;
+    justify-content: start;
+    align-items: center;
+    background-color:hsl(0, 0%, 8%);
+    padding: 3px 3px 3px 3px;
+    border-radius: 5px;
+    z-index: 1;
+    position: relative;
+    box-shadow: 0px 0px 8px 0px #000000;
+
+}
+
+.watch-results-component-details {
+    height: 70%;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+}
+
+.watch-results-component-info {
+    width: 98%;
+    margin-left: 1%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.watch-results-component-title {
+    color: white;
+    width: 100%;
+    font-size: 18px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    text-align: center;
+    align-self: center;
+    font-weight: bold;
+}
+
+.watch-results-component-overview {
+    color: white;
+    height: 80%;
+    word-wrap: break-word;
+    width: 100%;
+    font-size: 11px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    text-align: center;
+    align-self: center;
+}
+
+.watch-results-component-expand {
+    position: absolute;
+    z-index: 5;
+    width: 40%;
+    left: 30%;
+    top: 80%;
+    height: 20%;
+    background: #151515;
+    color: white;
+    font-family: Viga;
+    font-size: 10px;
+    border: solid;
+    border-width: 2px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.watch-results-component-expand:hover {
+    border: #151515;
+    filter: invert(100%);
+}
+
+
+.watch-results-component-overview-expanded {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    background-color: #151515;
+    color: white;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    z-index: -1;
+    visibility: hidden;
+    border-radius: 5px;
+    font-size: 10px;
+    cursor: pointer;
+    padding-inline: 5px 5px 5px 5px;
+}
+
+.watch-results-component-poster {
+    height: 100%;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.watch-results-component-options {
+    width: 100%;
+    height: 29%;
+    border-radius: 5px;
+    background-color: #1E1E1E;
+    margin-top: 0.5%;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: start;
+    align-items: center;
+}
+
+.watch-results-component-options-top {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    width: 96%;
+    height: 65%;
+    gap: 5%;
+    margin-left: 2%;
+    margin-right: 2%;
+}
+
+.watch-results-component-data {
+    color: white;
+    font-family: Viga;
+    font-size: 18px;
+    background-color: #ffffff22;
+
+    flex: 0.15;
+
+    padding-top: 2px;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-bottom: 2px;
+    border-radius: 2px;
+    text-align: center;
+}
+
+.watch-results-component-date {
+    flex: 0.6;
+    font-size: 10px;
+}
+
+.watch-results-component-country {
+    height: 65%;
+    border-radius: 5px;
+    
+}
+
+.watch-results-component-rating {
+    font-size: 10px;
+}
+
+.watch-results-component-language {
+    font-size: 10px;
+}
+
+.watch-results-component-movie {
+    background-color: #4897fe;
+    font-size: 10px;
+}
+
+.watch-results-component-tv {
+    background-color: #670097;
+    font-size: 10px;
+}
+
+.watch-results-component-options-bottom {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: top;
+    width: 96%;
+    height: 30%;
+    margin-left: 2%;
+    margin-right: 2%;
+    margin-bottom: 4%;
+}
+
+.watch-results-component-button {
+    height: 100%;
+    padding: 0px;
+    border-radius: 5px;
+    transition: 0.3s;
+    cursor: pointer;
+}
+
+.watch-results-component-button-selected {
+    background-color: #151515;
+    border: solid 2px #151515;
+    filter: invert(100%);
+}
+
+.watch-results-component-button-deselected {
+    background-color: #151515;
+    border: solid 2px white;
+}
+
+.watch-results-component-button-deselected:hover {
+    filter: invert(100%);
+}
+
+.watch-results-component-button-selected:hover {
+    border: solid 2px white;
+    filter: invert(0%);
+}
+
+.watch-results-component-icon {
+    height: 100%;
+    aspect-ratio: 1;
+}
+
+@media (max-width: 800px) {
+    /* Main watch layout improvements */
+    .watch-main {
+        padding: 0.5rem;
+        gap: 1rem;
+    }
+    
+    .watch-video-container {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16/9;
+        margin-bottom: 1rem;
+    }
+    
+    .watch-video {
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 250px;
+    }
+    
+    .watch-content {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .watch-left {
+        flex: 1;
+        width: 100%;
+        order: 1;
+    }
+    
+    .watch-right {
+        width: 100%;
+        order: 2;
+    }
+    
+    .watch-toggles1 {
+        flex-direction: column;
+        gap: 0.5rem;
+        width: 100%;
+    }
+    
+    .watch-title {
+        font-size: 1.2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .watch-overview {
+        font-size: 0.9rem;
+        line-height: 1.4;
+        margin-bottom: 1rem;
+    }
+    
+    .watch-meta {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .watch-episode-display-title {
+        font-size: 0.9rem;
+    }
+    
+    .watch-season-title {
+        font-size: 0.8rem;
+    }
+    
+    .watch-episode {
+        margin-right: 8px;
+        padding: 0.3rem 0.6rem;
+        font-size: 0.8rem;
+    }
+    
+    .watch-star-icon {
+        height: 12px;
+        width: 12px;
+    }
+    
+    .watch-rating-info {
+        font-size: 0.9rem;
+    }
+    
+    .watch-providers {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .watch-provider {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+@media (max-width: 600px) {
+    .watch-main {
+        padding: 0.25rem;
+    }
+    
+    .watch-video {
+        min-height: 200px;
+    }
+    
+    .watch-title {
+        font-size: 1rem;
+    }
+    
+    .watch-overview {
+        font-size: 0.8rem;
+    }
+    
+    .watch-meta {
+        font-size: 0.7rem;
+    }
+    
+    .watch-episode-display-title {
+        font-size: 0.8rem;
+    }
+    
+    .watch-season-title {
+        font-size: 0.7rem;
+    }
+    
+    .watch-episode {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    .watch-star-icon {
+        height: 10px;
+        width: 10px;
+    }
+    
+    .watch-provider {
+        width: 35px;
+        height: 35px;
+    }
+}
+
+@media (max-width: 480px) {
+    .watch-video {
+        min-height: 180px;
+    }
+    
+    .watch-title {
+        font-size: 0.9rem;
+    }
+    
+    .watch-overview {
+        font-size: 0.75rem;
+        line-height: 1.3;
+    }
+    
+    .watch-toggles1 {
+        gap: 0.25rem;
+    }
+    
+    .watch-episode {
+        margin-right: 5px;
+        font-size: 0.65rem;
+    }
+}
