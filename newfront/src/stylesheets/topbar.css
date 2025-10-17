@@ -5,16 +5,16 @@
     left: 0;
     width: 100%;
     height: 70px;
-    background: linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0) 100%);
-    backdrop-filter: blur(10px);
+    background: transparent !important;
+    backdrop-filter: none !important;
     transition: all 0.3s ease;
     z-index: 1000;
     border-bottom: 1px solid transparent;
 }
 
 .modern-topbar.scrolled {
-    background: rgba(20, 20, 20, 0.95);
-    backdrop-filter: blur(20px);
+    background: rgba(20, 20, 20, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }

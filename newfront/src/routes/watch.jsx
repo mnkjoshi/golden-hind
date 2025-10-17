@@ -9,6 +9,7 @@ import ReloadIcon from "../assets/reload.png"
 import StarIcon from "../assets/star.png"
 import SimilarIcon from "../assets/GoldenHind.png"
 import ServerIcon from "../assets/server.png"
+import AutonextIcon from "../assets/autonext.png"
 
 let video = "null"
 
@@ -24,6 +25,9 @@ export default function App() {
 
     const [maxEp, setMaxEp] = useState(1);
     const [maxSe, setMaxSe] = useState(1);
+
+    const [autoNext, setAutoNext] = useState(0);
+    const [autoPlay, setAutoPlay] = useState(0);
 
     const [provider, setProvider] = useState(1);
 
@@ -76,13 +80,13 @@ export default function App() {
             if (type == 'movie') {
                 video = `https://vidlink.pro/${type}/${vidID}/?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
             } else {
-                video = `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
+                video = `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=${autoPlay == 1 ? "true" : "false"}&poster=true${autoPlay == 1 ? "&startAt=0" : ""}`
             }
         } else if (provider == 2) {
             if (type == 'movie') {
                 video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}`
             } else {
-                video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}&season=${season}&episode=${episode}`
+                video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}&season=${season}&episode=${episode}&autoplay=${autoPlay}`
             }
         } else if(provider == 3) {
             if (type == 'movie') {
@@ -95,7 +99,15 @@ export default function App() {
     }
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
+    let autoNextState = localStorage.getItem("autoNext")
+    
+
     useEffect(() => {
+        if (autoNextState == null) {
+            localStorage.setItem("autoNext", "0")
+        } else {
+            setAutoNext(parseInt(autoNextState))
+        }
 
         if (user == null) {
             navigate('/auth')
@@ -289,6 +301,29 @@ export default function App() {
         };
     }(window.open);
 
+    window.addEventListener('message', (event) => {
+        if (event.data?.data.event === 'ended') {
+            if (autoNext == 1) {
+                if (episode == maxEp) {
+                    if (season == maxSe) {
+
+                    } else {
+                        localStorage.setItem("episode" + id, 1); 
+                        localStorage.setItem("season" + id, parseInt(season) + 1);
+                        setEpisode(1);
+                        setSeason(parseInt(season) + 1);
+                        setAutoPlay(1); 
+                    }
+                } else {
+                    localStorage.setItem("episode" + id, parseInt(episode) + 1); 
+                    
+                    setEpisode(parseInt(episode) + 1);
+                    setAutoPlay(1);
+                }
+            }
+        }
+    });
+
     const blockPopups = () => {
         const originalOpen = window.open;
         window.open = () => null; // Block all popup attempts
@@ -433,6 +468,16 @@ export default function App() {
                             <button className = "watch-toggles-button watch-toggles-reload" onClick={() => {reloadVideo(relData + 1); console.log(relData); window.location.reload()}}>
                                 <img className = "watch-toggles-button-icon watch-toggles-reload-icon" src = {ReloadIcon}/>
                             </button>
+
+                           {autoNext == 1 ?
+                            <button className = "watch-toggles-button-selected watch-toggles-next" onClick={() => {setAutoNext(0); localStorage.setItem("autoNext", "0")}}>
+                                <img className = "watch-toggles-button-icon watch-toggles-next-icon" src = {AutonextIcon}/>
+                            </button>
+                            :
+                             <button className = "watch-toggles-button watch-toggles-next" onClick={() => {setAutoNext(1); localStorage.setItem("autoNext", "1")}}>
+                                <img className = "watch-toggles-button-icon watch-toggles-next-icon" src = {AutonextIcon}/>
+                            </button>
+                            }
                         </div>
                     </div>
                     <div className= "watch-right">

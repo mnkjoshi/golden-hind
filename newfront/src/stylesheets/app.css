@@ -46,7 +46,7 @@ p {
     flex-direction: column;
     color: white;
     overflow-y: visible;
-    padding-top: 70px; /* Account for fixed topbar */
+    /* Remove padding-top so hero can extend to top */
 }
 
 /* Loading Indicator */
@@ -85,8 +85,8 @@ p {
 /* Hero Section */
 .hero-section {
     position: relative;
-    height: 70vh;
-    min-height: 500px;
+    height: 100vh;
+    min-height: 600px;
     width: 100%;
     overflow: hidden;
     margin-bottom: 2rem;

@@ -9,6 +9,7 @@ import ReloadIcon from "../assets/reload.png"
 import StarIcon from "../assets/star.png"
 import SimilarIcon from "../assets/GoldenHind.png"
 import ServerIcon from "../assets/server.png"
+import AutonextIcon from "../assets/autonext.png"
 
 let video = "null"
 
