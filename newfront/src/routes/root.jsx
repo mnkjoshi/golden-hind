@@ -37,25 +37,6 @@ export default function Root() {
 
     return (
         <div className={`landing-main ${showContent ? 'show' : ''} ${isAnimating ? 'exit' : ''}`}>
-            {/* Animated Background Elements */}
-            <div className="landing-ocean">
-                <div className="wave wave1"></div>
-                <div className="wave wave2"></div>
-                <div className="wave wave3"></div>
-            </div>
-            
-            <div className="landing-particles">
-                {[...Array(20)].map((_, i) => (
-                    <div key={i} className={`particle particle-${i + 1}`}></div>
-                ))}
-            </div>
-            
-            <div className="landing-fog">
-                <div className="fog fog1"></div>
-                <div className="fog fog2"></div>
-                <div className="fog fog3"></div>
-            </div>
-
             {/* Main Content */}
             <div className="landing-content">
                 <div className="landing-welcome-container">
@@ -89,11 +70,6 @@ export default function Root() {
                     </button>
                 </div>
             </div>
-            
-            {/* Atmospheric Effects */}
-            <div className="treasure-glow treasure-glow-1"></div>
-            <div className="treasure-glow treasure-glow-2"></div>
-            <div className="treasure-glow treasure-glow-3"></div>
         </div>
     );
   }
