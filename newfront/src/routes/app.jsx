@@ -51,7 +51,7 @@ export default function App() {
                 // Call mini endpoint first for fast initial load (last 10 items)
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/home-mini',
+                    url: 'https://golden-hind.duckdns.org/home-mini',
                     data: { user: user, token: token }
                 }).then((response) => {
                     console.log("mini data loaded")
@@ -71,7 +71,7 @@ export default function App() {
                 // Load trending data in parallel
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/home-trending',
+                    url: 'https://golden-hind.duckdns.org/home-trending',
                     data: { user: user, token: token }
                 }).then((response) => {
                     console.log("trending loaded")
@@ -83,7 +83,7 @@ export default function App() {
                 // Load full favourites data in background
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/home-favourites',
+                    url: 'https://golden-hind.duckdns.org/home-favourites',
                     data: { user: user, token: token }
                 }).then((response) => {
                     console.log("full favourites loaded")
@@ -96,7 +96,7 @@ export default function App() {
                 // Load full continues data in background
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/home-continues',
+                    url: 'https://golden-hind.duckdns.org/home-continues',
                     data: { user: user, token: token }
                 }).then((response) => {
                     console.log("full continues loaded")
