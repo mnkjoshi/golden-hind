@@ -32,7 +32,13 @@ export default function App() {
     const [trendingData, setTrendingData] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
     const [heroIndex, setHeroIndex] = useState(0)
+    const [isHeroAutoplaying, setIsHeroAutoplaying] = useState(true)
+    const [heroIntervalId, setHeroIntervalId] = useState(null)
+    const [isTransitioning, setIsTransitioning] = useState(false)
     const [tooltip, setTooltip] = useState({ visible: false, data: null, x: 0, y: 0 })
+    const [showUpdateToast, setShowUpdateToast] = useState(false)
+    const [isToastDismissed, setIsToastDismissed] = useState(false)
+    const [latestCommitMessage, setLatestCommitMessage] = useState('')
 
 
 
@@ -109,15 +115,70 @@ export default function App() {
         }
     }, [])
 
-    // Auto-rotate hero slider
+    // Fetch latest commit and check if user has seen it
     useEffect(() => {
-        if (trendingData && trendingData.results && trendingData.results.length > 0) {
+        if (!isLoading) {
+            fetch('https://api.github.com/repos/mnkjoshi/golden-hind/commits/main')
+                .then(response => response.json())
+                .then(data => {
+                    const commitMessage = data.commit.message
+                    const lastSeenCommit = localStorage.getItem('lastSeenCommit')
+                    
+                    setLatestCommitMessage(commitMessage)
+                    
+                    if (lastSeenCommit !== commitMessage) {
+                        setTimeout(() => {
+                            setShowUpdateToast(true)
+                        }, 1000)
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to fetch commit:', error)
+                })
+        }
+    }, [isLoading])
+
+    // Auto-rotate hero slider with pause/resume functionality
+    useEffect(() => {
+        if (trendingData && trendingData.results && trendingData.results.length > 0 && isHeroAutoplaying && !isTransitioning) {
             const interval = setInterval(() => {
-                setHeroIndex(prev => (prev + 1) % Math.min(5, trendingData.results.length))
+                setIsTransitioning(true)
+                setTimeout(() => {
+                    setHeroIndex(prev => (prev + 1) % Math.min(5, trendingData.results.length))
+                    setIsTransitioning(false)
+                }, 500)
             }, 5000)
+            setHeroIntervalId(interval)
             return () => clearInterval(interval)
         }
-    }, [trendingData])
+    }, [trendingData, isHeroAutoplaying, isTransitioning])
+
+    // Handle manual hero navigation with pause and resume
+    const handleHeroNavigation = (newIndex) => {
+        if (isTransitioning) return
+        
+        setIsTransitioning(true)
+        setIsHeroAutoplaying(false)
+        
+        setTimeout(() => {
+            setHeroIndex(newIndex)
+            setIsTransitioning(false)
+        }, 500)
+        
+        // Resume autoplay after 5 seconds
+        setTimeout(() => {
+            setIsHeroAutoplaying(true)
+        }, 5500)
+    }
+
+    const dismissToast = () => {
+        setIsToastDismissed(true)
+        setTimeout(() => {
+            setShowUpdateToast(false)
+            localStorage.setItem('lastSeenCommit', latestCommitMessage)
+        }, 300)
+    }
+
 
     // Add drag-to-scroll functionality
     useEffect(() => {
@@ -241,6 +302,19 @@ export default function App() {
         <div className="app-main" id="app-main">
             <Topbar/>
             
+            {/* Update Notification Toast */}
+            {showUpdateToast && latestCommitMessage && (
+                <div className={`update-toast ${isToastDismissed ? 'dismissed' : ''}`}>
+                    <div className="toast-header">
+                        <h3 className="toast-title">Update</h3>
+                        <button className="toast-close" onClick={dismissToast}>×</button>
+                    </div>
+                    <div className="toast-body">
+                        <p className="toast-message">{latestCommitMessage}</p>
+                    </div>
+                </div>
+            )}
+            
             {/* Loading Indicator */}
             {isLoading && (
                 <div className="loading-container">
@@ -255,7 +329,7 @@ export default function App() {
                     {/* Hero Section */}
                     {trendingData && trendingData.results && trendingData.results.length > 0 && (
                 <div className="hero-section">
-                    <div className="hero-backdrop">
+                    <div className={`hero-backdrop ${isTransitioning ? 'transitioning-out' : ''}`} key={heroIndex}>
                         <img 
                             className="hero-image" 
                             src={`https://image.tmdb.org/t/p/w1280/${trendingData.results[heroIndex].backdrop_path}`}
@@ -266,7 +340,21 @@ export default function App() {
                         <div className="hero-gradient"></div>
                     </div>
                     
-                    <div className="hero-content">
+                    {/* Navigation Arrows */}
+                    <button 
+                        className="hero-arrow hero-arrow-left"
+                        onClick={() => handleHeroNavigation((heroIndex - 1 + Math.min(5, trendingData.results.length)) % Math.min(5, trendingData.results.length))}
+                    >
+                        ‹
+                    </button>
+                    <button 
+                        className="hero-arrow hero-arrow-right"
+                        onClick={() => handleHeroNavigation((heroIndex + 1) % Math.min(5, trendingData.results.length))}
+                    >
+                        ›
+                    </button>
+                    
+                    <div className={`hero-content ${isTransitioning ? 'transitioning-out' : ''}`} key={`content-${heroIndex}`}>
                         <div className="hero-info">
                             <h1 className="hero-title">
                                 {trendingData.results[heroIndex].name || trendingData.results[heroIndex].title || "Untitled"}
@@ -301,9 +389,6 @@ export default function App() {
                                 >
                                     ▶ Play
                                 </button>
-                                <button className="hero-info-btn">
-                                    ℹ More Info
-                                </button>
                             </div>
                         </div>
                         
@@ -312,7 +397,7 @@ export default function App() {
                                 <div 
                                     key={index}
                                     className={`hero-indicator ${index === heroIndex ? 'active' : ''}`}
-                                    onClick={() => setHeroIndex(index)}
+                                    onClick={() => handleHeroNavigation(index)}
                                 ></div>
                             ))}
                         </div>

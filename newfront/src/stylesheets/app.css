@@ -99,6 +99,51 @@ p {
     width: 100%;
     height: 100%;
     z-index: 0;
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+.hero-backdrop.transitioning-out {
+    animation: fadeOut 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(30px);
+    }
 }
 
 .hero-image {
@@ -128,6 +173,7 @@ p {
     position: absolute;
     bottom: 0;
     left: 0;
+    animation: slideUp 0.5s ease-out;
     right: 0;
     z-index: 1;
     width: 100%;
@@ -135,6 +181,10 @@ p {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
+}
+
+.hero-content.transitioning-out {
+    animation: slideDown 0.5s ease-out;
 }
 
 .hero-info {
@@ -234,6 +284,38 @@ p {
 
 .hero-indicator:hover {
     background: #6db8ff;
+}
+
+/* Hero Navigation Arrows */
+.hero-arrow {
+    position: absolute;
+    top: 35%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 3rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 10;
+    font-weight: 300;
+    line-height: 1;
+    padding: 0;
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.hero-arrow:hover {
+    color: #3FA3FF;
+    transform: translateY(-50%) scale(1.2);
+    text-shadow: 2px 2px 12px rgba(63, 163, 255, 0.6);
+}
+
+.hero-arrow-left {
+    left: 2rem;
+}
+
+.hero-arrow-right {
+    right: 2rem;
 }
 
 /* Content Sections */
@@ -1063,6 +1145,18 @@ p {
         height: 6px;
     }
     
+    .hero-arrow {
+        font-size: 2rem;
+    }
+    
+    .hero-arrow-left {
+        left: 1rem;
+    }
+    
+    .hero-arrow-right {
+        right: 1rem;
+    }
+    
     .content-sections {
         padding: 0 1rem;
         gap: 1.5rem;
@@ -1193,5 +1287,120 @@ p {
     .content-card {
         scroll-snap-align: start;
         flex-shrink: 0;
+    }
+}
+
+/* Update Toast Notification */
+.update-toast {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: rgba(26, 26, 46, 0.85);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(63, 163, 255, 0.3);
+    border-radius: 8px;
+    padding: 0;
+    width: 280px;
+    max-width: calc(100vw - 40px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    animation: slideInRight 0.4s ease-out;
+    overflow: hidden;
+}
+
+.update-toast.dismissed {
+    animation: slideOutRight 0.3s ease-in forwards;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+}
+
+.toast-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: rgba(63, 163, 255, 0.08);
+    border-bottom: 1px solid rgba(63, 163, 255, 0.2);
+}
+
+.toast-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #3FA3FF;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s ease;
+}
+
+.toast-close:hover {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.toast-body {
+    padding: 12px;
+}
+
+.toast-message {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+@media screen and (max-width: 768px) {
+    .update-toast {
+        top: 70px;
+        right: 10px;
+        width: calc(100vw - 20px);
+    }
+    
+    .toast-header {
+        padding: 8px 10px;
+    }
+    
+    .toast-title {
+        font-size: 12px;
+    }
+    
+    .toast-body {
+        padding: 10px;
+    }
+    
+    .toast-message {
+        font-size: 11px;
     }
 }
