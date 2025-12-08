@@ -48,7 +48,7 @@ app.get('/', (request, response) => {
 });
 
 app.post('/login', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { username, password } = request.body
@@ -78,7 +78,7 @@ app.post('/login', async (request, response) => {
 });
 
 app.post('/register', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { username, password, email } = request.body
@@ -114,7 +114,7 @@ app.post('/register', async (request, response) => {
 });
 
 app.post('/verify', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { token } = request.body
@@ -135,7 +135,7 @@ app.post('/verify', async (request, response) => {
 });
 
 app.post('/search', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { query } = request.body;
@@ -147,7 +147,7 @@ app.post('/search', async (request, response) => {
 
 // Mini endpoint - returns last 10 items quickly for initial page load
 app.post('/home-mini', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token } = request.body
@@ -187,7 +187,7 @@ app.post('/home-mini', async (request, response) => {
 
 // Full favourites endpoint
 app.post('/home-favourites', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token } = request.body
@@ -218,7 +218,7 @@ app.post('/home-favourites', async (request, response) => {
 
 // Full continues endpoint
 app.post('/home-continues', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token } = request.body
@@ -249,7 +249,7 @@ app.post('/home-continues', async (request, response) => {
 
 // Trending endpoint
 app.post('/home-trending', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token } = request.body
@@ -308,7 +308,7 @@ async function GetInfo(ID) {
 }
 
 app.post('/similar', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, ID} = request.body
@@ -336,7 +336,7 @@ app.post('/similar', async (request, response) => {
 });
 
 app.post('/eretrieve', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, series, season, episode } = request.body
@@ -362,7 +362,7 @@ app.post('/eretrieve', async (request, response) => {
 });
 
 app.post('/mretrieve', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, movie } = request.body
@@ -388,7 +388,7 @@ app.post('/mretrieve', async (request, response) => {
 });
 
 app.post('/sretrieve', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, series } = request.body
@@ -414,7 +414,7 @@ app.post('/sretrieve', async (request, response) => {
 });
 
 app.post('/favourite', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const {user, token, favId} = request.body
@@ -438,7 +438,7 @@ app.post('/favourite', async (request, response) => {
 })
 
 app.post('/unfavourite', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const {user, token, favId} = request.body
@@ -463,7 +463,7 @@ app.post('/unfavourite', async (request, response) => {
 })
 
 app.post('/continue', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const {user, token, favId} = request.body
@@ -487,7 +487,7 @@ app.post('/continue', async (request, response) => {
 })
 
 app.post('/uncontinue', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const {user, token, favId} = request.body
@@ -513,7 +513,7 @@ app.post('/uncontinue', async (request, response) => {
 
 
 app.post('/progress_update', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const {user, token, progID, progStatus} = request.body
@@ -537,7 +537,7 @@ app.post('/progress_update', async (request, response) => {
 })
 
 app.post('/progress_retrieve', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "https://the-golden-hind.web.app");
+
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const {user, token, progID} = request.body
