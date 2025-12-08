@@ -41,7 +41,7 @@ export default function Search() {
             setLoading(true);
             axios({
                 method: 'post',
-                url: 'https://golden-hind.onrender.com/search',
+                url: 'https://golden-hind.duckdns.org/search',
                 data: { query: searched }
             }).then((response) => {
                 setCurrentSearch(searched);

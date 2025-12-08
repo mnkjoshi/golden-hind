@@ -41,7 +41,7 @@ export default function Auth() {
 function Verify(Token, navigate) {
   axios({
     method: 'post',
-    url: 'https://golden-hind.onrender.com/verify',
+    url: 'https://golden-hind.duckdns.org/verify',
     data: {
       token: Token,
     }
@@ -79,7 +79,7 @@ function Attempt(Which, Username, Password, Email, navigate) {
     }
     axios({
       method: 'post',
-      url: 'https://golden-hind.onrender.com/login',
+      url: 'https://golden-hind.duckdns.org/login',
       data: {
         username: Username,
         password: Password
@@ -116,7 +116,7 @@ function Attempt(Which, Username, Password, Email, navigate) {
       }
       axios({
         method: 'post',
-        url: 'https://golden-hind.onrender.com/register',
+        url: 'https://golden-hind.duckdns.org/register',
         data: {
           username: Username,
           password: Password,

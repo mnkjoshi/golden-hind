@@ -126,7 +126,7 @@ export default function App() {
             if (!(vidID == movID) && !(vidID == null) && !(vidID == "")) {
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/mretrieve',
+                    url: 'https://golden-hind.duckdns.org/mretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -143,7 +143,7 @@ export default function App() {
 
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/similar',
+                    url: 'https://golden-hind.duckdns.org/similar',
                     data: {
                         user: user,
                         token: token,
@@ -158,7 +158,7 @@ export default function App() {
             if (!((vidID + episode + season) == episodeID) && !(vidID == null) && !(vidID == "")) {
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/eretrieve',
+                    url: 'https://golden-hind.duckdns.org/eretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -177,7 +177,7 @@ export default function App() {
             if (!(vidID == seriesID)  && !(vidID == null) && !(vidID == "")){
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/sretrieve',
+                    url: 'https://golden-hind.duckdns.org/sretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -201,7 +201,7 @@ export default function App() {
 
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/similar',
+                    url: 'https://golden-hind.duckdns.org/similar',
                     data: {
                         user: user,
                         token: token,
@@ -216,7 +216,7 @@ export default function App() {
                 console.log("Retrieving data")
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/progress_retrieve',
+                    url: 'https://golden-hind.duckdns.org/progress_retrieve',
                     data: {
                         user: user,
                         token: token,
@@ -235,7 +235,7 @@ export default function App() {
             } else {
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/progress_update',
+                    url: 'https://golden-hind.duckdns.org/progress_update',
                     data: {
                         user: user,
                         token: token,
@@ -283,7 +283,7 @@ export default function App() {
 
             axios({
                 method: 'post',
-                url: 'https://golden-hind.onrender.com/continue',
+                url: 'https://golden-hind.duckdns.org/continue',
                 data: {
                     user: user,
                     token: token,
@@ -355,7 +355,7 @@ export default function App() {
 
             axios({
                 method: 'post',
-                url: 'https://golden-hind.onrender.com/favourite',
+                url: 'https://golden-hind.duckdns.org/favourite',
                 data: {
                     user: user,
                     token: token,
@@ -370,7 +370,7 @@ export default function App() {
 
             axios({
                 method: 'post',
-                url: 'https://golden-hind.onrender.com/unfavourite',
+                url: 'https://golden-hind.duckdns.org/unfavourite',
                 data: {
                     user: user,
                     token: token,
