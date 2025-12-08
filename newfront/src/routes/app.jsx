@@ -47,30 +47,63 @@ export default function App() {
             if (bookmarkData === null && continueData === null && trendingData === null) {
                 setIsLoading(true)
                 console.log("loading")
-                console.log(user)
-                console.log(token)
+                
+                // Call mini endpoint first for fast initial load (last 10 items)
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/home',
-                    data: {
-                        user: user,
-                        token: token,
-                    }
+                    url: 'https://golden-hind.onrender.com/home-mini',
+                    data: { user: user, token: token }
                 }).then((response) => {
-                    console.log("done loading")
+                    console.log("mini data loaded")
                     localStorage.setItem("bookmarks", response.data.favourites)
                     localStorage.setItem("continues", response.data.continues)
-                    // Filter out null values from arrays
+                    
                     const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
                     const validContinues = (response.data.continuesData || []).filter(item => item && item.id)
-                    bookmarkData(validBookmarks.reverse())
-                    setContinueData(validContinues.reverse())
-                    setTrendingData(response.data.trendingData)
-                    console.log("turning it off")
+                    setBookmarkData(validBookmarks)
+                    setContinueData(validContinues)
                     setIsLoading(false)
                 }).catch((error) => {
-                    console.error('Failed to load data:', error)
+                    console.error('Failed to load mini data:', error)
                     setIsLoading(false)
+                });
+
+                // Load trending data in parallel
+                axios({
+                    method: 'post',
+                    url: 'https://golden-hind.onrender.com/home-trending',
+                    data: { user: user, token: token }
+                }).then((response) => {
+                    console.log("trending loaded")
+                    setTrendingData(response.data.trendingData)
+                }).catch((error) => {
+                    console.error('Failed to load trending:', error)
+                });
+
+                // Load full favourites data in background
+                axios({
+                    method: 'post',
+                    url: 'https://golden-hind.onrender.com/home-favourites',
+                    data: { user: user, token: token }
+                }).then((response) => {
+                    console.log("full favourites loaded")
+                    const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
+                    setBookmarkData(validBookmarks.reverse())
+                }).catch((error) => {
+                    console.error('Failed to load full favourites:', error)
+                });
+
+                // Load full continues data in background
+                axios({
+                    method: 'post',
+                    url: 'https://golden-hind.onrender.com/home-continues',
+                    data: { user: user, token: token }
+                }).then((response) => {
+                    console.log("full continues loaded")
+                    const validContinues = (response.data.continuesData || []).filter(item => item && item.id)
+                    setContinueData(validContinues.reverse())
+                }).catch((error) => {
+                    console.error('Failed to load full continues:', error)
                 });
             }
         }
