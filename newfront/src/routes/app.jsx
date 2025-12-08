@@ -52,15 +52,12 @@ export default function App() {
         } else {
             if (bookmarkData === null && continueData === null && trendingData === null) {
                 setIsLoading(true)
-                console.log("loading")
-                
                 // Call mini endpoint first for fast initial load (last 10 items)
                 axios({
                     method: 'post',
                     url: 'https://golden-hind.duckdns.org/home-mini',
                     data: { user: user, token: token }
                 }).then((response) => {
-                    console.log("mini data loaded")
                     localStorage.setItem("bookmarks", response.data.favourites)
                     localStorage.setItem("continues", response.data.continues)
                     
@@ -80,7 +77,6 @@ export default function App() {
                     url: 'https://golden-hind.duckdns.org/home-trending',
                     data: { user: user, token: token }
                 }).then((response) => {
-                    console.log("trending loaded")
                     setTrendingData(response.data.trendingData)
                 }).catch((error) => {
                     console.error('Failed to load trending:', error)
@@ -92,7 +88,6 @@ export default function App() {
                     url: 'https://golden-hind.duckdns.org/home-favourites',
                     data: { user: user, token: token }
                 }).then((response) => {
-                    console.log("full favourites loaded")
                     const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
                     setBookmarkData(validBookmarks.reverse())
                 }).catch((error) => {
@@ -105,7 +100,6 @@ export default function App() {
                     url: 'https://golden-hind.duckdns.org/home-continues',
                     data: { user: user, token: token }
                 }).then((response) => {
-                    console.log("full continues loaded")
                     const validContinues = (response.data.continuesData || []).filter(item => item && item.id)
                     setContinueData(validContinues.reverse())
                 }).catch((error) => {
