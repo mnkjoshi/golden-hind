@@ -63,7 +63,7 @@ export default function App() {
                     // Filter out null values from arrays
                     const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
                     const validContinues = (response.data.continuesData || []).filter(item => item && item.id)
-                    setBookmarkData(validBookmarks.reverse())
+                    bookmarkData(validBookmarks.reverse())
                     setContinueData(validContinues.reverse())
                     setTrendingData(response.data.trendingData)
                     console.log("turning it off")
