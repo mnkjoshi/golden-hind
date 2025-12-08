@@ -186,9 +186,28 @@ async function GetInfo(ID) {
             method: 'get',
             url: Link,
         });
-        return apiResponse.data
+        
+        // Return only essential fields to reduce payload size
+        const data = apiResponse.data;
+        return {
+            id: data.id,
+            name: data.name || data.title,
+            title: data.title || data.name,
+            poster_path: data.poster_path,
+            backdrop_path: data.backdrop_path,
+            vote_average: data.vote_average,
+            number_of_episodes: data.number_of_episodes,
+            media_type: ID.slice(0, 1) == "t" ? "tv" : "movie",
+            release_date: data.release_date,
+            first_air_date: data.first_air_date,
+            original_language: data.original_language,
+            overview: data.overview,
+            genre_ids: data.genres ? data.genres.map(g => g.id) : data.genre_ids || [],
+            popularity: data.popularity
+        };
     } catch(error) {
         console.log(error)
+        return null;
     }
 }
 

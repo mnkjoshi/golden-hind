@@ -46,6 +46,9 @@ export default function App() {
         } else {
             if (bookmarkData === null && continueData === null && trendingData === null) {
                 setIsLoading(true)
+                console.log("loading")
+                console.log(user)
+                console.log(token)
                 axios({
                     method: 'post',
                     url: 'https://golden-hind.onrender.com/home',
@@ -54,6 +57,7 @@ export default function App() {
                         token: token,
                     }
                 }).then((response) => {
+                    console.log("done loading")
                     localStorage.setItem("bookmarks", response.data.favourites)
                     localStorage.setItem("continues", response.data.continues)
                     // Filter out null values from arrays
@@ -62,6 +66,7 @@ export default function App() {
                     setBookmarkData(validBookmarks.reverse())
                     setContinueData(validContinues.reverse())
                     setTrendingData(response.data.trendingData)
+                    console.log("turning it off")
                     setIsLoading(false)
                 }).catch((error) => {
                     console.error('Failed to load data:', error)
