@@ -202,7 +202,7 @@ async function GetInfo(ID) {
             first_air_date: data.first_air_date,
             original_language: data.original_language,
             overview: data.overview,
-            genre_ids: data.genres ? data.genresponse.map(g => g.id) : data.genre_ids || [],
+            genre_ids: data.genres ? data.genres.map(g => g.id) : data.genre_ids || [],
             popularity: data.popularity
         };
     } catch(error) {
