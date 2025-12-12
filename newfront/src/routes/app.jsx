@@ -51,6 +51,7 @@ export default function App() {
             navigate('/auth')
         } else {
             if (bookmarkData === null && continueData === null && trendingData === null) {
+                console.log("Start mini load")
                 setIsLoading(true)
                 // Call mini endpoint first for fast initial load (last 10 items)
                 axios({
@@ -60,16 +61,43 @@ export default function App() {
                 }).then((response) => {
                     localStorage.setItem("bookmarks", response.data.favourites)
                     localStorage.setItem("continues", response.data.continues)
-                    
+                    console.log("End mini load")
                     const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
                     const validContinues = (response.data.continuesData || []).filter(item => item && item.id)
                     setBookmarkData(validBookmarks)
                     setContinueData(validContinues)
                     setIsLoading(false)
-                }).catch((error) => {
-                    console.error('Failed to load mini data:', error)
-                    setIsLoading(false)
-                });
+
+                    // Load full favourites data in background
+                    axios({
+                        method: 'post',
+                        url: 'https://golden-hind.duckdns.org/home-favourites',
+                        data: { user: user, token: token }
+                    }).then((response) => {
+                        const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
+                        console.log(validBookmarks)
+                        setBookmarkData(validBookmarks.reverse())
+                        console.log(validBookmarks)
+                    }).catch((error) => {
+                        console.error('Failed to load full favourites:', error)
+                    });
+
+                    // Load full continues data in background
+                    axios({
+                        method: 'post',
+                        url: 'https://golden-hind.duckdns.org/home-continues',
+                        data: { user: user, token: token }
+                    }).then((response) => {
+                        const validContinues = (response.data.continuesData || []).filter(item => item && item.id)
+                        setContinueData(validContinues.reverse())
+                    }).catch((error) => {
+                        console.error('Failed to load full continues:', error)
+                    });
+                        
+                    }).catch((error) => {
+                        console.error('Failed to load mini data:', error)
+                        setIsLoading(false)
+                    });
 
                 // Load trending data in parallel
                 axios({
@@ -82,29 +110,7 @@ export default function App() {
                     console.error('Failed to load trending:', error)
                 });
 
-                // Load full favourites data in background
-                axios({
-                    method: 'post',
-                    url: 'https://golden-hind.duckdns.org/home-favourites',
-                    data: { user: user, token: token }
-                }).then((response) => {
-                    const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
-                    setBookmarkData(validBookmarks.reverse())
-                }).catch((error) => {
-                    console.error('Failed to load full favourites:', error)
-                });
-
-                // Load full continues data in background
-                axios({
-                    method: 'post',
-                    url: 'https://golden-hind.duckdns.org/home-continues',
-                    data: { user: user, token: token }
-                }).then((response) => {
-                    const validContinues = (response.data.continuesData || []).filter(item => item && item.id)
-                    setContinueData(validContinues.reverse())
-                }).catch((error) => {
-                    console.error('Failed to load full continues:', error)
-                });
+                
             }
         }
     }, [])
