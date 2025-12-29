@@ -475,9 +475,10 @@ app.post('/continue', async (request, response) => {
             db.ref(`users/${user}`).set({ continues: JSON.stringify([favId])})
         } else {
             let continues = JSON.parse(snapshot.val())
-           if (continues.includes(favId) ){
+           if (continues.includes(favId)){
                 continues.splice(continues.indexOf(favId), 1)
                 continues.push(favId)
+                db.ref(`users/${user}`).update({ continues: JSON.stringify(continues)})
            } else {
                 continues.push(favId)
                 db.ref(`users/${user}`).update({ continues: JSON.stringify(continues)})

@@ -291,6 +291,7 @@ export default function App() {
                 }
             });
         } else {
+            console.log("already in continues")
             axios({
                 method: 'post',
                 url: 'https://golden-hind.duckdns.org/continue',
