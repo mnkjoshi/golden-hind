@@ -43,6 +43,7 @@
     display: flex;
     align-items: center;
     transition: all 0.3s ease;
+    position: relative;
 }
 
 .logo-text {
@@ -62,6 +63,48 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
     transform: scale(1.05);
+}
+
+/* Santa Hat */
+.santa-hat {
+    position: absolute;
+    top: -12px;
+    left: -5px;
+    width: 0;
+    height: 0;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-bottom: 18px solid #c41e3a;
+    transform: rotate(-15deg);
+ 
+    transition: opacity 0.3s ease;
+}
+
+.santa-hat::before {
+    content: '';
+    position: absolute;
+    top: 18px;
+    left: -12px;
+    width: 24px;
+    height: 5px;
+    background: white;
+    border-radius: 5px;
+}
+
+.santa-hat::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -5px;
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+}
+
+@keyframes santaHatSway {
+    0%, 100% { transform: rotate(-20deg); }
+    50% { transform: rotate(-10deg); }
 }
 
 /* Navigation Links */

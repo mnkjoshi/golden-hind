@@ -39,11 +39,30 @@ export default function App() {
     const [showUpdateToast, setShowUpdateToast] = useState(false)
     const [isToastDismissed, setIsToastDismissed] = useState(false)
     const [latestCommitMessage, setLatestCommitMessage] = useState('')
+    const [showChristmas, setShowChristmas] = useState(true)
 
 
 
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
+
+    // Hide Christmas effects after 30 seconds with fade out
+    useEffect(() => {
+        const fadeTimer = setTimeout(() => {
+            // Add fade-out class to trigger CSS transition
+            const snowflakes = document.querySelector('.snowflakes');
+            if (snowflakes) snowflakes.classList.add('fade-out');
+        }, 30000);
+        
+        const removeTimer = setTimeout(() => {
+            setShowChristmas(false);
+        }, 32000); // 30s + 2s fade duration
+        
+        return () => {
+            clearTimeout(fadeTimer);
+            clearTimeout(removeTimer);
+        };
+    }, []);
 
     useEffect(() => {
         document.title = "The Golden Hind"
@@ -114,6 +133,15 @@ export default function App() {
             }
         }
     }, [])
+
+    // Hide Christmas effects after 30 seconds
+    useEffect(() => {
+        const christmasTimer = setTimeout(() => {
+            setShowChristmas(false);
+        }, 30000);
+        
+        return () => clearTimeout(christmasTimer);
+    }, []);
 
     // Fetch latest commit and check if user has seen it
     useEffect(() => {
@@ -299,8 +327,17 @@ export default function App() {
     }
 
     return (
-        <div className="app-main" id="app-main">
+        <div className={`app-main ${showChristmas ? 'christmas-active' : ''}`} id="app-main">
             <Topbar/>
+            
+            {/* Christmas Snowflakes */}
+            {showChristmas && (
+                <div className="snowflakes" id="snowflake" aria-hidden="true">
+                    {[...Array(50)].map((_, i) => (
+                        <div key={i} className={`snowflake snowflake-${(i % 28) + 1}`}>❅</div>
+                    ))}
+                </div>
+            )}
             
             {/* Update Notification Toast */}
             {showUpdateToast && latestCommitMessage && (

@@ -290,6 +290,16 @@ export default function App() {
                     favId: id,
                 }
             });
+        } else {
+            axios({
+                method: 'post',
+                url: 'https://golden-hind.duckdns.org/continue',
+                data: {
+                    user: user,
+                    token: token,
+                    favId: id,
+                }
+            });
         }
 
     })

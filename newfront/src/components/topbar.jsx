@@ -5,11 +5,20 @@ export default function Topbar ({ Account }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');
     const [isScrolled, setIsScrolled] = useState(false);
+    const [showChristmas, setShowChristmas] = useState(true);
     const navigate = useNavigate();
     const location = useLocation();
     const dropdownRef = useRef(null);
 
     // Handle scroll effect
+    useEffect(() => {
+        const christmasTimer = setTimeout(() => {
+            setShowChristmas(false);
+        }, 30000);
+        
+        return () => clearTimeout(christmasTimer);
+    }, []);
+
     useEffect(() => {
         const handleScroll = () => {
             setIsScrolled(window.scrollY > 0);
@@ -55,6 +64,7 @@ export default function Topbar ({ Account }) {
                 <div className="topbar-left">
                     <button className="topbar-logo" onClick={() => navigate("/app")}>
                         <span className="logo-text">Golden Hind</span>
+                        <div className={`santa-hat ${!showChristmas ? 'hidden' : ''}`}></div>
                     </button>
                 </div>
 
