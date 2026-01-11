@@ -39,7 +39,7 @@ export default function App() {
     const [showUpdateToast, setShowUpdateToast] = useState(false)
     const [isToastDismissed, setIsToastDismissed] = useState(false)
     const [latestCommitMessage, setLatestCommitMessage] = useState('')
-    const [showChristmas, setShowChristmas] = useState(true)
+    const [showChristmas, setShowChristmas] = useState(false)
 
 
 

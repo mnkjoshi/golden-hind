@@ -335,20 +335,6 @@ export default function App() {
         }
     });
 
-    const blockPopups = () => {
-        const originalOpen = window.open;
-        window.open = () => null; // Block all popup attempts
-    
-        // Ensure original open is restored after the iframe interaction
-        setTimeout(() => {
-            window.open = originalOpen;
-        }, 10000); // Adjust based on interaction timing
-    };
-    
-    useEffect(() => {
-        blockPopups();
-    }, []);
-
     const arrayRange = (start, stop, step) =>
         Array.from(
         { length: (stop - start) / step + 1 },
@@ -442,7 +428,15 @@ export default function App() {
             <div className= "watch-holder" id= "watch-holder">
                 <div className= "watch-system">
                 <div className= "watch-player">
-                    <iframe referrerpolicy="origin" className= "watch-player-file" id="watch-player-file" src= {video} frameBorder="0" allowFullScreen="yes" allow="autoplay"></iframe>
+                    <iframe 
+                        referrerpolicy="origin" 
+                        className="watch-player-file" 
+                        id="watch-player-file" 
+                        src={video} 
+                        frameBorder="0" 
+                        allowFullScreen="yes" 
+                        allow="autoplay"
+                    ></iframe>
                 </div>
                 <div className= "watch-options">
                     <div className= "watch-left">

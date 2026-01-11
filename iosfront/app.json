@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Golden Hind",
+    "slug": "golden-hind",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0e27"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.goldenhind.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0e27"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.goldenhind.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "59e8aa57-0ac2-408b-950c-ca730343d23b"
+      }
+    }
+  }
+}
