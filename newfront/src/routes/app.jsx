@@ -75,7 +75,7 @@ export default function App() {
                 // Call mini endpoint first for fast initial load (last 10 items)
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.duckdns.org/home-mini',
+                    url: 'https://goldenhind.tech/home-mini',
                     data: { user: user, token: token }
                 }).then((response) => {
                     localStorage.setItem("bookmarks", response.data.favourites)
@@ -90,7 +90,7 @@ export default function App() {
                     // Load full favourites data in background
                     axios({
                         method: 'post',
-                        url: 'https://golden-hind.duckdns.org/home-favourites',
+                        url: 'https://goldenhind.tech/home-favourites',
                         data: { user: user, token: token }
                     }).then((response) => {
                         const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
@@ -104,7 +104,7 @@ export default function App() {
                     // Load full continues data in background
                     axios({
                         method: 'post',
-                        url: 'https://golden-hind.duckdns.org/home-continues',
+                        url: 'https://goldenhind.tech/home-continues',
                         data: { user: user, token: token }
                     }).then((response) => {
                         const validContinues = (response.data.continuesData || []).filter(item => item && item.id)
@@ -121,7 +121,7 @@ export default function App() {
                 // Load trending data in parallel
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.duckdns.org/home-trending',
+                    url: 'https://goldenhind.tech/home-trending',
                     data: { user: user, token: token }
                 }).then((response) => {
                     setTrendingData(response.data.trendingData)
