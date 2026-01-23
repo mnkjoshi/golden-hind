@@ -55,7 +55,7 @@ app.get('/booktest', async (request, response) => {
     console.log("Fetching libgen mirror...")
     
     const options = {
-        mirror: 'http://gen.lib.rus.ec',
+        mirror: 'https://libgen.la',
         query: 'cats',
         count: 5,
         sort_by: 'def',
