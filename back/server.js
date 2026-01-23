@@ -6,6 +6,7 @@ import cors from 'cors'
 import admin from "firebase-admin";
 import Search from "./endpoints/search.js"
 import axios from 'axios';
+import { use } from 'react';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -153,37 +154,32 @@ app.post('/home-mini', async (request, response) => {
     const { user, token } = request.body
     const db = admin.database();
     console.time("auth")
-    const snapshot = await db.ref(`users/${user}/token`).once('value');
-    if (snapshot.exists()) {
-        if (snapshot.val() == token) {
-            console.timeEnd("auth")
-            console.time("fetch")
-            const favourites = await db.ref(`users/${user}/favourites`).once('value');
-            const continues = await db.ref(`users/${user}/continues`).once('value');
-            console.timeEnd("fetch")
-            console.time("process")
-            let favArray = JSON.parse(favourites.val())
-            let conArray = JSON.parse(continues.val())
+    if (await Authenticate(user, token)) {
+        console.timeEnd("auth")
+        console.time("fetch")
+        const [favourites, continues] = await Promise.all([
+            db.ref(`users/${user}/favourites`).once('value'),
+            db.ref(`users/${user}/continues`).once('value')
+        ]);
+        console.timeEnd("fetch")
+        console.time("process")
+        let favArray = JSON.parse(favourites.val())
+        let conArray = JSON.parse(continues.val())
 
-            // Get only last 10 items for quick initial load
-            const favMini = favArray.slice(-10).reverse();
-            const conMini = conArray.slice(-10).reverse();
+        // Get only last 10 items for quick initial load
+        const favMini = favArray.slice(-10).reverse();
+        const conMini = conArray.slice(-10).reverse();
 
-            const favData = await Promise.all(favMini.map(item => GetInfo(item)));
-            const conData = await Promise.all(conMini.map(item => GetInfo(item)));
-            console.timeEnd("process")
-            response.status(200);
-            response.json({ 
-                favourites: favourites.val(), 
-                continues: continues.val(), 
-                favouritesData: favData, 
-                continuesData: conData 
-            });
-            
-        } else {
-            response.status(202);
-            response.send("UDE");
-        }
+        const favData = await Promise.all(favMini.map(item => GetInfo(item)));
+        const conData = await Promise.all(conMini.map(item => GetInfo(item)));
+        console.timeEnd("process")
+        response.status(200);
+        response.json({ 
+            favourites: favourites.val(), 
+            continues: continues.val(), 
+            favouritesData: favData, 
+            continuesData: conData 
+        });
     } else {
         response.status(202);
         response.send("UDE");
@@ -198,23 +194,17 @@ app.post('/home-favourites', async (request, response) => {
     const { user, token } = request.body
     const db = admin.database();
 
-    const snapshot = await db.ref(`users/${user}/token`).once('value');
-    if (snapshot.exists()) {
-        if (snapshot.val() == token) {
-            const favourites = await db.ref(`users/${user}/favourites`).once('value');
-            let favArray = JSON.parse(favourites.val())
+    if (await Authenticate(user, token)) {
+        const favourites = await db.ref(`users/${user}/favourites`).once('value');
+        let favArray = JSON.parse(favourites.val())
 
-            const favData = await Promise.all(favArray.map(item => GetInfo(item)));
+        const favData = await Promise.all(favArray.map(item => GetInfo(item)));
 
-            response.status(200);
-            response.json({ 
-                favourites: favourites.val(), 
-                favouritesData: favData 
-            });
-        } else {
-            response.status(202);
-            response.send("UDE");
-        }
+        response.status(200);
+        response.json({ 
+            favourites: favourites.val(), 
+            favouritesData: favData 
+        });
     } else {
         response.status(202);
         response.send("UDE");
@@ -228,24 +218,18 @@ app.post('/home-continues', async (request, response) => {
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token } = request.body
     const db = admin.database();
+    
+    if (await Authenticate(user, token)) {
+        const continues = await db.ref(`users/${user}/continues`).once('value');
+        let conArray = JSON.parse(continues.val())
 
-    const snapshot = await db.ref(`users/${user}/token`).once('value');
-    if (snapshot.exists()) {
-        if (snapshot.val() == token) {
-            const continues = await db.ref(`users/${user}/continues`).once('value');
-            let conArray = JSON.parse(continues.val())
+        const conData = await Promise.all(conArray.map(item => GetInfo(item)));
 
-            const conData = await Promise.all(conArray.map(item => GetInfo(item)));
-
-            response.status(200);
-            response.json({ 
-                continues: continues.val(), 
-                continuesData: conData 
-            });
-        } else {
-            response.status(202);
-            response.send("UDE");
-        }
+        response.status(200);
+        response.json({ 
+            continues: continues.val(), 
+            continuesData: conData 
+        });
     } else {
         response.status(202);
         response.send("UDE");
@@ -279,7 +263,20 @@ app.post('/home-trending', async (request, response) => {
     }
 });
 
+const tmdbCache = new Map();
+
 async function GetInfo(ID) {
+    if (tmdbCache.has(ID)) {
+        return tmdbCache.get(ID);
+    } else {
+        const data = await TMDBFetch(ID);
+        if (data) {tmdbCache.set(ID, data);}
+        
+        return data;
+    }
+}
+
+async function TMDBFetch(ID) {
     const Key = ID.slice(1, 100000)
     const Link = (ID.slice(0, 1) == "t" ? 'https://api.themoviedb.org/3/tv/' + Key + '?api_key=' + process.env.TMDB_Credentials: 'https://api.themoviedb.org/3/movie/' + Key + '?api_key=' + process.env.TMDB_Credentials)
     try {
@@ -587,16 +584,31 @@ const listener = app.listen(3001, (error) => {
     }
 });
 
-async function Authenticate(user, token) {
-    const db = admin.database();
+const userCache = new Map();
 
-    const snapshot = await db.ref(`users/${user}/token`).once('value');
-    if (snapshot.exists()) {
-        if (token == snapshot.val()) {
+async function Authenticate(user, token) {
+    if (userCache.has(user)) {
+        if (userCache.get(user).token == token) {
             return true
+        } else {
+            return false
         }
+    } else {
+        const db = admin.database();
+
+        const snapshot = await db.ref(`users/${user}/token`).once('value');
+        if (snapshot.exists()) {
+            if (token == snapshot.val()) {
+                userCache.set(user, {
+                    token: token,
+                    expires: Date.now() + 30 * 24 * 60 * 60 * 1000 // Cache for 1 month
+                })
+                return true
+            }
+        }
+        return false
     }
-    return false
+    
 }
 
 async function AttemptAuth(username, password) {
