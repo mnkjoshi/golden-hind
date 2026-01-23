@@ -6,7 +6,7 @@ import cors from 'cors'
 import admin from "firebase-admin";
 import Search from "./endpoints/search.js"
 import axios from 'axios';
-import libgen from 'libgen';
+import * as cheerio from 'cheerio';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -50,31 +50,92 @@ app.get('/', (request, response) => {
     response.send("Yarrr! Ahoy there, matey!");
 });
 
-app.get('/booktest', async (request, response) => {
-    console.log("Book test endpoint hit")
-    console.log("Fetching libgen mirror...")
+app.get('/book-search', async (request, response) => {
+    const query = request.query.q || 'red rising';
     
-    const options = {
-        mirror: 'https://libgen.la',
-        query: 'red rising',
-        count: 5,
-        sort_by: 'def',
-    }
-
     try {
-        const data = await libgen.search(options)
-        let n = data.length
-        console.log(`${n} results for "${options.query}"`)
-        while (n--){
-            console.log('');
-            console.log('Title: ' + data[n].title)
-            console.log('Author: ' + data[n].author)
-            console.log('Download: ' +
-                        'http://gen.lib.rus.ec/book/index.php?md5=' +
-                        data[n].md5.toLowerCase())
-        }
-    } catch (err) {
+        // Use libgen.li which is currently working
+        const searchUrl = `https://libgen.li/index.php?req=${encodeURIComponent(query)}&columns[]=t&columns[]=a&columns[]=s&columns[]=y&columns[]=p&columns[]=i&objects[]=f&objects[]=e&objects[]=s&objects[]=a&topics[]=l&topics[]=c&res=25&filesuns=all`;
         
+        console.log(`Searching LibGen for: "${query}"`);
+        
+        const { data } = await axios.get(searchUrl, {
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/html'
+            }
+        });
+        
+        // Parse HTML with cheerio
+        const $ = cheerio.load(data);
+        const results = [];
+        
+        // Try different selectors
+        let rows = $('table.catalog tbody tr');
+        if (rows.length === 0) {
+            rows = $('table tbody tr');
+        }
+        if (rows.length === 0) {
+            rows = $('table tr');
+        }
+        
+        // LibGen table structure - find all book rows
+        rows.each((i, row) => {
+            try {
+                const $row = $(row);
+                const cells = $row.find('td');
+                
+                // Only process rows with 9 cells (actual book entries)
+                if (cells.length === 9) {
+                    // Extract data from the 9 cells
+                    // Typical order: Author, Title, Publisher, Year, Pages, Language, Size, Extension, Download
+                    const author = cells.eq(0).text().trim();
+                    const title = cells.eq(1).find('a').first().text().trim() || cells.eq(1).text().trim();
+                    const publisher = cells.eq(2).text().trim();
+                    const year = cells.eq(3).text().trim();
+                    const pages = cells.eq(4).text().trim();
+                    const language = cells.eq(5).text().trim();
+                    const size = cells.eq(6).text().trim();
+                    const extension = cells.eq(7).text().trim();
+                    
+                    // Get download link from last cell
+                    const downloadLink = cells.eq(8).find('a').attr('href');
+                    
+                    if (title) {
+                        results.push({
+                            title,
+                            author,
+                            publisher,
+                            year,
+                            pages,
+                            language,
+                            size,
+                            extension,
+                            downloadLink: downloadLink ? (downloadLink.startsWith('http') ? downloadLink : `https://libgen.li${downloadLink}`) : null
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error('Error parsing row:', err.message);
+            }
+        });
+        
+        console.log(`Found ${results.length} results`);
+        
+        response.status(200).json({
+            success: true,
+            count: results.length,
+            results: results,
+            source: 'LibGen'
+        });
+        
+    } catch (err) {
+        console.error('LibGen error:', err.message);
+        response.status(500).json({
+            success: false,
+            error: err.message
+        });
     }
 });
 
