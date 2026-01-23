@@ -405,9 +405,14 @@ p {
     /* Mobile scroll improvements */
     scroll-snap-type: x proximity;
     overscroll-behavior-x: contain;
-    /* Prevent vertical scroll when swiping horizontally */
-    touch-action: pan-x;
-    overscroll-behavior-y: none;
+}
+
+/* Mobile-only: Prevent vertical scroll when swiping horizontally */
+@media (max-width: 800px) {
+    .content-row {
+        touch-action: pan-x;
+        overscroll-behavior-y: none;
+    }
 }
 
 .content-row:active {

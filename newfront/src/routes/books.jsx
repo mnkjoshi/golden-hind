@@ -19,6 +19,7 @@ export default function Search() {
     const user = localStorage.getItem("user");
     const token = localStorage.getItem("token");
     
+    
     useEffect(() => {
         if (!user) {
             navigate('/auth');
@@ -28,18 +29,18 @@ export default function Search() {
         
         if (searched && searched !== currentSearch) {
             setLoading(true);
-            axios({
-                method: 'post',
-                url: 'https://goldenhind.tech/search',
-                data: { query: searched }
-            }).then((response) => {
-                setCurrentSearch(searched);
-                setPage(0);
-                setResults(response.data || []);
-                setLoading(false);
-            }).catch(() => {
-                setLoading(false);
-            });
+            // axios({
+            //     method: 'post',
+            //     url: 'https://goldenhind.tech/search',
+            //     data: { query: searched }
+            // }).then((response) => {
+            //     setCurrentSearch(searched);
+            //     setPage(0);
+            //     setResults(response.data || []);
+            //     setLoading(false);
+            // }).catch(() => {
+            //     setLoading(false);
+            // });
         }
     }, [searched, currentSearch, user, token, navigate]);
     

@@ -40,9 +40,16 @@ export default function Topbar ({ Account }) {
 
     const handleSearch = (e) => {
         if (e.key === 'Enter' && searchValue.trim()) {
-            navigate('/search', {
-                state: { searched: searchValue.trim() }
-            });
+            if (location.pathname === '/books') {
+                navigate('/books', {
+                    state: { searched: searchValue.trim() }
+                });
+            } else {
+                navigate('/search', {
+                    state: { searched: searchValue.trim() }
+                });
+            }
+            
         }
     };
 
@@ -80,7 +87,7 @@ export default function Topbar ({ Account }) {
                         className={`nav-link ${location.pathname === '/search' ? 'active' : ''}`}
                         onClick={() => navigate('/search')}
                     >
-                        Browse
+                        Search
                     </button>
 
                     <button 

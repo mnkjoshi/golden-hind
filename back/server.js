@@ -6,6 +6,7 @@ import cors from 'cors'
 import admin from "firebase-admin";
 import Search from "./endpoints/search.js"
 import axios from 'axios';
+import libgen from 'libgen';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -15,6 +16,8 @@ const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true}));
+
+
 
 app.use(cors({
   origin: ["https://the-golden-hind.web.app", "http://localhost:5173", "https://ghind.tech", "http://ghind.tech"],
@@ -45,6 +48,34 @@ sgMail.setApiKey('SG.' + mailAPIkey)
 app.get('/', (request, response) => {
     response.status(200);
     response.send("Yarrr! Ahoy there, matey!");
+});
+
+app.get('/booktest', async (request, response) => {
+    const urlString = await libgen.mirror()
+    console.log(`${urlString} is currently fastest`) 
+
+    const options = {
+        mirror: 'http://gen.lib.rus.ec',
+        query: 'cats',
+        count: 5,
+        sort_by: 'def',
+    }
+
+    try {
+        const data = await libgen.search(options)
+        let n = data.length
+        console.log(`${n} results for "${options.query}"`)
+        while (n--){
+            console.log('');
+            console.log('Title: ' + data[n].title)
+            console.log('Author: ' + data[n].author)
+            console.log('Download: ' +
+                        'http://gen.lib.rus.ec/book/index.php?md5=' +
+                        data[n].md5.toLowerCase())
+        }
+    } catch (err) {
+        
+    }
 });
 
 app.post('/login', async (request, response) => {

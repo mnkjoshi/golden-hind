@@ -632,9 +632,9 @@ p {
     /* Main watch layout improvements */
     .watch-main {
         padding: 0.5rem;
-        margin-top: 70px;
+        margin-top: 40px;
         gap: 0.5rem;
-        height: calc(100vh - 70px);
+        height: calc(100vh - 40px);
         overflow: hidden;
     }
     
@@ -651,11 +651,11 @@ p {
         height: 100%;
         width: 100%;
         margin-top: 0;
-        gap: 0.5rem;
+        gap: 0.25rem;
     }
     
     .watch-player {
-        height: 78%;
+        height: 72%;
         aspect-ratio: auto;
         border-radius: 5px 5px 0 0;
     }
@@ -665,11 +665,11 @@ p {
     }
     
     .watch-options {
-        height: 22%;
+        height: 28%;
         min-height: auto;
         padding: 0.75rem;
         border-radius: 0 0 5px 5px;
-        overflow-y: auto;
+        overflow: hidden;
         gap: 0.5rem;
         flex-direction: column;
         align-items: stretch;
