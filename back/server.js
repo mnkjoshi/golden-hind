@@ -17,7 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true}));
 
 app.use(cors({
-  origin: ["https://the-golden-hind.web.app", "http://localhost:5173"],
+  origin: ["https://the-golden-hind.web.app", "http://localhost:5173", "https://ghind.tech", "http://ghind.tech"],
   credentials: true,
 }));
 
