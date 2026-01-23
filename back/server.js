@@ -51,6 +51,8 @@ app.get('/', (request, response) => {
 });
 
 app.get('/booktest', async (request, response) => {
+    console.log("Book test endpoint hit")
+    console.log("Fetching libgen mirror...")
     const urlString = await libgen.mirror()
     console.log(`${urlString} is currently fastest`) 
 
