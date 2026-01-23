@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios'
 import Authenticate  from "../components/authenticate.jsx";
 import Topbar from "../components/topbar"
+import '../stylesheets/books.css'
 
 
 export default function Books() {  
@@ -113,14 +114,14 @@ export default function Books() {
                                 className="book-result-card"
                             >
                                 <div className="book-card-header">
-                                    <h3 className="book-title">{book.title}</h3>
+                                    <h3 className="book-title">{book.author}</h3>
                                     <span className={`book-format ${book.extension}`}>{book.extension?.toUpperCase()}</span>
                                 </div>
                                 
                                 <div className="book-details">
                                     <div className="book-detail-row">
-                                        <span className="book-label">Author:</span>
-                                        <span className="book-value">{book.author || 'Unknown'}</span>
+                                        <span className="book-label">Title:</span>
+                                        <span className="book-value">{book.title || 'Unknown'}</span>
                                     </div>
                                     
                                     {book.publisher && (
@@ -146,11 +147,6 @@ export default function Books() {
                                         className="book-download-btn"
                                         onClick={(e) => e.stopPropagation()}
                                     >
-                                        <svg viewBox="0 0 24 24" fill="none">
-                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                            <polyline points="7 10 12 15 17 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                            <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                        </svg>
                                         Download
                                     </a>
                                 )}
