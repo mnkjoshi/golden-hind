@@ -126,7 +126,7 @@ export default function App() {
             if (!(vidID == movID) && !(vidID == null) && !(vidID == "")) {
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.duckdns.org/mretrieve',
+                    url: 'https://goldenhind.tech/mretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -143,7 +143,7 @@ export default function App() {
 
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.duckdns.org/similar',
+                    url: 'https://goldenhind.tech/similar',
                     data: {
                         user: user,
                         token: token,
@@ -158,7 +158,7 @@ export default function App() {
             if (!((vidID + episode + season) == episodeID) && !(vidID == null) && !(vidID == "")) {
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.duckdns.org/eretrieve',
+                    url: 'https://goldenhind.tech/eretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -177,7 +177,7 @@ export default function App() {
             if (!(vidID == seriesID)  && !(vidID == null) && !(vidID == "")){
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.duckdns.org/sretrieve',
+                    url: 'https://goldenhind.tech/sretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -201,7 +201,7 @@ export default function App() {
 
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.duckdns.org/similar',
+                    url: 'https://goldenhind.tech/similar',
                     data: {
                         user: user,
                         token: token,
@@ -216,7 +216,7 @@ export default function App() {
                 console.log("Retrieving data")
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.duckdns.org/progress_retrieve',
+                    url: 'https://goldenhind.tech/progress_retrieve',
                     data: {
                         user: user,
                         token: token,
@@ -235,7 +235,7 @@ export default function App() {
             } else {
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.duckdns.org/progress_update',
+                    url: 'https://goldenhind.tech/progress_update',
                     data: {
                         user: user,
                         token: token,
@@ -283,7 +283,7 @@ export default function App() {
 
             axios({
                 method: 'post',
-                url: 'https://golden-hind.duckdns.org/continue',
+                url: 'https://goldenhind.tech/continue',
                 data: {
                     user: user,
                     token: token,
@@ -294,7 +294,7 @@ export default function App() {
             console.log("already in continues")
             axios({
                 method: 'post',
-                url: 'https://golden-hind.duckdns.org/continue',
+                url: 'https://goldenhind.tech/continue',
                 data: {
                     user: user,
                     token: token,
@@ -352,7 +352,7 @@ export default function App() {
 
             axios({
                 method: 'post',
-                url: 'https://golden-hind.duckdns.org/favourite',
+                url: 'https://goldenhind.tech/favourite',
                 data: {
                     user: user,
                     token: token,
@@ -367,7 +367,7 @@ export default function App() {
 
             axios({
                 method: 'post',
-                url: 'https://golden-hind.duckdns.org/unfavourite',
+                url: 'https://goldenhind.tech/unfavourite',
                 data: {
                     user: user,
                     token: token,
