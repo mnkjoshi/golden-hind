@@ -152,12 +152,16 @@ app.post('/home-mini', async (request, response) => {
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token } = request.body
     const db = admin.database();
-
+    console.time("auth")
     const snapshot = await db.ref(`users/${user}/token`).once('value');
     if (snapshot.exists()) {
         if (snapshot.val() == token) {
+            console.timeEnd("auth")
+            console.time("fetch")
             const favourites = await db.ref(`users/${user}/favourites`).once('value');
             const continues = await db.ref(`users/${user}/continues`).once('value');
+            console.timeEnd("fetch")
+            console.time("process")
             let favArray = JSON.parse(favourites.val())
             let conArray = JSON.parse(continues.val())
 
@@ -167,7 +171,7 @@ app.post('/home-mini', async (request, response) => {
 
             const favData = await Promise.all(favMini.map(item => GetInfo(item)));
             const conData = await Promise.all(conMini.map(item => GetInfo(item)));
-
+            console.timeEnd("process")
             response.status(200);
             response.json({ 
                 favourites: favourites.val(), 
@@ -175,6 +179,7 @@ app.post('/home-mini', async (request, response) => {
                 favouritesData: favData, 
                 continuesData: conData 
             });
+            
         } else {
             response.status(202);
             response.send("UDE");
