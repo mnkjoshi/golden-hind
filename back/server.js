@@ -56,7 +56,7 @@ app.get('/booktest', async (request, response) => {
     
     const options = {
         mirror: 'https://libgen.la',
-        query: 'cats',
+        query: 'red rising',
         count: 5,
         sort_by: 'def',
     }
