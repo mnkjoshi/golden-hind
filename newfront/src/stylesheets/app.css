@@ -13,7 +13,8 @@ html {
   text-size-adjust: 100%;
   /* Improve touch interactions */
   -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  /* Prevent white background on over-scroll */
+  background-color: #141414;
 }
 
 * {
@@ -404,6 +405,9 @@ p {
     /* Mobile scroll improvements */
     scroll-snap-type: x proximity;
     overscroll-behavior-x: contain;
+    /* Prevent vertical scroll when swiping horizontally */
+    touch-action: pan-x;
+    overscroll-behavior-y: none;
 }
 
 .content-row:active {

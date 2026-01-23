@@ -632,7 +632,147 @@ p {
     /* Main watch layout improvements */
     .watch-main {
         padding: 0.5rem;
-        gap: 1rem;
+        margin-top: 70px;
+        gap: 0.5rem;
+        height: calc(100vh - 70px);
+        overflow: hidden;
+    }
+    
+    .watch-holder {
+        height: 100%;
+        max-height: 100%;
+        aspect-ratio: auto;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+    }
+    
+    .watch-system {
+        height: 100%;
+        width: 100%;
+        margin-top: 0;
+        gap: 0.5rem;
+    }
+    
+    .watch-player {
+        height: 78%;
+        aspect-ratio: auto;
+        border-radius: 5px 5px 0 0;
+    }
+    
+    .watch-player-file {
+        border-radius: 5px 5px 0 0;
+    }
+    
+    .watch-options {
+        height: 22%;
+        min-height: auto;
+        padding: 0.75rem;
+        border-radius: 0 0 5px 5px;
+        overflow-y: auto;
+        gap: 0.5rem;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: space-between;
+    }
+    
+    .watch-left {
+        flex: 1;
+        flex-direction: column;
+        gap: 0.4rem;
+        min-width: 0;
+        height: auto;
+        align-items: stretch;
+    }
+    
+    .watch-right {
+        flex: 0 0 auto;
+        flex-direction: row;
+        gap: 0.4rem;
+        height: auto;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .watch-episode {
+        margin-right: 0;
+        margin-left: 0;
+        flex: 1;
+        min-width: auto;
+        height: auto;
+    }
+    
+    .watch-movie {
+        height: auto;
+        flex: 1;
+        margin-left: 0;
+    }
+    
+    .watch-episode-display-title,
+    .watch-movie-title {
+        font-size: 13px;
+        width: 100%;
+    }
+    
+    .watch-episode-arrow {
+        font-size: 18px;
+    }
+    
+    .watch-toggles1 {
+        flex: 1;
+        flex-direction: row !important;
+        flex-wrap: nowrap;
+        gap: 0.4rem;
+        height: auto;
+        width: 100%;
+        justify-content: center;
+        align-items: center;
+        overflow-x: auto;
+    }
+    
+    .watch-toggles2 {
+        gap: 0.4rem;
+        height: auto;
+        flex-direction: row !important;
+        flex-wrap: nowrap;
+        justify-content: center;
+    }
+    
+    .watch-toggles-button,
+    .watch-toggles-button-selected {
+        height: 36px;
+        width: 36px;
+        min-height: 36px;
+        min-width: 36px;
+        aspect-ratio: 1;
+        flex-shrink: 0;
+    }
+    
+    .watch-rating {
+        margin-right: 0;
+        width: auto;
+        height: auto;
+        flex: 0 0 auto;
+    }
+    
+    .watch-rating-info {
+        font-size: 24px;
+    }
+    
+    .watch-star-icon {
+        height: 20px;
+    }
+    
+    .watch-season-display {
+        flex: 1;
+    }
+    
+    .watch-season-title {
+        font-size: 13px;
+    }
+    
+    .watch-list {
+        max-width: 150px;
     }
     
     .watch-video-container {
@@ -702,12 +842,12 @@ p {
     }
     
     .watch-star-icon {
-        height: 12px;
-        width: 12px;
+        height: 20px;
+        width: 20px;
     }
     
     .watch-rating-info {
-        font-size: 0.9rem;
+        font-size: 24px;
     }
     
     .watch-providers {
@@ -756,8 +896,12 @@ p {
     }
     
     .watch-star-icon {
-        height: 10px;
-        width: 10px;
+        height: 20px;
+        width: 20px;
+    }
+    
+    .watch-rating-info {
+        font-size: 24px;
     }
     
     .watch-provider {
