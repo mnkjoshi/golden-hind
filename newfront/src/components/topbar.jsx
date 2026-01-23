@@ -82,6 +82,13 @@ export default function Topbar ({ Account }) {
                     >
                         Browse
                     </button>
+
+                    <button 
+                        className={`nav-link ${location.pathname === '/books' ? 'active' : ''}`}
+                        onClick={() => navigate('/books')}
+                    >
+                        Books
+                    </button>
                 </div>
 
                 {/* Right Side */}
