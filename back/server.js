@@ -152,16 +152,12 @@ app.post('/home-mini', async (request, response) => {
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token } = request.body
     const db = admin.database();
-    console.time("auth")
+
     if (await Authenticate(user, token)) {
-        console.timeEnd("auth")
-        console.time("fetch")
         const [favourites, continues] = await Promise.all([
             db.ref(`users/${user}/favourites`).once('value'),
             db.ref(`users/${user}/continues`).once('value')
         ]);
-        console.timeEnd("fetch")
-        console.time("process")
         let favArray = JSON.parse(favourites.val())
         let conArray = JSON.parse(continues.val())
 
@@ -171,7 +167,6 @@ app.post('/home-mini', async (request, response) => {
 
         const favData = await Promise.all(favMini.map(item => GetInfo(item)));
         const conData = await Promise.all(conMini.map(item => GetInfo(item)));
-        console.timeEnd("process")
         response.status(200);
         response.json({ 
             favourites: favourites.val(), 
