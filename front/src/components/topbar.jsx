@@ -1,82 +1,172 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import DropDown from "../assets/dropDown.png"
-import React, { useState } from 'react'
-let currRotation = 180;
-
-function DropTable(toggle, data, currentStatus) {
-    console.log(document.getElementById("topbar-main"))
-    switch(toggle) {
-        case 0: //drop it
-            currRotation += 180;
-            document.getElementById("topbar-account-arrow").style.transform = "rotate(" + currRotation + "deg)"
-            document.getElementById("topbar-dropdown").style.transform = "translateY(0px)";
-            document.getElementById("topbar-dropdown").style.opacity = 1;
-            document.getElementById("topbar-main").style.zIndex = 2;
-            document.getElementById("topbar-dropdown").style.zIndex = 10;
-            data(1);
-            break;
-        case 1: //lift it
-            currRotation += 180;
-            document.getElementById("topbar-account-arrow").style.transform = "rotate(" + currRotation + "deg)"
-            document.getElementById("topbar-dropdown").style.transform = "translateY(-15px)";
-            document.getElementById("topbar-dropdown").style.opacity = 0;
-            document.getElementById("topbar-main").style.zIndex = 1;
-            document.getElementById("topbar-dropdown").style.zIndex = -1;
-            data(0);
-            break;
-        case 4:
-            if (currentStatus == 1) {
-                if (localStorage.getItem("user")) {
-                    localStorage.removeItem("user");
-                    localStorage.removeItem("token");
-                    data("/auth");
-                    DropTable(1);
-                }
-            }
-    }
-}
+import React, { useState, useRef, useEffect } from 'react';
 
 export default function Topbar ({ Account }) {
-    const [status, setStatus] = useState(0);
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [searchValue, setSearchValue] = useState('');
+    const [isScrolled, setIsScrolled] = useState(false);
+    const [showChristmas, setShowChristmas] = useState(true);
     const navigate = useNavigate();
     const location = useLocation();
+    const dropdownRef = useRef(null);
 
-    function KeyUpSearch(event) {
-        if (event.key == "Enter") {navigate('/search', {
-            state: {searched: document.getElementById("topbar-search-input").value}
-        }
-    )}
-    }
+    // Handle scroll effect
+    useEffect(() => {
+        const christmasTimer = setTimeout(() => {
+            setShowChristmas(false);
+        }, 30000);
+        
+        return () => clearTimeout(christmasTimer);
+    }, []);
 
-    function OnInputSearch() {
-        if (location.pathname == "/search") { navigate('/search', {
-            state: {searched: document.getElementById("topbar-search-input").value}
+    useEffect(() => {
+        const handleScroll = () => {
+            setIsScrolled(window.scrollY > 0);
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleSearch = (e) => {
+        if (e.key === 'Enter' && searchValue.trim()) {
+            if (location.pathname === '/books') {
+                navigate('/books', {
+                    state: { searched: searchValue.trim() }
+                });
+            } else {
+                navigate('/search', {
+                    state: { searched: searchValue.trim() }
+                });
+            }
+            
         }
-    )}
-    }
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        navigate('/auth');
+        setDropdownOpen(false);
+    };
+
+    const toggleDropdown = () => {
+        setDropdownOpen(!dropdownOpen);
+    };
 
     return (
-        <div className= "topbar-main" id= "topbar-main">
-            <button className= "topbar-title" onClick={() => navigate("/app")}>TGH</button>
-            <div className= "topbar-gap"/>
-            <div className= "topbar-search">
-                <input className= "topbar-search-input" placeholder= "Search.." id= "topbar-search-input" onKeyUp={KeyUpSearch} autoComplete="off"
-                />
-                <div className= "topbar-search-underline"/>
-            </div>
-            <div className= "topbar-account">
-                <img className= "topbar-account-arrow" id= "topbar-account-arrow" src= {DropDown}/>
-                <p className= "topbar-account-display">{localStorage.getItem("user") == null ? "Unknown" : localStorage.getItem("user")}</p>
-                <div className= "topbar-dropdown" id= "topbar-dropdown">
-                    <button className= "topbar-dropdown-option" onClick={() => DropTable(2)}>Account</button>
-                    <button className= "topbar-dropdown-option" onClick={() => DropTable(3)}>Activity</button>
-                    <button className= "topbar-dropdown-option" onClick={() => DropTable(4, navigate, status)}>Logout</button>
+        <nav className={`modern-topbar ${isScrolled ? 'scrolled' : ''}`}>
+            <div className="topbar-content">
+                {/* Logo/Brand */}
+                <div className="topbar-left">
+                    <button className="topbar-logo" onClick={() => navigate("/app")}>
+                        <span className="logo-text">Golden Hind</span>
+                        <div className={`santa-hat ${!showChristmas ? 'hidden' : ''}`}></div>
+                    </button>
                 </div>
-                <button className= "topbar-account-button" onClick= {() => DropTable(status, setStatus)}>
-                    HOLDER
-                </button>
+
+                {/* Navigation Links */}
+                <div className="topbar-nav">
+                    <button 
+                        className={`nav-link ${location.pathname === '/app' ? 'active' : ''}`}
+                        onClick={() => navigate('/app')}
+                    >
+                        Home
+                    </button>
+                    <button 
+                        className={`nav-link ${location.pathname === '/search' ? 'active' : ''}`}
+                        onClick={() => navigate('/search')}
+                    >
+                        Search
+                    </button>
+
+                    <button 
+                        className={`nav-link ${location.pathname === '/books' ? 'active' : ''}`}
+                        onClick={() => navigate('/books')}
+                    >
+                        Books
+                    </button>
+                </div>
+
+                {/* Right Side */}
+                <div className="topbar-right">
+                    {/* Search */}
+                    <div className="search-container">
+                        <div className="search-wrapper">
+                            <svg className="search-icon" viewBox="0 0 24 24" fill="none">
+                                <path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            <input
+                                className="search-input"
+                                type="text"
+                                placeholder="Search movies, TV shows..."
+                                value={searchValue}
+                                onChange={(e) => setSearchValue(e.target.value)}
+                                onKeyDown={handleSearch}
+                                autoComplete="off"
+                            />
+                        </div>
+                    </div>
+
+                    {/* User Account */}
+                    <div className="account-section" ref={dropdownRef}>
+                        <button className="account-button" onClick={toggleDropdown}>
+                            <div className="user-avatar">
+                                {localStorage.getItem('user')?.charAt(0).toUpperCase() || 'U'}
+                            </div>
+                            <span className="username">
+                                {localStorage.getItem('user') || 'Guest'}
+                            </span>
+                            <svg 
+                                className={`dropdown-arrow ${dropdownOpen ? 'open' : ''}`} 
+                                viewBox="0 0 24 24" 
+                                fill="none"
+                            >
+                                <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                        </button>
+
+                        {dropdownOpen && (
+                            <div className="account-dropdown">
+                                <button className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                    Account
+                                </button>
+                                <button className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M12 20h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                    Activity
+                                </button>
+                                <div className="dropdown-divider"></div>
+                                <button className="dropdown-item logout" onClick={handleLogout}>
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        <polyline points="16,17 21,12 16,7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        <line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                    Sign Out
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
-        </div>
+        </nav>
     );
 }
 

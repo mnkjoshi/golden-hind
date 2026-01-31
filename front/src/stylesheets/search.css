@@ -1,325 +1,717 @@
-body,
-html {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-  /* Adjust the color to match the exact background of your image */
-  overflow-x: hidden;
-  overflow-y: hidden;
-  
+/* Modern Netflix-style Search Page */
+
+/* Base Styles */
+.modern-search-page {
+    width: 100%;
+    min-height: 100vh;
+    background-color: #141414;
+    color: white;
+    padding-top: 70px; /* Account for fixed topbar */
 }
 
-.html {
-    transition: 1s;
-    mix-blend-mode: difference;
+.search-content {
+    max-width: 1920px;
+    margin: 0 auto;
+    padding: 2rem 4rem;
 }
 
-p { 
+/* Search Header */
+.search-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 3rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.search-info h1.search-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+    background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.search-subtitle {
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.7);
     margin: 0;
 }
 
-#root {
-    width: 100%;
-    height: 100%;
-}
-
-.search-main {
-    width: 100%;
-    height: 100%;
-    background-color: #1E1E1E;
+/* Pagination */
+.search-pagination {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: start;
+    gap: 1rem;
 }
 
-.search-title-options {
+.pagination-btn {
     display: flex;
-    flex-direction: row;
-    justify-content: start;
-
-    height: 5%;
-    width: 100%;
-}
-
-.search-title {
-    font-family: Viga;
-    color: white;
-    font-size: 20px;
-    text-align: left;
-    margin-top: 1%;
-    margin-left: 1%;
-    width: 50%;
-}
-
-.search-results-loading {
-    color: white;
-    font-family: Viga;
-    font-size: 30px;
-}
-
-.search-options {
-    display: flex;
-    flex-direction: row;
-    justify-content: end;
-    align-items: end;
-    width: 48%;
-    height: 100%;
-}
-
-.search-options-arrow {
-    color: white;
-    border: none;
-    outline: none;
-    background: none;
-    font-family: Viga;
-    font-size: 20px;
-    cursor: pointer;
-}
-
-.search-options-title {
-    color: white;
-    font-family: Viga;
-    font-size: 20px;
-    margin: 0px 5px 0px 5px;
-}
-
-.search-results {
-    background-color: none;
-    margin-top: 0.5%;
-    height: 84%;
-    width: 98%;
-    display: grid;
-    grid-template-columns: 24.6% 24.6% 24.6% 24.6%;
-    grid-template-rows: 50% 50%;
-    row-gap: 2%;
-    column-gap: 0.5%;
-
-}
-
-.search-results-component {
-    display: flex;
-    flex-direction: column;
-    justify-content: start;
     align-items: center;
-    background-color:hsl(0, 0%, 8%);
-    padding: 3px 3px 3px 3px;
-    border-radius: 5px;
-    z-index: 1;
-    position: relative;
-    box-shadow: 0px 0px 8px 0px #000000;
-}
-
-.search-results-component-details {
-    height: 70%;
-    width: 100%;
-    display: flex;
-    flex-direction: row;
-}
-
-.search-results-component-info {
-    width: 98%;
-    margin-left: 1%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-}
-
-.search-results-component-title {
-    color: white;
-    width: 100%;
-    font-size: 18px;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    text-align: center;
-    align-self: center;
-    font-weight: bold;
-}
-
-.search-results-component-overview {
-    color: white;
-    height: 80%;
-    word-wrap: break-word;
-    width: 100%;
-    font-size: 11px;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    text-align: center;
-    align-self: center;
-}
-
-.search-results-component-expand {
-    position: absolute;
-    z-index: 5;
-    width: 40%;
-    left: 30%;
-    top: 92%;
-    height: 8%;
-    background: #151515;
-    color: white;
-    font-family: Viga;
-    font-size: 10px;
-    border: solid;
-    border-width: 2px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: 0.2s;
-}
-
-.search-results-component-expand:hover {
-    border: #151515;
-    filter: invert(100%);
-}
-
-
-.search-results-component-overview-expanded {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    text-align: center;
-    background-color: #151515;
-    color: white;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    z-index: -1;
-    visibility: hidden;
-    border-radius: 5px;
-    font-size: 14px;
-    cursor: pointer;
-    padding-inline: 5px 5px 5px 5px;
-}
-
-.search-results-component-poster {
-    height: 100%;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-.search-results-component-options {
-    width: 100%;
-    height: 29%;
-    border-radius: 5px;
-    background-color: #1E1E1E;
-    margin-top: 0.5%;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: start;
-    align-items: center;
-}
-
-.search-results-component-options-top {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-around;
-    align-items: center;
-    width: 96%;
-    height: 65%;
-    gap: 5%;
-    margin-left: 2%;
-    margin-right: 2%;
-}
-
-.search-results-component-data {
-    color: white;
-    font-family: Viga;
-    font-size: 18px;
-    background-color: #ffffff22;
-
-    flex: 0.15;
-
-    padding-top: 2px;
-    padding-left: 5px;
-    padding-right: 5px;
-    padding-bottom: 2px;
-    border-radius: 2px;
-    text-align: center;
-}
-
-.search-results-component-date {
-    flex: 0.6;
-}
-
-.search-results-component-country {
-    height: 65%;
-    border-radius: 5px;
-}
-
-.search-movie {
-    background-color: #4897fe;
-}
-
-.search-tv {
-    background-color: #670097;
-}
-
-.search-results-component-options-bottom {
-    display: flex;
-    flex-direction: row;
     justify-content: center;
-    align-items: top;
-    width: 96%;
-    height: 30%;
-    margin-left: 2%;
-    margin-right: 2%;
-    margin-bottom: 4%;
-}
-
-.search-results-component-button {
-    height: 100%;
-    padding: 0px;
-    border-radius: 5px;
-    transition: 0.3s;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
     cursor: pointer;
+    transition: all 0.3s ease;
 }
 
-.search-results-component-button-selected {
-    background-color: #151515;
-    border: solid 2px #151515;
-    filter: invert(100%);
+.pagination-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #3FA3FF;
+    transform: scale(1.05);
 }
 
-.search-results-component-button-deselected {
-    background-color: #151515;
-    border: solid 2px white;
+.pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
-.search-results-component-button-deselected:hover {
-    filter: invert(100%);
+.pagination-btn svg {
+    width: 20px;
+    height: 20px;
 }
 
-.search-results-component-button-selected:hover {
-    border: solid 2px white;
-    filter: invert(0%);
+.pagination-info {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+    min-width: 120px;
+    text-align: center;
 }
 
-.search-results-component-icon {
+/* Search Results Grid */
+.search-results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 2rem;
+    padding: 1rem 0;
+}
+
+/* Loading State */
+.search-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    grid-column: 1 / -1;
+    padding: 4rem 0;
+    text-align: center;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    border-top-color: #3FA3FF;
+    animation: spin 1s ease-in-out infinite;
+    margin-bottom: 1.5rem;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.search-loading p {
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+}
+
+/* Empty State */
+.search-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    grid-column: 1 / -1;
+    padding: 4rem 0;
+    text-align: center;
+}
+
+.search-empty svg {
+    width: 64px;
+    height: 64px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 1.5rem;
+}
+
+.search-empty h3 {
+    font-size: 1.5rem;
+    margin: 0 0 0.5rem 0;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.search-empty p {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin: 0;
+}
+
+/* Search Result Cards */
+.search-result-card {
+    background: rgba(40, 40, 40, 0.8);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+}
+
+.search-result-card:hover {
+    transform: scale(1.03);
+    background: rgba(50, 50, 50, 0.9);
+    border-color: rgba(63, 163, 255, 0.3);
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.4), 0 0 20px rgba(63, 163, 255, 0.2);
+}
+
+/* Card Poster Container */
+.card-poster-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2/3;
+    overflow: hidden;
+    border-radius: 12px 12px 0 0;
+}
+
+.card-poster {
+    width: 100%;
     height: 100%;
-    aspect-ratio: 1;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.search-result-card:hover .card-poster {
+    transform: scale(1.05);
+}
+
+.card-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        180deg,
+        transparent 0%,
+        transparent 40%,
+        rgba(0, 0, 0, 0.7) 80%,
+        rgba(0, 0, 0, 0.9) 100%
+    );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.search-result-card:hover .card-overlay {
+    opacity: 1;
+}
+
+.card-play-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50%;
+    color: #141414;
+    transform: scale(0.8);
+    transition: all 0.3s ease;
+}
+
+.search-result-card:hover .card-play-btn {
+    transform: scale(1);
+    background: #3FA3FF;
+    color: white;
+}
+
+.card-play-btn svg {
+    width: 24px;
+    height: 24px;
+    margin-left: 2px; /* Optical alignment for play icon */
+}
+
+/* Card Content */
+.card-content {
+    padding: 1.25rem;
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0 0 0.75rem 0;
+    color: white;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.card-type {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: white;
+}
+
+.card-type-movie {
+    background: #3FA3FF;
+    color: white;
+}
+
+.card-type-tv {
+    background: #9333ea;
+    color: white;
+}
+
+.card-rating {
+    font-size: 0.85rem;
+    color: #fbbf24;
+    font-weight: 500;
+}
+
+.card-year {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+}
+
+.card-overview {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* External Tooltip (reused from app.css) */
+.external-tooltip {
+    position: fixed;
+    width: 300px;
+    max-width: 90vw;
+    background: rgba(20, 20, 20, 0.95);
+    backdrop-filter: blur(15px);
+    border: 2px solid #3FA3FF;
+    border-radius: 12px;
+    padding: 1.25rem;
+    z-index: 10000;
+    pointer-events: none;
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8), 0 0 40px rgba(63, 163, 255, 0.4);
+    color: white;
+    animation: tooltipFadeIn 0.2s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tooltip-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.tooltip-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+    color: white;
+    line-height: 1.3;
+    flex: 1;
+    margin-right: 1rem;
+}
+
+.tooltip-rating {
+    font-size: 0.9rem;
+    color: #fbbf24;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.tooltip-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.tooltip-type {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.6rem;
+    background: #3FA3FF;
+    color: white;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.tooltip-date {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.tooltip-language {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+}
+
+.tooltip-overview {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0 0 0.75rem 0;
+}
+
+.tooltip-genres {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 0.5rem;
+}
+
+.tooltip-popularity {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .search-content {
+        padding: 2rem;
+    }
+    
+    .search-results-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 1.5rem;
+    }
 }
 
 @media (max-width: 800px) {
-    .search-results {
-        grid-template-columns: 96%;
-        grid-template-rows: 50% 50%;
-        column-gap: 5px;
+    .search-content {
+        padding: 1.5rem 1rem;
     }
+    
+    .search-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1.5rem;
+    }
+    
+    .search-info h1.search-title {
+        font-size: 2rem;
+    }
+    
+    .search-results-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 1rem;
+    }
+    
+    .card-content {
+        padding: 1rem;
+    }
+    
+    .card-title {
+        font-size: 1rem;
+    }
+}
 
-    .search-title {
+@media (max-width: 600px) {
+    .modern-search-page {
+        padding-top: 55px;
+    }
+    
+    .search-content {
+        padding: 1rem 0.5rem;
+    }
+    
+    .search-controls {
+        position: sticky;
+        top: 55px;
+        background: rgba(20, 20, 20, 0.95);
+        backdrop-filter: blur(10px);
+        z-index: 100;
+        padding: 1rem 0.5rem;
+        margin: 0 -0.5rem 1rem;
+    }
+    
+    .search-form {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .search-input-wrapper {
         width: 100%;
-        align-self: flex-end;
     }
-
-    .search-options {
-        width: 48%;
-        margin-right: 10px;
-        height: 100%;
-    }
-
-    .search-results-component {
+    
+    .search-input {
         width: 100%;
-        margin-left: 1%;
+        height: 44px;
+        font-size: 16px; /* Prevent iOS zoom */
+        padding: 0 1rem;
     }
+    
+    .search-filters {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .filter-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+        min-height: 36px;
+    }
+    
+    .search-info h1.search-title {
+        font-size: 1.6rem;
+        text-align: center;
+    }
+    
+    .search-results-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.8rem;
+        padding: 0;
+    }
+    
+    .result-card {
+        border-radius: 8px;
+    }
+    
+    .card-image {
+        height: 220px;
+    }
+    
+    .card-content {
+        padding: 0.8rem;
+    }
+    
+    .card-title {
+        font-size: 0.85rem;
+        line-height: 1.3;
+    }
+    
+    .card-meta {
+        font-size: 0.75rem;
+    }
+    
+    .pagination {
+        gap: 0.5rem;
+        padding: 1rem 0;
+    }
+    
+    .pagination-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 1.2rem;
+    }
+    
+    .pagination-info {
+        font-size: 0.85rem;
+        min-width: 80px;
+    }
+}
 
-    .search-results-component-overview {
-        font-size: 11px;
+@media (max-width: 480px) {
+    .search-content {
+        padding: 0.5rem;
+    }
+    
+    .search-results-grid {
+        gap: 0.6rem;
+    }
+    
+    .card-image {
+        height: 200px;
+    }
+    
+    .card-title {
+        font-size: 0.8rem;
+    }
+    
+    .search-info h1.search-title {
+        font-size: 1.4rem;
+    }
+}
+
+/* Book-specific styles */
+.book-result-card {
+    background: linear-gradient(145deg, #1a1a1a, #222);
+    border-radius: 12px;
+    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.book-result-card:hover {
+    transform: translateY(-4px);
+    border-color: #3FA3FF;
+    box-shadow: 0 8px 30px rgba(63, 163, 255, 0.2);
+}
+
+.book-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.book-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: white;
+    margin: 0;
+    line-height: 1.3;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.book-format {
+    padding: 0.3rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.book-format.epub {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.book-format.pdf {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.book-format.mobi {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.book-format.cbr,
+.book-format.cbz {
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.book-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.book-detail-row {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.book-label {
+    color: rgba(255, 255, 255, 0.5);
+    min-width: 70px;
+    font-weight: 500;
+}
+
+.book-value {
+    color: rgba(255, 255, 255, 0.9);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.book-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.book-badge {
+    background: rgba(63, 163, 255, 0.15);
+    color: #6db8ff;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    border: 1px solid rgba(63, 163, 255, 0.3);
+}
+
+.book-download-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #3FA3FF 0%, #6db8ff 100%);
+    color: white;
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    border: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+.book-download-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(63, 163, 255, 0.4);
+}
+
+@media (max-width: 800px) {
+    .book-result-card {
+        padding: 0.85rem;
+    }
+    
+    .book-title {
+        font-size: 0.9rem;
+    }
+    
+    .book-detail-row {
+        font-size: 0.75rem;
+    }
+    
+    .book-label {
+        min-width: 60px;
+    }
+    
+    .book-download-btn {
+        padding: 0.5rem 0.9rem;
+        font-size: 0.8rem;
     }
 }

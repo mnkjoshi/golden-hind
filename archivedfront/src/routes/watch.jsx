@@ -9,7 +9,6 @@ import ReloadIcon from "../assets/reload.png"
 import StarIcon from "../assets/star.png"
 import SimilarIcon from "../assets/GoldenHind.png"
 import ServerIcon from "../assets/server.png"
-import AutonextIcon from "../assets/autonext.png"
 
 let video = "null"
 
@@ -25,9 +24,6 @@ export default function App() {
 
     const [maxEp, setMaxEp] = useState(1);
     const [maxSe, setMaxSe] = useState(1);
-
-    const [autoNext, setAutoNext] = useState(0);
-    const [autoPlay, setAutoPlay] = useState(0);
 
     const [provider, setProvider] = useState(1);
 
@@ -52,19 +48,6 @@ export default function App() {
     const { id } = useParams();
     let type = id.slice(0, 1)
     let vidID = id.slice(1, 100000)
-
-    // Disable body overflow when watch page is active
-    useEffect(() => {
-        // Add class to disable overflow when component mounts
-        document.body.classList.add('watch-page');
-        document.documentElement.classList.add('watch-page');
-        
-        // Remove class to restore overflow when component unmounts
-        return () => {
-            document.body.classList.remove('watch-page');
-            document.documentElement.classList.remove('watch-page');
-        };
-    }, []);
     if (type == "m") {
         type = "movie"
     } else if (type == "t") {
@@ -80,13 +63,13 @@ export default function App() {
             if (type == 'movie') {
                 video = `https://vidlink.pro/${type}/${vidID}/?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
             } else {
-                video = `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=${autoPlay == 1 ? "true" : "false"}&poster=true${autoPlay == 1 ? "&startAt=0" : ""}`
+                video = `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
             }
         } else if (provider == 2) {
             if (type == 'movie') {
                 video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}`
             } else {
-                video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}&season=${season}&episode=${episode}&autoplay=${autoPlay}`
+                video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}&season=${season}&episode=${episode}`
             }
         } else if(provider == 3) {
             if (type == 'movie') {
@@ -99,16 +82,7 @@ export default function App() {
     }
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
-    let autoNextState = localStorage.getItem("autoNext")
-    
-
     useEffect(() => {
-        if (autoNextState == null) {
-            localStorage.setItem("autoNext", "0")
-        } else {
-            setAutoNext(parseInt(autoNextState))
-        }
-
         if (user == null) {
             navigate('/auth')
         }
@@ -126,7 +100,7 @@ export default function App() {
             if (!(vidID == movID) && !(vidID == null) && !(vidID == "")) {
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/mretrieve',
+                    url: 'https://golden-hind.onrender.com/mretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -143,7 +117,7 @@ export default function App() {
 
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/similar',
+                    url: 'https://golden-hind.onrender.com/similar',
                     data: {
                         user: user,
                         token: token,
@@ -158,7 +132,7 @@ export default function App() {
             if (!((vidID + episode + season) == episodeID) && !(vidID == null) && !(vidID == "")) {
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/eretrieve',
+                    url: 'https://golden-hind.onrender.com/eretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -177,7 +151,7 @@ export default function App() {
             if (!(vidID == seriesID)  && !(vidID == null) && !(vidID == "")){
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/sretrieve',
+                    url: 'https://golden-hind.onrender.com/sretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -201,7 +175,7 @@ export default function App() {
 
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/similar',
+                    url: 'https://golden-hind.onrender.com/similar',
                     data: {
                         user: user,
                         token: token,
@@ -216,7 +190,7 @@ export default function App() {
                 console.log("Retrieving data")
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/progress_retrieve',
+                    url: 'https://golden-hind.onrender.com/progress_retrieve',
                     data: {
                         user: user,
                         token: token,
@@ -235,7 +209,7 @@ export default function App() {
             } else {
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/progress_update',
+                    url: 'https://golden-hind.onrender.com/progress_update',
                     data: {
                         user: user,
                         token: token,
@@ -283,18 +257,7 @@ export default function App() {
 
             axios({
                 method: 'post',
-                url: 'https://goldenhind.tech/continue',
-                data: {
-                    user: user,
-                    token: token,
-                    favId: id,
-                }
-            });
-        } else {
-            console.log("already in continues")
-            axios({
-                method: 'post',
-                url: 'https://goldenhind.tech/continue',
+                url: 'https://golden-hind.onrender.com/continue',
                 data: {
                     user: user,
                     token: token,
@@ -312,28 +275,19 @@ export default function App() {
         };
     }(window.open);
 
-    window.addEventListener('message', (event) => {
-        if (event.data?.data.event === 'ended') {
-            if (autoNext == 1) {
-                if (episode == maxEp) {
-                    if (season == maxSe) {
-
-                    } else {
-                        localStorage.setItem("episode" + id, 1); 
-                        localStorage.setItem("season" + id, parseInt(season) + 1);
-                        setEpisode(1);
-                        setSeason(parseInt(season) + 1);
-                        setAutoPlay(1); 
-                    }
-                } else {
-                    localStorage.setItem("episode" + id, parseInt(episode) + 1); 
-                    
-                    setEpisode(parseInt(episode) + 1);
-                    setAutoPlay(1);
-                }
-            }
-        }
-    });
+    const blockPopups = () => {
+        const originalOpen = window.open;
+        window.open = () => null; // Block all popup attempts
+    
+        // Ensure original open is restored after the iframe interaction
+        setTimeout(() => {
+            window.open = originalOpen;
+        }, 10000); // Adjust based on interaction timing
+    };
+    
+    useEffect(() => {
+        blockPopups();
+    }, []);
 
     const arrayRange = (start, stop, step) =>
         Array.from(
@@ -352,7 +306,7 @@ export default function App() {
 
             axios({
                 method: 'post',
-                url: 'https://goldenhind.tech/favourite',
+                url: 'https://golden-hind.onrender.com/favourite',
                 data: {
                     user: user,
                     token: token,
@@ -367,7 +321,7 @@ export default function App() {
 
             axios({
                 method: 'post',
-                url: 'https://goldenhind.tech/unfavourite',
+                url: 'https://golden-hind.onrender.com/unfavourite',
                 data: {
                     user: user,
                     token: token,
@@ -428,15 +382,7 @@ export default function App() {
             <div className= "watch-holder" id= "watch-holder">
                 <div className= "watch-system">
                 <div className= "watch-player">
-                    <iframe 
-                        referrerpolicy="origin" 
-                        className="watch-player-file" 
-                        id="watch-player-file" 
-                        src={video} 
-                        frameBorder="0" 
-                        allowFullScreen="yes" 
-                        allow="autoplay"
-                    ></iframe>
+                    <iframe referrerpolicy="origin" className= "watch-player-file" id="watch-player-file" src= {video} frameBorder="0" allowFullScreen="yes" allow="autoplay"></iframe>
                 </div>
                 <div className= "watch-options">
                     <div className= "watch-left">
@@ -473,16 +419,6 @@ export default function App() {
                             <button className = "watch-toggles-button watch-toggles-reload" onClick={() => {reloadVideo(relData + 1); console.log(relData); window.location.reload()}}>
                                 <img className = "watch-toggles-button-icon watch-toggles-reload-icon" src = {ReloadIcon}/>
                             </button>
-
-                           {autoNext == 1 ?
-                            <button className = "watch-toggles-button-selected watch-toggles-next" onClick={() => {setAutoNext(0); localStorage.setItem("autoNext", "0")}}>
-                                <img className = "watch-toggles-button-icon watch-toggles-next-icon" src = {AutonextIcon}/>
-                            </button>
-                            :
-                             <button className = "watch-toggles-button watch-toggles-next" onClick={() => {setAutoNext(1); localStorage.setItem("autoNext", "1")}}>
-                                <img className = "watch-toggles-button-icon watch-toggles-next-icon" src = {AutonextIcon}/>
-                            </button>
-                            }
                         </div>
                     </div>
                     <div className= "watch-right">

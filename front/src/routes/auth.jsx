@@ -41,7 +41,7 @@ export default function Auth() {
 function Verify(Token, navigate) {
   axios({
     method: 'post',
-    url: 'https://golden-hind.onrender.com/verify',
+    url: 'https://goldenhind.tech/verify',
     data: {
       token: Token,
     }
@@ -79,7 +79,7 @@ function Attempt(Which, Username, Password, Email, navigate) {
     }
     axios({
       method: 'post',
-      url: 'https://golden-hind.onrender.com/login',
+      url: 'https://goldenhind.tech/login',
       data: {
         username: Username,
         password: Password
@@ -116,7 +116,7 @@ function Attempt(Which, Username, Password, Email, navigate) {
       }
       axios({
         method: 'post',
-        url: 'https://golden-hind.onrender.com/register',
+        url: 'https://goldenhind.tech/register',
         data: {
           username: Username,
           password: Password,
@@ -143,76 +143,234 @@ function Attempt(Which, Username, Password, Email, navigate) {
 }
 
 export function Notification() {
-  let color = "#21982d";
-  if (infoType == "Error") {
-    color = "#982121"
-  } else if(infoType == "Warn") {
-    color = "#edd81b"
-  }
+  const notificationClass = `auth-notification ${infoType.toLowerCase()}`;
+  
   return (
-    <div className= "auth-notification" id= "auth-notification" style={{backgroundColor: color}}>
-      <p className= "auth-notification-info">{infoToShow}</p>
+    <div className={notificationClass} id="auth-notification">
+      <p className="auth-notification-info">{infoToShow}</p>
     </div>
   )
 }
 
 export function Login({setStatus, navigate}) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (isLoading) return;
+    
+    const newErrors = {};
+    if (!username.trim()) newErrors.username = true;
+    if (!password.trim()) newErrors.password = true;
+    
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
+    
+    setIsLoading(true);
+    await Attempt("Login", username, password, null, navigate);
+    setIsLoading(false);
+  };
 
-  function KeyUpSearch(event) {
-    console.log("Hi??")
-    if (event.key == "Enter") {Attempt("Login", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, null, navigate)}
-  }
+  const handleKeyPress = (event) => {
+    if (event.key === "Enter" && !isLoading) {
+      handleSubmit(event);
+    }
+  };
 
   return(
-    <div className= "auth-holder">
-      <p className= "auth-title" id= "auth-title">Login</p>
+    <div className="auth-holder">
+      <h1 className="auth-title">Welcome Back</h1>
+      
+      <form onSubmit={handleSubmit} style={{width: '100%'}}>
+        <div className="auth-box">
+          <label className="auth-box-info" htmlFor="username">Username</label>
+          <input 
+            className={`auth-box-input ${errors.username ? 'invalid' : ''}`}
+            id="username"
+            type="text"
+            value={username}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              if (errors.username) setErrors(prev => ({...prev, username: false}));
+            }}
+            onKeyPress={handleKeyPress}
+            placeholder="Enter your username"
+            autoComplete="username"
+            disabled={isLoading}
+          />
+        </div>
 
-      <div className= "auth-box" id= "username-entry">
-        <p className= "auth-box-info" id= "auth-box-user">Username</p>
-        <input className= "auth-box-input" id= "auth-user-input" onKeyUp={KeyUpSearch} autoComplete="off"></input>
-      </div>
+        <div className="auth-box">
+          <label className="auth-box-info" htmlFor="password">Password</label>
+          <input 
+            className={`auth-box-input ${errors.password ? 'invalid' : ''}`}
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errors.password) setErrors(prev => ({...prev, password: false}));
+            }}
+            onKeyPress={handleKeyPress}
+            placeholder="Enter your password"
+            autoComplete="current-password"
+            disabled={isLoading}
+          />
+        </div>
 
-      <div className= "auth-box" id= "password-entry">
-        <p className= "auth-box-info" id= "auth-box-pass">Password</p>
-        <input className= "auth-box-input" id= "auth-pass-input" type= "password" onKeyUp={KeyUpSearch} autoComplete="off"></input>
-      </div>
-
-      <button className= "auth-entry" onClick={() => Attempt("Login", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, null, navigate)}>ENTER</button>
-      <button className= "auth-switch" onClick={() => setStatus(1)} onMouseEnter={() => document.getElementById("auth-switch-underline").style.width = "12%"} onMouseLeave={() => document.getElementById("auth-switch-underline").style.width = "0%"}>Don't have an account?</button>
-      <div className= "auth-switch-underline" id= "auth-switch-underline"/>
+        <button 
+          type="submit"
+          className={`auth-entry ${isLoading ? 'loading' : ''}`}
+          disabled={isLoading}
+        >
+          {isLoading ? '' : 'Sign In'}
+        </button>
+      </form>
+      
+      <button 
+        className="auth-switch" 
+        onClick={() => setStatus(1)}
+        onMouseEnter={(e) => {
+          const underline = e.target.nextElementSibling;
+          if (underline) underline.style.width = '100%';
+        }}
+        onMouseLeave={(e) => {
+          const underline = e.target.nextElementSibling;
+          if (underline) underline.style.width = '0%';
+        }}
+        disabled={isLoading}
+      >
+        Don't have an account? Sign up
+      </button>
+      <div className="auth-switch-underline"/>
     </div>
   );
 }
 
 export function Registration ({setStatus}) {
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
-  function KeyUpSearch(event) {
-    if (event.key == "Enter") {Attempt("Register", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, document.getElementById("auth-email-input").value)}
-  }
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (isLoading) return;
+    
+    const newErrors = {};
+    if (!username.trim()) newErrors.username = true;
+    if (!email.trim()) newErrors.email = true;
+    else if (!validateEmail(email)) newErrors.email = true;
+    if (!password.trim()) newErrors.password = true;
+    else if (password.length < 6) newErrors.password = true;
+    
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
+    
+    setIsLoading(true);
+    await Attempt("Register", username, password, email);
+    setIsLoading(false);
+  };
+
+  const handleKeyPress = (event) => {
+    if (event.key === "Enter" && !isLoading) {
+      handleSubmit(event);
+    }
+  };
 
   return(
-    <div className= "auth-holder">
-      <p className= "auth-title" id= "auth-title">Register</p>
+    <div className="auth-holder">
+      <h1 className="auth-title">Create Account</h1>
+      
+      <form onSubmit={handleSubmit} style={{width: '100%'}}>
+        <div className="auth-box">
+          <label className="auth-box-info" htmlFor="reg-username">Username</label>
+          <input 
+            className={`auth-box-input ${errors.username ? 'invalid' : ''}`}
+            id="reg-username"
+            type="text"
+            value={username}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              if (errors.username) setErrors(prev => ({...prev, username: false}));
+            }}
+            onKeyPress={handleKeyPress}
+            placeholder="Choose a username"
+            autoComplete="username"
+            disabled={isLoading}
+          />
+        </div>
 
-      <div className= "auth-box" id= "username-entry">
-        <p className= "auth-box-info" id= "auth-box-user">Username</p>
-        <input className= "auth-box-input" id= "auth-user-input" onKeyUp={KeyUpSearch} autoComplete="off"></input>
-      </div>
+        <div className="auth-box">
+          <label className="auth-box-info" htmlFor="reg-email">Email Address</label>
+          <input 
+            className={`auth-box-input ${errors.email ? 'invalid' : ''}`}
+            id="reg-email"
+            type="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errors.email) setErrors(prev => ({...prev, email: false}));
+            }}
+            onKeyPress={handleKeyPress}
+            placeholder="Enter your email"
+            autoComplete="email"
+            disabled={isLoading}
+          />
+        </div>
 
-      <div className= "auth-box" id= "email-entry">
-        <p className= "auth-box-info" id= "auth-box-email">Email</p>
-        <input className= "auth-box-input" id= "auth-email-input" onKeyUp={KeyUpSearch} autoComplete="off"></input>
-      </div>
+        <div className="auth-box">
+          <label className="auth-box-info" htmlFor="reg-password">Password</label>
+          <input 
+            className={`auth-box-input ${errors.password ? 'invalid' : ''}`}
+            id="reg-password"
+            type="password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errors.password) setErrors(prev => ({...prev, password: false}));
+            }}
+            onKeyPress={handleKeyPress}
+            placeholder="Create a password (min. 6 characters)"
+            autoComplete="new-password"
+            disabled={isLoading}
+          />
+        </div>
 
-      <div className= "auth-box" id= "password-entry">
-        <p className= "auth-box-info" id= "auth-box-pass">Password</p>
-        <input className= "auth-box-input" id= "auth-pass-input" type= "password" onKeyUp={KeyUpSearch} autoComplete="off"></input>
-      </div>
-
-      <button className= "auth-entry" onClick={() => Attempt("Register", document.getElementById("auth-user-input").value, document.getElementById("auth-pass-input").value, document.getElementById("auth-email-input").value)}>ENTER</button>
-      <button className= "auth-switch" onClick={() => setStatus(0)} onMouseEnter={() => document.getElementById("auth-switch-underline").style.width = "12%"} onMouseLeave={() => document.getElementById("auth-switch-underline").style.width = "0%"}>Already have an account?</button>
-      <div className= "auth-switch-underline" id= "auth-switch-underline"/>
+        <button 
+          type="submit"
+          className={`auth-entry ${isLoading ? 'loading' : ''}`}
+          disabled={isLoading}
+        >
+          {isLoading ? '' : 'Create Account'}
+        </button>
+      </form>
+      
+      <button 
+        className="auth-switch" 
+        onClick={() => setStatus(0)}
+        onMouseEnter={(e) => {
+          const underline = e.target.nextElementSibling;
+          if (underline) underline.style.width = '100%';
+        }}
+        onMouseLeave={(e) => {
+          const underline = e.target.nextElementSibling;
+          if (underline) underline.style.width = '0%';
+        }}
+        disabled={isLoading}
+      >
+        Already have an account? Sign in
+      </button>
+      <div className="auth-switch-underline"/>
     </div>
   );
 }

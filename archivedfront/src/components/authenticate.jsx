@@ -3,7 +3,7 @@ import axios from 'axios'
 export default function Authenticate(user, token, navigate) {
     axios({
         method: 'post',
-        url: 'https://golden-hind.duckdns.org/home',
+        url: 'https://golden-hind.onrender.com/home',
         data: {
             user: user,
             token: token,

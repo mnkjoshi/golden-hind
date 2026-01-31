@@ -13,7 +13,6 @@ import Auth from './routes/auth.jsx'
 import App from './routes/app.jsx'
 import Watch from './routes/watch.jsx'
 import Search from './routes/search.jsx'
-import Books from './routes/books.jsx'
 import ErrorPage from './routes/error.jsx'
 
 import {
@@ -55,11 +54,6 @@ const router = createBrowserRouter([
   {
     path: "/search",
     element: <Search/>,
-    errorElement: <ErrorPage/>
-  },
-  {
-    path: "/books",
-    element: <Books/>,
     errorElement: <ErrorPage/>
   },
   {

@@ -1,0 +1,159 @@
+.topbar-main {
+    width: 100%;
+    height: 6%;
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    align-items: center;
+    z-index: 1;
+}
+
+.topbar-title {
+    color: white;
+    font-family: Viga, monospace;
+    font-size: 30px;
+    margin-left: 20px;
+    width: 5%;
+    text-align: left;
+    background: none;
+    outline: none;
+    border: none;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.topbar-gap {
+    width: 40%;
+}
+
+.topbar-title:hover {
+    color: #3FA3FF;
+}
+
+.topbar-title:active {
+    color: #6db8ff;
+}
+
+.topbar-search {
+    width: 30%;
+    height: 70%;
+    display: flex;
+    flex-direction: column;
+    justify-content: end;
+}
+
+.topbar-search-input {
+    height: 80%;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-style: none;
+    color: white;
+    font-family: Viga, monospace;
+    font-size: 18px;
+}
+
+.topbar-search-input:focus {
+    border: none;
+    border-style: none;
+    outline-width: 0px;
+}
+
+.topbar-search-underline {
+    width: 100%;
+    height: 1px;
+    color: white;
+    background-color: white;
+    z-index: 1;
+}
+
+.topbar-account {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    margin-right: 20px;
+}
+
+.topbar-account-arrow {
+    width: 40px;
+    height: 40px;
+    transform: rotate(180deg);
+    transition: 0.5s;
+}
+
+.topbar-account-display {
+    font-family: Viga, monospace;
+    color: white;
+    font-size: 23px;
+}
+
+.topbar-account-button {
+    position: absolute;
+    height: 5%;
+    width: 10%;
+    cursor: pointer;
+    opacity: 0;
+}
+
+.topbar-dropdown {
+    position: absolute;
+    width: 7.5%;
+    background-color: rgba(12, 12, 12, 0.5);
+    height: 15%;
+    margin-right: -10px;
+    margin-top: 10%;
+    display: flex;
+    flex-direction: column;
+    transition: 0.5s;
+    transform: translateY(-15px);
+    opacity: 0;
+    z-index: -1;
+}
+
+.topbar-dropdown-option {
+    background: none;
+    color: rgba(255, 255, 255, 0.712);
+    border: none;
+    flex: 1;
+    font-family: Viga, monospace;
+    font-size: 20px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.topbar-dropdown-option:hover {
+    color: rgba(255, 255, 255, 1);
+}
+
+.topbar-dropdown-option:active {
+    color: #3FA3FF;
+}
+
+@media (max-width: 768px) {
+
+    .topbar-search-input {
+        font-size: 15px;
+
+    }
+
+    .topbar-account-display {
+        font-size: 20px;
+    }
+
+    .topbar-dropdown-option {
+        font-size: 15px;
+    }
+
+    .topbar-account-button {
+        width: 25%;
+    }
+
+    .topbar-dropdown {
+        position: absolute;
+        width: 25%;
+        height: 15%;
+        margin-top: 40%;
+    }
+}

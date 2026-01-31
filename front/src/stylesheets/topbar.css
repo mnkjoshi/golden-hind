@@ -1,159 +1,426 @@
-.topbar-main {
+/* Modern Netflix-style Topbar */
+.modern-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
-    height: 6%;
-    display: flex;
-    flex-direction: row;
-    justify-content: start;
-    align-items: center;
-    z-index: 1;
+    height: 70px;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    transition: all 0.3s ease;
+    z-index: 1000;
+    border-bottom: 1px solid transparent;
 }
 
-.topbar-title {
-    color: white;
-    font-family: Viga, monospace;
-    font-size: 30px;
-    margin-left: 20px;
-    width: 5%;
-    text-align: left;
+.modern-topbar.scrolled {
+    background: rgba(20, 20, 20, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.topbar-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+    max-width: 1920px;
+    margin: 0 auto;
+    padding: 0 4rem;
+}
+
+/* Logo Section */
+.topbar-left {
+    display: flex;
+    align-items: center;
+}
+
+.topbar-logo {
     background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.logo-text {
+    font-size: 1.8rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #3FA3FF 0%, #6FB7FF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.02em;
+    transition: all 0.3s ease;
+}
+
+.topbar-logo:hover .logo-text {
+    background: linear-gradient(135deg, #5BB3FF 0%, #8FC7FF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    transform: scale(1.05);
+}
+
+/* Santa Hat */
+.santa-hat {
+    position: absolute;
+    top: -12px;
+    left: -5px;
+    width: 0;
+    height: 0;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-bottom: 18px solid #c41e3a;
+    transform: rotate(-15deg);
+ 
+    transition: opacity 0.3s ease;
+}
+
+.santa-hat::before {
+    content: '';
+    position: absolute;
+    top: 18px;
+    left: -12px;
+    width: 24px;
+    height: 5px;
+    background: white;
+    border-radius: 5px;
+}
+
+.santa-hat::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -5px;
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+}
+
+@keyframes santaHatSway {
+    0%, 100% { transform: rotate(-20deg); }
+    50% { transform: rotate(-10deg); }
+}
+
+/* Navigation Links */
+.topbar-nav {
+    display: flex;
+    gap: 2rem;
+    margin-left: 3rem;
+}
+
+.nav-link {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.nav-link:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-link.active {
+    color: #3FA3FF;
+    background: rgba(63, 163, 255, 0.1);
+}
+
+.nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 20px;
+    height: 2px;
+    background: #3FA3FF;
+    border-radius: 1px;
+}
+
+/* Right Side */
+.topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+/* Search Container */
+.search-container {
+    position: relative;
+}
+
+.search-wrapper {
+    position: relative;
+    width: 300px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    padding: 0 1rem;
+    transition: all 0.3s ease;
+}
+
+.search-wrapper:focus-within {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: #3FA3FF;
+    box-shadow: 0 0 0 2px rgba(63, 163, 255, 0.2);
+}
+
+.search-icon {
+    width: 18px;
+    height: 18px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-right: 0.75rem;
+    flex-shrink: 0;
+}
+
+.search-input {
+    flex: 1;
+    background: none;
+    border: none;
     outline: none;
-    border: none;
-    cursor: pointer;
-    transition: 0.2s;
-}
-
-.topbar-gap {
-    width: 40%;
-}
-
-.topbar-title:hover {
-    color: #3FA3FF;
-}
-
-.topbar-title:active {
-    color: #6db8ff;
-}
-
-.topbar-search {
-    width: 30%;
-    height: 70%;
-    display: flex;
-    flex-direction: column;
-    justify-content: end;
-}
-
-.topbar-search-input {
-    height: 80%;
-    width: 100%;
-    background: transparent;
-    border: none;
-    border-style: none;
     color: white;
-    font-family: Viga, monospace;
-    font-size: 18px;
+    font-size: 0.95rem;
+    padding: 0.75rem 0;
+    font-family: inherit;
 }
 
-.topbar-search-input:focus {
-    border: none;
-    border-style: none;
-    outline-width: 0px;
+.search-input::placeholder {
+    color: rgba(255, 255, 255, 0.6);
 }
 
-.topbar-search-underline {
-    width: 100%;
-    height: 1px;
-    color: white;
-    background-color: white;
-    z-index: 1;
+/* Account Section */
+.account-section {
+    position: relative;
 }
 
-.topbar-account {
-    flex: 1;
+.account-button {
     display: flex;
-    flex-direction: row;
-    justify-content: flex-end;
     align-items: center;
-    margin-right: 20px;
-}
-
-.topbar-account-arrow {
-    width: 40px;
-    height: 40px;
-    transform: rotate(180deg);
-    transition: 0.5s;
-}
-
-.topbar-account-display {
-    font-family: Viga, monospace;
-    color: white;
-    font-size: 23px;
-}
-
-.topbar-account-button {
-    position: absolute;
-    height: 5%;
-    width: 10%;
-    cursor: pointer;
-    opacity: 0;
-}
-
-.topbar-dropdown {
-    position: absolute;
-    width: 7.5%;
-    background-color: rgba(12, 12, 12, 0.5);
-    height: 15%;
-    margin-right: -10px;
-    margin-top: 10%;
-    display: flex;
-    flex-direction: column;
-    transition: 0.5s;
-    transform: translateY(-15px);
-    opacity: 0;
-    z-index: -1;
-}
-
-.topbar-dropdown-option {
+    gap: 0.75rem;
     background: none;
-    color: rgba(255, 255, 255, 0.712);
     border: none;
-    flex: 1;
-    font-family: Viga, monospace;
-    font-size: 20px;
     cursor: pointer;
-    transition: 0.2s;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    transition: all 0.3s ease;
 }
 
-.topbar-dropdown-option:hover {
-    color: rgba(255, 255, 255, 1);
+.account-button:hover {
+    background: rgba(255, 255, 255, 0.1);
 }
 
-.topbar-dropdown-option:active {
-    color: #3FA3FF;
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #3FA3FF 0%, #6FB7FF 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
 }
 
-@media (max-width: 768px) {
+.username {
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 500;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
-    .topbar-search-input {
-        font-size: 15px;
+.dropdown-arrow {
+    width: 16px;
+    height: 16px;
+    color: rgba(255, 255, 255, 0.7);
+    transition: transform 0.3s ease;
+}
 
+.dropdown-arrow.open {
+    transform: rotate(180deg);
+}
+
+/* Account Dropdown */
+.account-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 200px;
+    background: rgba(20, 20, 20, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 0.5rem 0;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    animation: dropdownFadeIn 0.2s ease-out;
+    z-index: 1001;
+}
+
+@keyframes dropdownFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
     }
-
-    .topbar-account-display {
-        font-size: 20px;
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
+}
 
-    .topbar-dropdown-option {
-        font-size: 15px;
+.dropdown-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.dropdown-item.logout:hover {
+    background: rgba(220, 38, 38, 0.1);
+    color: #ef4444;
+}
+
+.dropdown-item svg {
+    width: 16px;
+    height: 16px;
+    color: currentColor;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 0.5rem 0;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .topbar-content {
+        padding: 0 2rem;
     }
-
-    .topbar-account-button {
-        width: 25%;
+    
+    .search-wrapper {
+        width: 250px;
     }
+}
 
-    .topbar-dropdown {
-        position: absolute;
-        width: 25%;
-        height: 15%;
-        margin-top: 40%;
+@media (max-width: 800px) {
+    .topbar-content {
+        padding: 0 1rem;
+    }
+    
+    .topbar-nav {
+        display: none;
+    }
+    
+    .search-wrapper {
+        width: 200px;
+    }
+    
+    .username {
+        display: none;
+    }
+    
+    .logo-text {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 600px) {
+    .modern-topbar {
+        height: 55px;
+    }
+    
+    .topbar-content {
+        padding: 0 1rem;
+    }
+    
+    .navigation-links {
+        display: none; /* Hide nav links on mobile */
+    }
+    
+    .search-wrapper {
+        width: 140px;
+        flex: 1;
+        max-width: 200px;
+    }
+    
+    .search-input {
+        font-size: 16px; /* Prevent iOS zoom */
+        height: 36px;
+        padding: 0 12px;
+    }
+    
+    .logo-text {
+        font-size: 1.2rem;
+    }
+    
+    .account-dropdown {
+        right: -0.5rem;
+        min-width: 160px;
+        font-size: 0.9rem;
+    }
+    
+    .dropdown-item {
+        padding: 0.8rem 1rem;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .modern-topbar {
+        height: 50px;
+    }
+    
+    .topbar-content {
+        padding: 0 0.5rem;
+    }
+    
+    .logo-text {
+        font-size: 1.1rem;
+    }
+    
+    .search-wrapper {
+        width: 120px;
+        max-width: 150px;
+    }
+    
+    .search-input {
+        font-size: 14px;
+        height: 32px;
+        padding: 0 10px;
+    }
+    
+    .account-dropdown {
+        min-width: 140px;
+        font-size: 0.85rem;
     }
 }

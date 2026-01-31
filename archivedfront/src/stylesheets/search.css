@@ -1,0 +1,325 @@
+body,
+html {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  /* Adjust the color to match the exact background of your image */
+  overflow-x: hidden;
+  overflow-y: hidden;
+  
+}
+
+.html {
+    transition: 1s;
+    mix-blend-mode: difference;
+}
+
+p { 
+    margin: 0;
+}
+
+#root {
+    width: 100%;
+    height: 100%;
+}
+
+.search-main {
+    width: 100%;
+    height: 100%;
+    background-color: #1E1E1E;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: start;
+}
+
+.search-title-options {
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+
+    height: 5%;
+    width: 100%;
+}
+
+.search-title {
+    font-family: Viga;
+    color: white;
+    font-size: 20px;
+    text-align: left;
+    margin-top: 1%;
+    margin-left: 1%;
+    width: 50%;
+}
+
+.search-results-loading {
+    color: white;
+    font-family: Viga;
+    font-size: 30px;
+}
+
+.search-options {
+    display: flex;
+    flex-direction: row;
+    justify-content: end;
+    align-items: end;
+    width: 48%;
+    height: 100%;
+}
+
+.search-options-arrow {
+    color: white;
+    border: none;
+    outline: none;
+    background: none;
+    font-family: Viga;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.search-options-title {
+    color: white;
+    font-family: Viga;
+    font-size: 20px;
+    margin: 0px 5px 0px 5px;
+}
+
+.search-results {
+    background-color: none;
+    margin-top: 0.5%;
+    height: 84%;
+    width: 98%;
+    display: grid;
+    grid-template-columns: 24.6% 24.6% 24.6% 24.6%;
+    grid-template-rows: 50% 50%;
+    row-gap: 2%;
+    column-gap: 0.5%;
+
+}
+
+.search-results-component {
+    display: flex;
+    flex-direction: column;
+    justify-content: start;
+    align-items: center;
+    background-color:hsl(0, 0%, 8%);
+    padding: 3px 3px 3px 3px;
+    border-radius: 5px;
+    z-index: 1;
+    position: relative;
+    box-shadow: 0px 0px 8px 0px #000000;
+}
+
+.search-results-component-details {
+    height: 70%;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+}
+
+.search-results-component-info {
+    width: 98%;
+    margin-left: 1%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.search-results-component-title {
+    color: white;
+    width: 100%;
+    font-size: 18px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    text-align: center;
+    align-self: center;
+    font-weight: bold;
+}
+
+.search-results-component-overview {
+    color: white;
+    height: 80%;
+    word-wrap: break-word;
+    width: 100%;
+    font-size: 11px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    text-align: center;
+    align-self: center;
+}
+
+.search-results-component-expand {
+    position: absolute;
+    z-index: 5;
+    width: 40%;
+    left: 30%;
+    top: 92%;
+    height: 8%;
+    background: #151515;
+    color: white;
+    font-family: Viga;
+    font-size: 10px;
+    border: solid;
+    border-width: 2px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.search-results-component-expand:hover {
+    border: #151515;
+    filter: invert(100%);
+}
+
+
+.search-results-component-overview-expanded {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    background-color: #151515;
+    color: white;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    z-index: -1;
+    visibility: hidden;
+    border-radius: 5px;
+    font-size: 14px;
+    cursor: pointer;
+    padding-inline: 5px 5px 5px 5px;
+}
+
+.search-results-component-poster {
+    height: 100%;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.search-results-component-options {
+    width: 100%;
+    height: 29%;
+    border-radius: 5px;
+    background-color: #1E1E1E;
+    margin-top: 0.5%;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: start;
+    align-items: center;
+}
+
+.search-results-component-options-top {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    width: 96%;
+    height: 65%;
+    gap: 5%;
+    margin-left: 2%;
+    margin-right: 2%;
+}
+
+.search-results-component-data {
+    color: white;
+    font-family: Viga;
+    font-size: 18px;
+    background-color: #ffffff22;
+
+    flex: 0.15;
+
+    padding-top: 2px;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-bottom: 2px;
+    border-radius: 2px;
+    text-align: center;
+}
+
+.search-results-component-date {
+    flex: 0.6;
+}
+
+.search-results-component-country {
+    height: 65%;
+    border-radius: 5px;
+}
+
+.search-movie {
+    background-color: #4897fe;
+}
+
+.search-tv {
+    background-color: #670097;
+}
+
+.search-results-component-options-bottom {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: top;
+    width: 96%;
+    height: 30%;
+    margin-left: 2%;
+    margin-right: 2%;
+    margin-bottom: 4%;
+}
+
+.search-results-component-button {
+    height: 100%;
+    padding: 0px;
+    border-radius: 5px;
+    transition: 0.3s;
+    cursor: pointer;
+}
+
+.search-results-component-button-selected {
+    background-color: #151515;
+    border: solid 2px #151515;
+    filter: invert(100%);
+}
+
+.search-results-component-button-deselected {
+    background-color: #151515;
+    border: solid 2px white;
+}
+
+.search-results-component-button-deselected:hover {
+    filter: invert(100%);
+}
+
+.search-results-component-button-selected:hover {
+    border: solid 2px white;
+    filter: invert(0%);
+}
+
+.search-results-component-icon {
+    height: 100%;
+    aspect-ratio: 1;
+}
+
+@media (max-width: 800px) {
+    .search-results {
+        grid-template-columns: 96%;
+        grid-template-rows: 50% 50%;
+        column-gap: 5px;
+    }
+
+    .search-title {
+        width: 100%;
+        align-self: flex-end;
+    }
+
+    .search-options {
+        width: 48%;
+        margin-right: 10px;
+        height: 100%;
+    }
+
+    .search-results-component {
+        width: 100%;
+        margin-left: 1%;
+    }
+
+    .search-results-component-overview {
+        font-size: 11px;
+    }
+}
