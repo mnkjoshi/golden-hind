@@ -1180,44 +1180,53 @@ async function getLookmovieInternalId(imdbId, mediaType, title, year, dbg) {
     dbg.push(`HTTP ${res.status} — response length: ${html.length} chars`);
     dbg.push(`First 400 chars: ${html.slice(0, 400)}`);
 
-    const nextMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-    if (nextMatch) {
-        dbg.push('Found __NEXT_DATA__, parsing...');
-        try {
-            const nd = JSON.parse(nextMatch[1]);
-            const pp = nd?.props?.pageProps;
-            dbg.push(`pageProps keys: ${Object.keys(pp || {}).join(', ')}`);
-            const id = pp?.movie?.id || pp?.show?.id || pp?.data?.id;
-            if (id) {
-                dbg.push(`Found ID in __NEXT_DATA__: ${id}`);
-                return { id: String(id), url };
-            }
-            dbg.push(`ID not at expected paths. pageProps sample: ${JSON.stringify(pp).slice(0, 800)}`);
-        } catch (e) {
-            dbg.push(`Failed to parse __NEXT_DATA__: ${e.message}`);
-        }
-    } else {
-        dbg.push('No __NEXT_DATA__ script tag found');
-    }
+    // Extract all inline script tag contents to search within them
+    const scriptBlocks = [];
+    const scriptRe = /<script(?:\s[^>]*)?>([^<]{20,})<\/script>/gi;
+    let sm;
+    while ((sm = scriptRe.exec(html)) !== null) scriptBlocks.push(sm[1]);
+    dbg.push(`Found ${scriptBlocks.length} non-empty inline script blocks`);
 
+    // Patterns ordered by specificity — IDs can be as small as 2 digits
     const patterns = [
-        { label: 'id_movie/id_show key',  re: /(?:id_movie|id_show)['":\s]+(\d{4,})/ },
-        { label: 'manifest?id=',           re: /manifest\?id=(\d{4,})/ },
-        { label: 'episode/list?id=',       re: /episode\/list\?id=(\d{4,})/ },
-        { label: '"id": 5+ digits',        re: /"id":\s*(\d{5,})/ },
-        { label: "'id': 5+ digits",        re: /'id':\s*(\d{5,})/ },
+        { label: 'episode/list?id=',        re: /episode\/list\?id=(\d+)/ },
+        { label: 'manifest?id=',             re: /manifest\?id=(\d+)/ },
+        { label: 'id_show key',              re: /['"](id_show)['"]\s*[=:]\s*['"]*(\d+)/ },
+        { label: 'id_movie key',             re: /['"](id_movie)['"]\s*[=:]\s*['"]*(\d+)/ },
+        { label: '"show":{"id":N',           re: /"show"\s*:\s*\{[^}]*?"id"\s*:\s*(\d+)/ },
+        { label: '"movie":{"id":N',          re: /"movie"\s*:\s*\{[^}]*?"id"\s*:\s*(\d+)/ },
+        { label: 'id_show:N (bare)',         re: /id_show\s*[=:]\s*(\d+)/ },
+        { label: 'id_movie:N (bare)',        re: /id_movie\s*[=:]\s*(\d+)/ },
+        { label: "show_id/movie_id",         re: /(?:show|movie)_id\s*[=:]\s*['"]*(\d+)/ },
+        { label: '"id":N any (≥2 digits)',   re: /"id"\s*:\s*(\d{2,})/ },
     ];
 
+    // Search each script block with each pattern
+    for (const block of scriptBlocks) {
+        for (const { label, re } of patterns) {
+            const m = block.match(re);
+            if (m) {
+                const captured = m[2] || m[1]; // some patterns have 2 groups
+                dbg.push(`Found ID "${captured}" in script block via "${label}"`);
+                return { id: captured, url };
+            }
+        }
+    }
+
+    // Also try the full HTML as a last resort
     for (const { label, re } of patterns) {
         const m = html.match(re);
         if (m) {
-            dbg.push(`Found ID via fallback pattern "${label}": ${m[1]}`);
-            return { id: m[1], url };
+            const captured = m[2] || m[1];
+            dbg.push(`Found ID "${captured}" in full HTML via "${label}"`);
+            return { id: captured, url };
         }
-        dbg.push(`Fallback pattern "${label}" — no match`);
     }
 
-    dbg.push(`All patterns failed. HTML chars 400-1600: ${html.slice(400, 1600)}`);
+    // Dump script block samples so we can see what's actually there
+    scriptBlocks.forEach((b, i) => {
+        dbg.push(`Script block ${i} (first 300 chars): ${b.trim().slice(0, 300)}`);
+    });
 
     throw new Error(`Could not find LookMovie ID at ${url}`);
 }
