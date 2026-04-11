@@ -2,6 +2,8 @@ import { Outlet, useNavigate, useLocation, useParams } from "react-router-dom";
 import axios from 'axios'
 import React, { useEffect, useState, useRef } from 'react';
 import Hls from 'hls.js';
+import Plyr from 'plyr';
+import 'plyr/dist/plyr.css';
 import { track } from '../utils/analytics.js'
 import Topbar from "../components/topbar"
 
@@ -34,10 +36,14 @@ export default function App() {
     const [provider, setProvider] = useState(1);
 
     const [lmUrl, setLmUrl] = useState(null);
+    const [lmSubtitles, setLmSubtitles] = useState([]);
     const [lmLoading, setLmLoading] = useState(false);
     const [lmError, setLmError] = useState(null);
+    const [skipFlash, setSkipFlash] = useState(null); // 'forward' | 'back' | null
     const lmVideoRef = useRef(null);
     const hlsRef = useRef(null);
+    const plyrRef = useRef(null);
+    const flashTimeoutRef = useRef(null);
 
     const[bookmarked, setBookmark] = useState(-1);
     const[similarOn, setSimilar] = useState(-1);
@@ -112,33 +118,139 @@ export default function App() {
             data: { user, token, id, season, episode }
         }).then(r => {
             if (r.data.dbg) console.group('[LookMovie Debug]'), r.data.dbg.forEach(l => console.log(l)), console.groupEnd();
-            if (r.data.success) setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
-            else setLmError(r.data.error || 'Stream unavailable');
+            if (r.data.success) {
+                setLmSubtitles(r.data.subtitles || []);
+                setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
+            } else {
+                setLmError(r.data.error || 'Stream unavailable');
+            }
         }).catch(() => setLmError('Failed to reach server'))
           .finally(() => setLmLoading(false));
     }, [provider, season, episode]);
 
-    // Attach HLS.js when a stream URL arrives
+    // Attach HLS.js + Plyr when a stream URL arrives
     useEffect(() => {
         if (!lmUrl || !lmVideoRef.current) return;
+
+        // Destroy previous instances
+        if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
         if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
 
-        if (Hls.isSupported()) {
-            const hls = new Hls({
-                xhrSetup: (xhr) => {
-                    xhr.withCredentials = false;
-                },
+        const video = lmVideoRef.current;
+
+        // Inject subtitle tracks into the video element before Plyr wraps it
+        while (video.firstChild) video.removeChild(video.firstChild);
+        lmSubtitles.forEach((sub, i) => {
+            const track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.label = sub.language || sub.lang || `Track ${i + 1}`;
+            track.srclang = (sub.language || sub.lang || 'en').slice(0, 2).toLowerCase();
+            const rawSub = sub.file || sub.url || '';
+            const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
+            track.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
+            if (i === 0) track.default = true;
+            video.appendChild(track);
+        });
+
+        const initPlyr = () => {
+            const player = new Plyr(video, {
+                controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'captions', 'settings', 'pip', 'fullscreen'],
+                settings: ['captions', 'quality', 'speed'],
+                captions: { active: lmSubtitles.length > 0, update: true },
+                ratio: '16:9',
+                keyboard: { focused: false, global: false }, // we handle keys ourselves
             });
+            plyrRef.current = player;
+        };
+
+        if (Hls.isSupported()) {
+            const hls = new Hls({ xhrSetup: xhr => { xhr.withCredentials = false; } });
             hlsRef.current = hls;
             hls.loadSource(lmUrl);
-            hls.attachMedia(lmVideoRef.current);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => lmVideoRef.current?.play());
-        } else if (lmVideoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-            lmVideoRef.current.src = lmUrl;
-            lmVideoRef.current.play();
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                initPlyr();
+                plyrRef.current?.play().catch(() => {});
+            });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = lmUrl;
+            initPlyr();
+            video.play().catch(() => {});
         }
-        return () => { if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; } };
+
+        return () => {
+            if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
+            if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+        };
     }, [lmUrl]);
+
+    // Skip helpers
+    const triggerFlash = (dir) => {
+        setSkipFlash(dir);
+        if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+        flashTimeoutRef.current = setTimeout(() => setSkipFlash(null), 700);
+    };
+    const handleSkipBack = () => {
+        const p = plyrRef.current;
+        if (!p) return;
+        p.currentTime = Math.max(0, p.currentTime - 10);
+        triggerFlash('back');
+    };
+    const handleSkipForward = () => {
+        const p = plyrRef.current;
+        if (!p) return;
+        p.currentTime = Math.min(p.duration || 0, p.currentTime + 10);
+        triggerFlash('forward');
+    };
+
+    // Keyboard shortcuts for provider 4
+    useEffect(() => {
+        if (parseInt(provider) !== 4) return;
+        const onKey = (e) => {
+            const p = plyrRef.current;
+            if (!p) return;
+            if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+            switch (e.key) {
+                case 'ArrowRight':
+                    e.preventDefault();
+                    p.currentTime = Math.min(p.duration || 0, p.currentTime + 10);
+                    triggerFlash('forward');
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    p.currentTime = Math.max(0, p.currentTime - 10);
+                    triggerFlash('back');
+                    break;
+                case ' ':
+                case 'k':
+                case 'K':
+                    e.preventDefault();
+                    p.togglePlay();
+                    break;
+                case 'm':
+                case 'M':
+                    e.preventDefault();
+                    p.muted = !p.muted;
+                    break;
+                case 'f':
+                case 'F':
+                    e.preventDefault();
+                    p.fullscreen.toggle();
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    p.volume = Math.min(1, p.volume + 0.1);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    p.volume = Math.max(0, p.volume - 0.1);
+                    break;
+            }
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [provider]);
+
     if (type == "m") {
         type = "movie"
     } else if (type == "t") {
@@ -514,12 +626,32 @@ export default function App() {
                                 <p>⚠ {lmError}</p>
                             </div>
                         ) : (
-                            <video
-                                ref={lmVideoRef}
-                                className="watch-player-file"
-                                controls
-                                playsInline
-                            />
+                            <>
+                                <video
+                                    ref={lmVideoRef}
+                                    className="watch-player-file"
+                                    playsInline
+                                />
+                                <div className="lm-skip-overlay">
+                                    <button className="lm-skip-btn" onClick={handleSkipBack} aria-label="Back 10 seconds">
+                                        <svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                                        </svg>
+                                        <span className="lm-skip-label">10</span>
+                                    </button>
+                                    <button className="lm-skip-btn" onClick={handleSkipForward} aria-label="Forward 10 seconds">
+                                        <svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" style={{transform:'scaleX(-1)'}}>
+                                            <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                                        </svg>
+                                        <span className="lm-skip-label">10</span>
+                                    </button>
+                                </div>
+                                {skipFlash && (
+                                    <div className={`lm-skip-flash lm-skip-flash-${skipFlash}`}>
+                                        {skipFlash === 'forward' ? '+10s' : '−10s'}
+                                    </div>
+                                )}
+                            </>
                         )
                     ) : (
                         <iframe
@@ -615,40 +747,7 @@ export default function App() {
                 </div>
                 
             </div>
-            {window.innerWidth < 800 ? null : <div className= "watch-similar" id= "watch-similar">
-                    {similarData == "" ? "" : 
-                    (similarData.map( result =>
-                        <div className= "watch-results-component"> 
-                            <div className= "watch-results-component-details">
-                                <img className= "watch-results-component-poster" src={"https://image.tmdb.org/t/p/original/" + result.poster_path} onClick={() => {setSimilar(-1 * similarOn); if (type == "movie") {navigate("/watch/m" + result.id)} else {navigate("/watch/t" + result.id)} }}/>
-                                <div className= "watch-results-component-info">
-                                    <p className= "watch-results-component-title">{result.name == null ? (result.title == null ? "Untitled" : result.title) : result.name}</p>
-                                    
-                                    <p className= "watch-results-component-overview">{result.overview.slice(0, 200)}</p>
-                                    {result.overview.length > 200 ? <button className= "watch-results-component-expand" onClick={() => {document.getElementById("watch-results-component-overview-expanded" + result.id).style.visibility = "visible"; document.getElementById("watch-results-component-overview-expanded" + result.id).style.zIndex = 6}}>EXPAND</button> : null}
-                                </div>  
-                            </div>
-                            <p className= "watch-results-component-overview-expanded" id= {"watch-results-component-overview-expanded" + result.id} onClick={() => {document.getElementById("watch-results-component-overview-expanded" + result.id).style.visibility = "hidden"; document.getElementById("watch-results-component-overview-expanded" + result.id).style.zIndex = -1}}>{result.overview}</p>
-                            <div className= "watch-results-component-options">
-                                <div className= "watch-results-component-options-top">
-                                    {type == "movie" ? 
-                                    <p id="watch-results-component-format" className= "watch-results-component-format watch-results-component-data watch-results-component-movie">mv</p>
-                                    :
-                                    <p id="watch-results-component-format" className= "watch-results-component-format watch-results-component-data watch-results-component-tv">{result.media_type}</p>
-                                    }
-                                    <p id="watch-results-component-rating" className= "watch-results-component-rating watch-results-component-data" style={{background: `color-mix(in srgb, red ${( 1- result.vote_average/10) * 100}%, green ${(result.vote_average/10) * 100}%)`}}>{result.vote_average}</p>
-                                    <p className= "watch-results-component-language watch-results-component-data">{result.original_language}</p>
-                                    {result.first_air_date == null ? 
-                                    (result.release_date == null ? <p className= "watch-results-component-date watch-results-component-data">0000-00-00</p> : <p className= "watch-results-component-date watch-results-component-data">{result.release_date}</p>) : <p className= "watch-results-component-date watch-results-component-data">{result.first_air_date}</p>}
-                                    {result.origin_country == null ? <img className="watch-results-component-country" src={`https://flagsapi.com/AQ/flat/64.png`}/> : <img className="watch-results-component-country" src={`https://flagsapi.com/${result.origin_country[0]}/flat/64.png`}/>}
-                                </div>
-                                <div className= "watch-results-component-options-bottom">
-
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>}
+            
             
         </div>
     );

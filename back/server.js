@@ -1314,6 +1314,34 @@ app.get('/proxy/hls', async (req, res) => {
     }
 });
 
+// Subtitle proxy — fetches SRT, converts to WebVTT, serves to browser
+app.get('/proxy/subtitle', async (req, res) => {
+    const raw = req.query.url;
+    if (!raw) return res.status(400).send('Missing url');
+    const url = decodeURIComponent(raw);
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+
+    try {
+        const { data } = await axios.get(url, {
+            headers: { 'Referer': 'https://www.lookmovie2.to/', 'User-Agent': lookmovieHeaders['User-Agent'] },
+            responseType: 'text',
+            timeout: 10000,
+        });
+        // VTT files pass through as-is; SRT files get converted
+        const isVtt = url.toLowerCase().includes('.vtt') || data.trimStart().startsWith('WEBVTT');
+        const vtt = isVtt
+            ? data
+            : 'WEBVTT\n\n' + data
+                .replace(/\r\n/g, '\n')
+                .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+        res.send(vtt);
+    } catch (e) {
+        res.status(502).send('WEBVTT\n\n');
+    }
+});
+
 app.post('/server/lookmovie', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
