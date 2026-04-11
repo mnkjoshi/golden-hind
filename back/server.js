@@ -1263,6 +1263,47 @@ async function getLookmovieStreamUrl(internalId, mediaType, dbg) {
     return { streamUrl, subtitles: res.data.subtitles || [] };
 }
 
+// HLS proxy — rewrites m3u8 segment URLs so the browser never hits the CDN directly
+app.get('/proxy/hls', async (req, res) => {
+    const raw = req.query.url;
+    if (!raw) return res.status(400).send('Missing url');
+    const url = decodeURIComponent(raw);
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Range');
+
+    try {
+        const upstream = await axios.get(url, {
+            headers: { 'Referer': 'https://www.lookmovie2.to/', 'User-Agent': lookmovieHeaders['User-Agent'] },
+            responseType: 'arraybuffer',
+            timeout: 30000,
+        });
+
+        const ct = upstream.headers['content-type'] || '';
+        const isManifest = url.includes('.m3u8') || ct.includes('mpegurl');
+
+        if (isManifest) {
+            const text = Buffer.from(upstream.data).toString('utf8');
+            const base = url.substring(0, url.lastIndexOf('/') + 1);
+            const rewritten = text.split('\n').map(line => {
+                const t = line.trim();
+                if (!t || t.startsWith('#')) return line;
+                const abs = t.startsWith('http') ? t : base + t;
+                return `/proxy/hls?url=${encodeURIComponent(abs)}`;
+            }).join('\n');
+            res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+            return res.send(rewritten);
+        }
+
+        // Binary segment (.ts / .mp4 chunk)
+        res.setHeader('Content-Type', ct || 'video/MP2T');
+        if (upstream.headers['content-length']) res.setHeader('Content-Length', upstream.headers['content-length']);
+        res.send(Buffer.from(upstream.data));
+    } catch (e) {
+        res.status(502).send(e.message);
+    }
+});
+
 app.post('/server/lookmovie', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");

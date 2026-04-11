@@ -124,13 +124,16 @@ export default function App() {
         if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
 
         if (Hls.isSupported()) {
-            const hls = new Hls();
+            const hls = new Hls({
+                xhrSetup: (xhr) => {
+                    xhr.withCredentials = false;
+                },
+            });
             hlsRef.current = hls;
             hls.loadSource(lmUrl);
             hls.attachMedia(lmVideoRef.current);
             hls.on(Hls.Events.MANIFEST_PARSED, () => lmVideoRef.current?.play());
         } else if (lmVideoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-            // Native HLS (Safari)
             lmVideoRef.current.src = lmUrl;
             lmVideoRef.current.play();
         }
