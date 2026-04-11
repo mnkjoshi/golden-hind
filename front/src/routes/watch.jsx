@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation, useParams } from "react-router-dom";
 import axios from 'axios'
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { track } from '../utils/analytics.js'
 import Topbar from "../components/topbar"
 
 import ListIcon from "../assets/list.png"
@@ -47,24 +48,50 @@ export default function App() {
 
     const [listStatus, openList] = useState(-1);
 
+    const startTimeRef = useRef(Date.now());
+    const contentNameRef = useRef('');
+
     let location = useLocation();
     const navigate = useNavigate();
     const { id } = useParams();
     let type = id.slice(0, 1)
     let vidID = id.slice(1, 100000)
 
-    // Disable body overflow when watch page is active
+    // Disable body overflow when watch page is active + log watch time on unmount
     useEffect(() => {
-        // Add class to disable overflow when component mounts
+        track('watch', { id, type: id.slice(0, 1) === 'm' ? 'movie' : 'tv' })
         document.body.classList.add('watch-page');
         document.documentElement.classList.add('watch-page');
-        
-        // Remove class to restore overflow when component unmounts
+
         return () => {
             document.body.classList.remove('watch-page');
             document.documentElement.classList.remove('watch-page');
+            const duration = Math.round((Date.now() - startTimeRef.current) / 1000);
+            const watchUser = localStorage.getItem('user');
+            const watchToken = localStorage.getItem('token');
+            if (watchUser && watchToken && duration >= 10) {
+                fetch('https://goldenhind.tech/watch-time', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    keepalive: true,
+                    body: JSON.stringify({
+                        user: watchUser,
+                        token: watchToken,
+                        contentId: id,
+                        contentName: contentNameRef.current || 'Unknown',
+                        duration
+                    })
+                }).catch(() => {});
+            }
         };
     }, []);
+
+    // Keep contentNameRef in sync so the unmount closure always has the latest title
+    useEffect(() => {
+        if (data && (data.name || data.title)) {
+            contentNameRef.current = data.name || data.title;
+        }
+    }, [data]);
     if (type == "m") {
         type = "movie"
     } else if (type == "t") {

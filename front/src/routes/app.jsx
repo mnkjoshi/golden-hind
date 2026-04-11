@@ -3,6 +3,7 @@ import axios from 'axios'
 import Authenticate  from "../components/authenticate.jsx";
 import React, { useEffect, useState } from 'react';
 import Topbar from "../components/topbar.jsx"
+import { track } from '../utils/analytics.js'
 
 // TMDB Genre mapping
 const genreMap = {
@@ -46,29 +47,12 @@ export default function App() {
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
 
-    // Hide Christmas effects after 30 seconds with fade out
-    useEffect(() => {
-        const fadeTimer = setTimeout(() => {
-            // Add fade-out class to trigger CSS transition
-            const snowflakes = document.querySelector('.snowflakes');
-            if (snowflakes) snowflakes.classList.add('fade-out');
-        }, 30000);
-        
-        const removeTimer = setTimeout(() => {
-            setShowChristmas(false);
-        }, 32000); // 30s + 2s fade duration
-        
-        return () => {
-            clearTimeout(fadeTimer);
-            clearTimeout(removeTimer);
-        };
-    }, []);
-
     useEffect(() => {
         document.title = "The Golden Hind"
         if (user == null) {
             navigate('/auth')
         } else {
+            track('page_view', { page: 'home' })
             if (bookmarkData === null && continueData === null && trendingData === null) {
                 console.log("Start mini load")
                 setIsLoading(true)

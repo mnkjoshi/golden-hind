@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios'
 import Authenticate  from "../components/authenticate.jsx";
 import Topbar from "../components/topbar"
+import { track } from '../utils/analytics.js'
 
 // TMDB Genre mapping
 const genreMap = {
@@ -38,6 +39,7 @@ export default function Search() {
         Authenticate(user, token, navigate);
         
         if (searched && searched !== currentSearch) {
+            track('search', { query: searched })
             setLoading(true);
             axios({
                 method: 'post',

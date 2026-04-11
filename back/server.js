@@ -132,6 +132,7 @@ app.get('/book-search', async (request, response) => {
         
     } catch (err) {
         console.error('LibGen error:', err.message);
+        logError('anonymous', '/book-search', err).catch(() => {});
         response.status(500).json({
             success: false,
             error: err.message
@@ -164,6 +165,7 @@ app.post('/login', async (request, response) => {
             response.send("ILD"); //Incorrect login details
         }
     } catch(error) {
+        logError(username || 'unknown', '/login', error).catch(() => {});
         response.status(202);
         response.send(error.message); //Unknown error
     }
@@ -339,6 +341,7 @@ app.post('/home-trending', async (request, response) => {
             response.status(200);
             response.json({ trendingData: Trending.data });
         } catch(error) {
+            logError(user, '/home-trending', error).catch(() => {});
             console.log(error);
             response.status(202);
             response.send("UKE");
@@ -413,6 +416,7 @@ app.post('/similar', async (request, response) => {
             response.status(200)
             response.send(JSON.stringify(apiResponse.data.results.slice(0,4)))
         } catch(error) {
+            logError(user, '/similar', error).catch(() => {});
             console.log(error)
             response.status(202)
             response.send("UKE")
@@ -439,6 +443,7 @@ app.post('/eretrieve', async (request, response) => {
             response.status(200)
             response.send(JSON.stringify(apiResponse.data))
         } catch(error) {
+            logError(user, '/eretrieve', error).catch(() => {});
             console.log(error)
             response.status(202)
             response.send("UKE")
@@ -464,7 +469,7 @@ app.post('/mretrieve', async (request, response) => {
             response.status(200)
             response.send(JSON.stringify(apiResponse.data))
         } catch(error) {
-            // console.log(error)
+            logError(user, '/mretrieve', error).catch(() => {});
             response.status(202)
             response.send("UKE")
         }
@@ -472,7 +477,7 @@ app.post('/mretrieve', async (request, response) => {
         response.status(202)
         response.send("UNV")
     }
-    
+
 });
 
 app.post('/sretrieve', async (request, response) => {
@@ -490,7 +495,7 @@ app.post('/sretrieve', async (request, response) => {
             response.status(200)
             response.send(JSON.stringify(apiResponse.data))
         } catch(error) {
-            // console.log(error)
+            logError(user, '/sretrieve', error).catch(() => {});
             response.status(202)
             response.send("UKE")
         }
@@ -498,7 +503,7 @@ app.post('/sretrieve', async (request, response) => {
         response.status(202)
         response.send("UNV")
     }
-    
+
 });
 
 app.post('/favourite', async (request, response) => {
@@ -531,12 +536,14 @@ app.post('/unfavourite', async (request, response) => {
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const {user, token, favId} = request.body
     const db = admin.database();
-
+    console.log(favId);
     if (Authenticate(user, token)) {
+        console.log("Auth passed");
         const snapshot = await db.ref(`users/${user}/favourites`).once('value');
         if (snapshot.val() == "nil") {
             response.status(202)
             response.send("UFE")
+            console.log("No favs");
         } else {
             let favourites = JSON.parse(snapshot.val())
             favourites.splice(favourites.indexOf(favId), 1)
@@ -659,6 +666,164 @@ app.post('/progress_retrieve', async (request, response) => {
 })
 
 
+
+app.post('/track', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, event, data } = request.body;
+    if (!await Authenticate(user, token)) {
+        return response.status(202).send("UNV");
+    }
+    logAnalytic(user, event, data).catch(() => {});
+    response.status(200).send("OK");
+});
+
+app.post('/admin/data', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await AuthenticateAdmin(user, token)) {
+        return response.status(403).send("Forbidden");
+    }
+    try {
+        const db = admin.database();
+        const [errorsSnap, analyticsSnap, usersSnap] = await Promise.all([
+            db.ref('admin/errors').orderByChild('timestamp').limitToLast(100).once('value'),
+            db.ref('admin/analytics/events').orderByChild('timestamp').limitToLast(200).once('value'),
+            db.ref('users').once('value')
+        ]);
+        const errors = errorsSnap.val()
+            ? Object.values(errorsSnap.val()).sort((a, b) => b.timestamp - a.timestamp)
+            : [];
+        const analytics = analyticsSnap.val()
+            ? Object.values(analyticsSnap.val()).sort((a, b) => b.timestamp - a.timestamp)
+            : [];
+        const users = usersSnap.val() ? Object.keys(usersSnap.val()) : [];
+        response.status(200).json({ errors, analytics, users });
+    } catch (error) {
+        logError('manav', '/admin/data', error).catch(() => {});
+        response.status(200).json({ errors: [], analytics: [], users: [], fetchError: error.message });
+    }
+});
+
+app.post('/watch-time', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, contentId, contentName, duration } = request.body;
+    if (!await Authenticate(user, token)) {
+        return response.status(202).send("UNV");
+    }
+    try {
+        if (!duration || duration < 10) { response.status(200).send("OK"); return; }
+        const db = admin.database();
+        await db.ref(`users/${user}/watch_sessions`).push({
+            contentId: contentId || '',
+            contentName: contentName || 'Unknown',
+            duration: Math.round(duration),
+            timestamp: Date.now()
+        });
+        response.status(200).send("OK");
+    } catch (error) {
+        logError(user, '/watch-time', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
+
+app.post('/user/stats', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) {
+        return response.status(202).send("UNV");
+    }
+    try {
+        const db = admin.database();
+        const sessionsSnap = await db.ref(`users/${user}/watch_sessions`)
+            .orderByChild('timestamp')
+            .limitToLast(50)
+            .once('value');
+        const sessions = sessionsSnap.val()
+            ? Object.values(sessionsSnap.val()).sort((a, b) => b.timestamp - a.timestamp)
+            : [];
+        const totalSeconds = sessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+        response.status(200).json({ sessions, totalSeconds });
+    } catch (error) {
+        logError(user, '/user/stats', error).catch(() => {});
+        response.status(200).json({ sessions: [], totalSeconds: 0 });
+    }
+});
+
+app.post('/account/info', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) {
+        return response.status(202).send("UNV");
+    }
+    try {
+        const db = admin.database();
+        const emailSnap = await db.ref(`users/${user}/email`).once('value');
+        response.status(200).json({ username: user, email: emailSnap.val() || '' });
+    } catch (error) {
+        logError(user, '/account/info', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
+
+app.post('/account/change-password', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, currentPassword, newPassword } = request.body;
+    if (!await Authenticate(user, token)) {
+        return response.status(202).send("UNV");
+    }
+    try {
+        if (!newPassword || newPassword.length < 6) {
+            return response.status(200).send("PWS");
+        }
+        const db = admin.database();
+        const storedPwSnap = await db.ref(`users/${user}/password`).once('value');
+        if (storedPwSnap.val() !== currentPassword) {
+            return response.status(200).send("ILD");
+        }
+        await db.ref(`users/${user}`).update({ password: newPassword });
+        // Invalidate cache so new password takes effect
+        userCache.delete(user);
+        response.status(200).send("PUS");
+    } catch (error) {
+        logError(user, '/account/change-password', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
+
+app.post('/admin/create-user', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, newUsername, newPassword, newEmail } = request.body;
+    if (!await AuthenticateAdmin(user, token)) {
+        return response.status(403).send("Forbidden");
+    }
+    try {
+        const exists = await CheckUser(newUsername, newEmail);
+        if (exists === 1) { response.status(200).send("UNT"); return; }
+        if (exists === 2) { response.status(200).send("ET"); return; }
+        const db = admin.database();
+        const newToken = GenerateToken();
+        await db.ref(`users/${newUsername}`).set({
+            password: newPassword,
+            email: newEmail,
+            favourites: "[]",
+            continues: "[]",
+            token: newToken,
+        });
+        const escapedEmail = newEmail.replace(".", "@@@");
+        await db.ref(`emails/${escapedEmail}`).set({ user: newUsername });
+        response.status(200).send("UCS");
+    } catch (error) {
+        logError('manav', '/admin/create-user', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
 
 //process.env.PORT
 const listener = app.listen(3001, (error) => {
@@ -806,4 +971,33 @@ async function OfferVerify(username, token, email) {
 
 function GenerateToken() {
     return Math.random().toString(36).substr(2) + Math.random().toString(36).substr(2);
+}
+
+async function AuthenticateAdmin(user, token) {
+    if (user !== 'manav') return false;
+    return await Authenticate(user, token);
+}
+
+async function logError(user, endpoint, error) {
+    try {
+        const db = admin.database();
+        await db.ref('admin/errors').push({
+            user: user || 'anonymous',
+            endpoint,
+            message: error.message || String(error),
+            timestamp: Date.now()
+        });
+    } catch (_) {}
+}
+
+async function logAnalytic(user, event, data) {
+    try {
+        const db = admin.database();
+        await db.ref('admin/analytics/events').push({
+            user: user || 'anonymous',
+            event,
+            data: data || {},
+            timestamp: Date.now()
+        });
+    } catch (_) {}
 }
