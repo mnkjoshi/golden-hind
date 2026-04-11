@@ -353,6 +353,23 @@ app.post('/home-trending', async (request, response) => {
 });
 
 const tmdbCache = new Map();
+const logoCache = new Map();
+
+async function getTMDBLogo(mediaType, id) {
+    const key = `${mediaType}-${id}`;
+    if (logoCache.has(key)) return logoCache.get(key);
+    try {
+        const url = `https://api.themoviedb.org/3/${mediaType}/${id}/images?api_key=${process.env.TMDB_Credentials}&include_image_language=en,null`;
+        const res = await axios.get(url);
+        const logos = (res.data.logos || []).filter(l => l.iso_639_1 === 'en' || l.iso_639_1 == null);
+        logos.sort((a, b) => b.vote_average - a.vote_average);
+        const path = logos[0]?.file_path || null;
+        logoCache.set(key, path);
+        return path;
+    } catch {
+        return null;
+    }
+}
 
 async function GetInfo(ID) {
     if (tmdbCache.has(ID)) {
@@ -819,17 +836,23 @@ app.post('/recommendations/lifetime', async (request, response) => {
         const contentInfo = (await Promise.all(ids.map(id => GetInfo(id).catch(() => null)))).filter(Boolean);
         if (contentInfo.length === 0) return response.status(200).json([]);
 
+        // Build set of existing TMDB IDs so we can filter them out of recommendations
+        const existingIdSet = new Set([...favIds, ...contIds].map(id => String(id.slice(1))));
+
         const llmRecs = await getRecommendations(contentInfo, 'lifetime');
 
         const recDetails = (await Promise.all(llmRecs.map(async rec => {
             try {
                 const found = await searchTMDBByTitle(rec.title, rec.year, rec.type);
                 if (!found) return null;
-                return await GetInfo((found.type === 'tv' ? 't' : 'm') + found.id);
+                const info = await GetInfo((found.type === 'tv' ? 't' : 'm') + found.id);
+                if (!info) return null;
+                info.logo_path = await getTMDBLogo(found.type, found.id);
+                return info;
             } catch { return null; }
-        }))).filter(Boolean);
+        }))).filter(r => r && !existingIdSet.has(String(r.id)));
 
-        response.status(200).json(recDetails);
+        response.status(200).json(recDetails.slice(0, 5));
     } catch (error) {
         logError(user, '/recommendations/lifetime', error).catch(() => {});
         response.status(200).json([]);
@@ -844,14 +867,21 @@ app.post('/recommendations/recent', async (request, response) => {
 
     try {
         const db = admin.database();
-        const contsSnap = await db.ref(`users/${user}/continues`).once('value');
-        const contIds = JSON.parse(contsSnap.val() || '[]');
-        const recent5 = contIds.slice(-5);
+        const [favsSnap2, contsSnap2] = await Promise.all([
+            db.ref(`users/${user}/favourites`).once('value'),
+            db.ref(`users/${user}/continues`).once('value')
+        ]);
+        const favIds2  = JSON.parse(favsSnap2.val()  || '[]');
+        const contIds2 = JSON.parse(contsSnap2.val() || '[]');
+        const recent5  = contIds2.slice(-5);
 
         if (recent5.length === 0) return response.status(200).json([]);
 
         const contentInfo = (await Promise.all(recent5.map(id => GetInfo(id).catch(() => null)))).filter(Boolean);
         if (contentInfo.length === 0) return response.status(200).json([]);
+
+        // Filter out anything already in favourites or continue-watching
+        const existingIdSet2 = new Set([...favIds2, ...contIds2].map(id => String(id.slice(1))));
 
         const llmRecs = await getRecommendations(contentInfo, 'recent');
 
@@ -859,11 +889,14 @@ app.post('/recommendations/recent', async (request, response) => {
             try {
                 const found = await searchTMDBByTitle(rec.title, rec.year, rec.type);
                 if (!found) return null;
-                return await GetInfo((found.type === 'tv' ? 't' : 'm') + found.id);
+                const info = await GetInfo((found.type === 'tv' ? 't' : 'm') + found.id);
+                if (!info) return null;
+                info.logo_path = await getTMDBLogo(found.type, found.id);
+                return info;
             } catch { return null; }
-        }))).filter(Boolean);
+        }))).filter(r => r && !existingIdSet2.has(String(r.id)));
 
-        response.status(200).json(recDetails);
+        response.status(200).json(recDetails.slice(0, 5));
     } catch (error) {
         logError(user, '/recommendations/recent', error).catch(() => {});
         response.status(200).json([]);
@@ -1107,7 +1140,7 @@ async function getRecommendations(contentList, mode) {
         ? "the user's all-time favourites and watch history (weight the bookmarks heavily)"
         : "the user's 5 most recently watched titles (match their current viewing mood)";
 
-    const prompt = `You are a movie and TV show recommendation engine. Here are ${modeDesc}:\n\n${items}\n\nRecommend exactly 5 movies or TV shows they would enjoy that are NOT already in the list above.\nReturn ONLY a raw JSON array with no markdown, no explanation, no code fences:\n[{"title":"Title","year":2021,"type":"movie"},{"title":"Other Title","year":2019,"type":"tv"}]`;
+    const prompt = `You are a movie and TV show recommendation engine. Here are ${modeDesc}:\n\n${items}\n\nRecommend exactly 10 movies or TV shows they would enjoy that are NOT already in the list above. Include a variety of genres and types.\nReturn ONLY a raw JSON array with no markdown, no explanation, no code fences:\n[{"title":"Title 1","year":2021,"type":"movie"},{"title":"Title 2","year":2019,"type":"tv"},...]`;
 
     const resp = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,

@@ -1412,79 +1412,7 @@ p {
     .toast-message {
         font-size: 11px;
     }
-}
-
-/* Christmas Theme - Snowflakes */
-.snowflakes {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 9999;
-    overflow: hidden;
-    opacity: 1;
-    transition: opacity 2s ease-out;
-}
-
-.snowflakes.fade-out {
-    opacity: 0;
-}
-
-.snowflake {
-    position: absolute;
-    top: -10%;
-    color: #fff;
-    font-size: 1.5em;
-    text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
-    animation: snowfall linear infinite;
-    opacity: 0.8;
-    transition-duration: 3s;
-}
-
-@keyframes snowfall {
-    0% {
-        transform: translateY(0) translateX(0) rotate(0deg);
-        opacity: 0.8;
-    }
-    100% {
-        transform: translateY(100vh) translateX(100px) rotate(360deg);
-        opacity: 0.3;
-    }
-}
-
-/* Position snowflakes randomly */
-.snowflake-1 { left: 5%; animation-duration: 12s; animation-delay: 0s; font-size: 1.2em; }
-.snowflake-2 { left: 15%; animation-duration: 15s; animation-delay: 2s; font-size: 1.8em; }
-.snowflake-3 { left: 25%; animation-duration: 10s; animation-delay: 4s; font-size: 1.4em; }
-.snowflake-4 { left: 35%; animation-duration: 13s; animation-delay: 1s; font-size: 1.6em; }
-.snowflake-5 { left: 45%; animation-duration: 11s; animation-delay: 3s; font-size: 1.3em; }
-.snowflake-6 { left: 55%; animation-duration: 14s; animation-delay: 5s; font-size: 1.7em; }
-.snowflake-7 { left: 65%; animation-duration: 12s; animation-delay: 2s; font-size: 1.5em; }
-.snowflake-8 { left: 75%; animation-duration: 16s; animation-delay: 0s; font-size: 1.4em; }
-.snowflake-9 { left: 85%; animation-duration: 13s; animation-delay: 4s; font-size: 1.6em; }
-.snowflake-10 { left: 95%; animation-duration: 11s; animation-delay: 1s; font-size: 1.2em; }
-.snowflake-11 { left: 10%; animation-duration: 15s; animation-delay: 3s; font-size: 1.8em; }
-.snowflake-12 { left: 30%; animation-duration: 12s; animation-delay: 5s; font-size: 1.3em; }
-.snowflake-13 { left: 50%; animation-duration: 14s; animation-delay: 2s; font-size: 1.5em; }
-.snowflake-14 { left: 70%; animation-duration: 13s; animation-delay: 4s; font-size: 1.7em; }
-.snowflake-15 { left: 90%; animation-duration: 16s; animation-delay: 1s; font-size: 1.4em; }
-
-.snowflake-16 { left: 5%; animation-duration: 14s; animation-delay: 7s; font-size: 1.2em; }
-.snowflake-18 { left: 7.5%; animation-duration: 16s; animation-delay: 7s; font-size: 1.2em; }
-.snowflake-19 { left: 30%; animation-duration: 17s; animation-delay: 70s; font-size: 1.2em; }
-.snowflake-20 { left: 90%; animation-duration: 20s; animation-delay: 7s; font-size: 1.2em; }
-.snowflake-21 { left: 80%; animation-duration: 21s; animation-delay: 7s; font-size: 1.2em; }
-.snowflake-22 { left: 96%; animation-duration: 12s; animation-delay: 10s; font-size: 1.2em; }
-.snowflake-23 { left: 50%; animation-duration: 12s; animation-delay: 5s; font-size: 1.2em; }
-.snowflake-24 { left: 37%; animation-duration: 12s; animation-delay: 5s; font-size: 1.2em; }
-.snowflake-25 { left: 60%; animation-duration: 12s; animation-delay: 9s; font-size: 1.2em; }
-.snowflake-26 { left: 70%; animation-duration: 12s; animation-delay: 12s; font-size: 1.2em; }
-.snowflake-27 { left: 48%; animation-duration: 12s; animation-delay: 10s; font-size: 1.2em; }
-.snowflake-28 { left: 40%; animation-duration: 12s; animation-delay: 10s; font-size: 1.2em; }
-
-
+}STARTUP SCHOOL
 
 /* Subtle Christmas accent on hero indicators - only when Christmas effects are shown */
 .app-main.christmas-active .hero-indicator.active {
@@ -1533,4 +1461,104 @@ p {
 @keyframes rec-shimmer {
     0%   { background-position: 200% 0; }
     100% { background-position: -200% 0; }
+}
+
+/* Wide landscape cards for recommendation rows — 16:9 at 300px tall */
+.rec-wide-card {
+    width: 426px !important;
+    flex-shrink: 0;
+}
+
+.rec-wide-card .card-image-container {
+    width: 426px;
+    height: 300px;
+    aspect-ratio: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Backdrop fills the card background */
+.rec-wide-card .rec-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(14px);
+    transform: scale(1.1);
+    z-index: 0;
+}
+
+/* Portrait poster centered on top, natural aspect ratio preserved */
+.rec-wide-card .rec-poster {
+    position: relative;
+    z-index: 1;
+    height: 270px;
+    width: auto;
+    border-radius: 6px;
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.75);
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+/* Always-visible title area at the bottom of the card */
+.rec-wide-card .rec-title-area {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 3;
+    padding: 28px 12px 10px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+    display: flex;
+    align-items: flex-end;
+    pointer-events: none;
+}
+
+/* TMDB logo image */
+.rec-wide-card .rec-logo {
+    max-width: 160px;
+    max-height: 52px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9));
+}
+
+/* Text fallback when no logo is available */
+.rec-wide-card .rec-title-fallback {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+    line-height: 1.2;
+    max-width: 100%;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+/* Ensure overlay sits above both images but below nothing */
+.rec-wide-card .card-overlay {
+    z-index: 4;
+}
+
+.rec-wide-card .card-image-container.rec-skeleton-img {
+    aspect-ratio: unset;
+    height: 300px;
+    width: 426px;
+    border-radius: 8px;
+    display: block;
+}
+
+/* Rec section title — same size, blue text, white underline */
+.rec-section-title {
+    color: #3FA3FF !important;
+}
+
+.rec-section-title::after {
+    background: white !important;
 }

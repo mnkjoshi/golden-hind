@@ -540,6 +540,56 @@ export default function App() {
                     </div>
                 )}
 
+                {/* Based on your Recent Watch History */}
+                {(recentRecsLoading || (recentRecs && recentRecs.length > 0)) && (
+                    <div className="content-section">
+                        <div className="section-header">
+                            <h2 className="section-title rec-section-title">Based on your Recent Watch History</h2>
+                            <div className="section-controls">
+                                <button className="section-arrow" onClick={() => { document.getElementById('recent-recs-row').scrollBy({ left: -320, behavior: 'smooth' }); }}>‹</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('recent-recs-row').scrollBy({ left: 320, behavior: 'smooth' }); }}>›</button>
+                            </div>
+                        </div>
+                        <div className="content-row" id="recent-recs-row">
+                            {recentRecsLoading
+                                ? [...Array(5)].map((_, i) => (
+                                    <div key={i} className="content-card rec-wide-card">
+                                        <div className="card-image-container rec-skeleton-img"></div>
+                                    </div>
+                                ))
+                                : recentRecs.filter(r => r && r.id).map(result => (
+                                    <div
+                                        key={result.id}
+                                        className="content-card rec-wide-card"
+                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
+                                        onMouseEnter={(e) => showTooltip(e, result)}
+                                        onMouseLeave={hideTooltip}
+                                    >
+                                        <div className="card-image-container">
+                                            <img className="rec-backdrop" src={`https://image.tmdb.org/t/p/w780/${result.backdrop_path || result.poster_path}`} loading="lazy" decoding="async" alt=""/>
+                                            <img className="rec-poster" src={`https://image.tmdb.org/t/p/w300/${result.poster_path || result.backdrop_path}`} loading="lazy" decoding="async" alt={result.name || result.title}/>
+                                            <div className="rec-title-area">
+                                                {result.logo_path
+                                                    ? <img className="rec-logo" src={`https://image.tmdb.org/t/p/w300/${result.logo_path}`} loading="lazy" decoding="async" alt={result.name || result.title}/>
+                                                    : <span className="rec-title-fallback">{result.name || result.title || 'Untitled'}</span>
+                                                }
+                                            </div>
+                                            <div className="card-overlay">
+                                                <div className="card-info">
+                                                    <div className="card-meta">
+                                                        <span className="card-rating">⭐ {result.vote_average}</span>
+                                                        <span className="card-type">{result.media_type === 'movie' || result.number_of_episodes == null ? 'Movie' : 'TV'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            }
+                        </div>
+                    </div>
+                )}
+
                 {/* Trending Section */}
                 {trendingData && trendingData.results && (
                     <div className="content-section">
@@ -678,39 +728,42 @@ export default function App() {
                 )}
 
 
-                {/* Lifetime Rec's — AI */}
+                {/* Recommendations */}
                 {(lifetimeRecsLoading || (lifetimeRecs && lifetimeRecs.length > 0)) && (
                     <div className="content-section">
                         <div className="section-header">
-                            <h2 className="section-title">
-                                Lifetime Rec's
-                                <span className="rec-ai-badge">✦ AI</span>
-                            </h2>
+                            <h2 className="section-title rec-section-title">Recommendations</h2>
                             <div className="section-controls">
-                                <button className="section-arrow" onClick={() => { document.getElementById('lifetime-recs-row').scrollBy({ left: -300, behavior: 'smooth' }); }}>‹</button>
-                                <button className="section-arrow" onClick={() => { document.getElementById('lifetime-recs-row').scrollBy({ left: 300, behavior: 'smooth' }); }}>›</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('lifetime-recs-row').scrollBy({ left: -320, behavior: 'smooth' }); }}>‹</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('lifetime-recs-row').scrollBy({ left: 320, behavior: 'smooth' }); }}>›</button>
                             </div>
                         </div>
                         <div className="content-row" id="lifetime-recs-row">
                             {lifetimeRecsLoading
                                 ? [...Array(5)].map((_, i) => (
-                                    <div key={i} className="content-card rec-skeleton-card">
+                                    <div key={i} className="content-card rec-wide-card">
                                         <div className="card-image-container rec-skeleton-img"></div>
                                     </div>
                                 ))
                                 : lifetimeRecs.filter(r => r && r.id).map(result => (
                                     <div
                                         key={result.id}
-                                        className="content-card"
+                                        className="content-card rec-wide-card"
                                         onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
                                         onMouseEnter={(e) => showTooltip(e, result)}
                                         onMouseLeave={hideTooltip}
                                     >
                                         <div className="card-image-container">
-                                            <img className="card-image" src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`} loading="lazy" decoding="async"/>
+                                            <img className="rec-backdrop" src={`https://image.tmdb.org/t/p/w780/${result.backdrop_path || result.poster_path}`} loading="lazy" decoding="async" alt=""/>
+                                            <img className="rec-poster" src={`https://image.tmdb.org/t/p/w300/${result.poster_path || result.backdrop_path}`} loading="lazy" decoding="async" alt={result.name || result.title}/>
+                                            <div className="rec-title-area">
+                                                {result.logo_path
+                                                    ? <img className="rec-logo" src={`https://image.tmdb.org/t/p/w300/${result.logo_path}`} loading="lazy" decoding="async" alt={result.name || result.title}/>
+                                                    : <span className="rec-title-fallback">{result.name || result.title || 'Untitled'}</span>
+                                                }
+                                            </div>
                                             <div className="card-overlay">
                                                 <div className="card-info">
-                                                    <h3 className="card-title">{result.name || result.title || 'Untitled'}</h3>
                                                     <div className="card-meta">
                                                         <span className="card-rating">⭐ {result.vote_average}</span>
                                                         <span className="card-type">{result.media_type === 'movie' || result.number_of_episodes == null ? 'Movie' : 'TV'}</span>
@@ -725,52 +778,7 @@ export default function App() {
                     </div>
                 )}
 
-                {/* Recent History Rec's — AI */}
-                {(recentRecsLoading || (recentRecs && recentRecs.length > 0)) && (
-                    <div className="content-section">
-                        <div className="section-header">
-                            <h2 className="section-title">
-                                Recent History Rec's
-                                <span className="rec-ai-badge">✦ AI</span>
-                            </h2>
-                            <div className="section-controls">
-                                <button className="section-arrow" onClick={() => { document.getElementById('recent-recs-row').scrollBy({ left: -300, behavior: 'smooth' }); }}>‹</button>
-                                <button className="section-arrow" onClick={() => { document.getElementById('recent-recs-row').scrollBy({ left: 300, behavior: 'smooth' }); }}>›</button>
-                            </div>
-                        </div>
-                        <div className="content-row" id="recent-recs-row">
-                            {recentRecsLoading
-                                ? [...Array(5)].map((_, i) => (
-                                    <div key={i} className="content-card rec-skeleton-card">
-                                        <div className="card-image-container rec-skeleton-img"></div>
-                                    </div>
-                                ))
-                                : recentRecs.filter(r => r && r.id).map(result => (
-                                    <div
-                                        key={result.id}
-                                        className="content-card"
-                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
-                                        onMouseEnter={(e) => showTooltip(e, result)}
-                                        onMouseLeave={hideTooltip}
-                                    >
-                                        <div className="card-image-container">
-                                            <img className="card-image" src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`} loading="lazy" decoding="async"/>
-                                            <div className="card-overlay">
-                                                <div className="card-info">
-                                                    <h3 className="card-title">{result.name || result.title || 'Untitled'}</h3>
-                                                    <div className="card-meta">
-                                                        <span className="card-rating">⭐ {result.vote_average}</span>
-                                                        <span className="card-type">{result.media_type === 'movie' || result.number_of_episodes == null ? 'Movie' : 'TV'}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            }
-                        </div>
-                    </div>
-                )}
+                
 
             </div>
                 </>
