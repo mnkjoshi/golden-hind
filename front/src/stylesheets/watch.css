@@ -13,7 +13,7 @@ html {
 /* Applied when watch page is active */
 body.watch-page,
 html.watch-page {
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
 .html {
@@ -44,7 +44,7 @@ p {
 
 .watch-holder {
     transition: 0.5s;
-    margin-right: 0%; /* Change to 22 when moving in, 0 if not */
+    margin-right: 0%;
     height: 90%;
     aspect-ratio: 16/10;
     max-width: 90%;
@@ -476,15 +476,18 @@ p {
 
 
 
-/* ── Server & reviews buttons — text-based, column layout ── */
-.watch-toggles-server,
-.watch-toggles-reviews-btn {
+/* ── Server button — text-based, column layout ── */
+.watch-toggles-server {
     aspect-ratio: unset !important;
     width: auto !important;
     padding: 2px 10px !important;
     flex-direction: column !important;
     gap: 1px;
     min-width: 42px;
+    color: white;
+}
+
+.watch-toggles-server:hover {
 }
 
 .watch-server-num {
@@ -501,29 +504,25 @@ p {
     opacity: 0.65;
 }
 
-/* ── Reviews panel ── */
-.watch-reviews {
-    transition: 0.5s;
-    height: 91%;
-    width: 19%;
+/* ── Reviews section — inline below the player ── */
+.watch-reviews-section {
+    width: 90%;
+    max-width: 90%;
+    margin: 16px auto 32px;
+    padding: 20px 24px;
+    background: rgba(0, 0, 0, 0.4);
     border-radius: 5px;
-    top: 6.2%;
-    position: absolute;
-    right: -22%;
-    background: rgba(0, 0, 0, 0.85);
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 10px 8px 8px;
-    box-sizing: border-box;
-    overflow: hidden;
+    gap: 12px;
 }
 
 .watch-reviews-title {
     font-family: Viga, sans-serif;
-    font-size: 13px;
+    font-size: 16px;
     color: #3FA3FF;
-    letter-spacing: 2px;
+    letter-spacing: 3px;
     margin: 0;
     flex-shrink: 0;
 }
@@ -547,11 +546,13 @@ p {
 
 .watch-review-form {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 12px;
     flex-shrink: 0;
+    flex-wrap: wrap;
     border-bottom: 1px solid rgba(255,255,255,0.1);
-    padding-bottom: 8px;
+    padding-bottom: 12px;
 }
 
 .watch-review-stars {
@@ -582,7 +583,8 @@ p {
     padding: 6px 8px;
     resize: none;
     outline: none;
-    width: 100%;
+    flex: 1;
+    min-width: 200px;
     box-sizing: border-box;
 }
 
@@ -598,9 +600,11 @@ p {
     font-family: Viga, sans-serif;
     font-size: 11px;
     letter-spacing: 1px;
-    padding: 5px 0;
+    padding: 8px 20px;
     cursor: pointer;
     transition: opacity 0.15s;
+    flex-shrink: 0;
+    align-self: flex-end;
 }
 
 .watch-review-submit:disabled {
@@ -609,13 +613,9 @@ p {
 }
 
 .watch-reviews-list {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.2) transparent;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
 }
 
 .watch-reviews-empty {
@@ -979,16 +979,21 @@ p {
         margin-top: 40px;
         gap: 0.5rem;
         height: calc(100vh - 40px);
-        overflow: hidden;
     }
-    
+
     .watch-holder {
-        height: 100%;
-        max-height: 100%;
+        height: 60%;
+        max-height: 60%;
         aspect-ratio: auto;
         width: 100%;
         max-width: 100%;
         margin: 0;
+    }
+
+    .watch-reviews-section {
+        width: 100%;
+        max-width: 100%;
+        margin: 8px 0 20px;
     }
     
     .watch-system {

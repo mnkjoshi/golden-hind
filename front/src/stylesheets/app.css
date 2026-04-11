@@ -1549,3 +1549,7 @@ p {
 .rec-section-title::after {
     background: white !important;
 }
+
+.error-main {
+    color: white;
+}

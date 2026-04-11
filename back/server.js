@@ -724,6 +724,43 @@ app.get('/reviews', async (req, res) => {
     res.json({ reviews });
 });
 
+app.get('/recently-reviewed', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    try {
+        const db = admin.database();
+        const snap = await db.ref('reviews').once('value');
+        const val = snap.val();
+        if (!val) return res.json({ items: [] });
+
+        // For each contentId find the most recent review timestamp
+        const contentLatest = Object.entries(val).map(([contentId, userReviews]) => {
+            const latest = Math.max(...Object.values(userReviews).map(r => r.timestamp || 0));
+            return { contentId, latest };
+        });
+
+        // Sort by most recent, take top 5 unique titles
+        contentLatest.sort((a, b) => b.latest - a.latest);
+        const top5 = contentLatest.slice(0, 5);
+
+        const items = await Promise.all(top5.map(async ({ contentId, latest }) => {
+            try {
+                const data = await GetInfo(contentId);
+                if (!data) return null;
+                const mediaType = contentId.slice(0, 1) === 'm' ? 'movie' : 'tv';
+                const logo_path = await getTMDBLogo(mediaType, data.id);
+                return { ...data, logo_path, _reviewedAt: latest };
+            } catch {
+                return null;
+            }
+        }));
+
+        res.json({ items: items.filter(Boolean) });
+    } catch (e) {
+        console.error('[recently-reviewed]', e.message);
+        res.status(500).json({ items: [] });
+    }
+});
+
 app.post('/track', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");

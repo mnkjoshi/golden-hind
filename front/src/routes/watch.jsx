@@ -18,7 +18,12 @@ let video = "null"
 
 let DisplayData
 
-export default function App() {  
+export default function App() {
+    // useParams must come first — id is needed to initialize progressReady
+    const { id } = useParams();
+    let type = id.slice(0, 1)
+    let vidID = id.slice(1, 100000)
+
     const [season, setSeason] = useState(1);
     const [episode, setEpisode] = useState(1);
 
@@ -34,19 +39,23 @@ export default function App() {
 
     const [provider, setProvider] = useState(4);
 
+    // For TV shows, block the LookMovie request until progress_retrieve has responded
+    // so we don't fire with season=1/episode=1 before the saved position loads.
+    // Movies have no saved progress so they're ready immediately.
+    const [progressReady, setProgressReady] = useState(id.slice(0, 1) !== 't');
+
     const [lmUrl, setLmUrl] = useState(null);
     const [lmSubtitles, setLmSubtitles] = useState([]);
     const [lmLoading, setLmLoading] = useState(false);
     const [lmError, setLmError] = useState(null);
     const [skipFlash, setSkipFlash] = useState(null); // 'forward' | 'back' | null
-    const lmVideoRef = useRef(null);
+    const lmContainerRef = useRef(null);
     const hlsRef = useRef(null);
     const plyrRef = useRef(null);
     const flashTimeoutRef = useRef(null);
 
     const[bookmarked, setBookmark] = useState(-1);
     const[similarOn, setSimilar] = useState(-1);
-    const [reviewsOn, setReviewsOn] = useState(-1);
     const [reviews, setReviews] = useState([]);
     const [reviewRating, setReviewRating] = useState(0);
     const [reviewHover, setReviewHover] = useState(0);
@@ -71,9 +80,6 @@ export default function App() {
 
     let location = useLocation();
     const navigate = useNavigate();
-    const { id } = useParams();
-    let type = id.slice(0, 1)
-    let vidID = id.slice(1, 100000)
 
     // Disable body overflow when watch page is active + log watch time on unmount
     useEffect(() => {
@@ -135,9 +141,12 @@ export default function App() {
         }).catch(() => {}).finally(() => setReviewSubmitting(false));
     };
 
-    // Fetch LookMovie stream when provider 4 is selected or episode changes
+    // Fetch LookMovie stream when provider 4 is selected or episode changes.
+    // progressReady is false for TV shows until progress_retrieve returns so we
+    // don't fire with the default season=1/episode=1 before saved progress loads.
     useEffect(() => {
         if (parseInt(provider) !== 4) return;
+        if (!progressReady) return;
         setLmUrl(null);
         setLmError(null);
         setLmLoading(true);
@@ -159,28 +168,32 @@ export default function App() {
             setProvider(1);
             localStorage.setItem("provider" + vidID, 1);
         }).finally(() => setLmLoading(false));
-    }, [provider, season, episode]);
+    }, [provider, season, episode, progressReady]);
 
-    // Attach HLS.js + Plyr when a stream URL arrives
+    // Attach HLS.js + Plyr when a stream URL arrives.
+    // We manage the <video> element entirely imperatively inside lmContainerRef so
+    // React never tries to reconcile Plyr's restructured DOM (which causes the
+    // removeChild NotFoundError when the episode changes and React re-renders).
     useEffect(() => {
-        if (!lmUrl || !lmVideoRef.current) return;
+        if (!lmUrl || !lmContainerRef.current) return;
 
-        // Destroy previous instances
+        // Tear down any existing instances first
         if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
         if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
 
-        const video = lmVideoRef.current;
+        const container = lmContainerRef.current;
+        container.innerHTML = ''; // wipe previous Plyr wrapper completely
 
-        // crossOrigin must be set before tracks are added for cross-origin VTT to load
+        // Create a fresh <video> element — React never touches this node
+        const video = document.createElement('video');
+        video.playsInline = true;
         video.crossOrigin = 'anonymous';
+        video.style.width = '100%';
+        video.style.height = '100%';
+        container.appendChild(video);
 
-        // All subtitles — no deduplication, user picks from full list
+        // Inject subtitle tracks
         const uniqueSubs = lmSubtitles;
-
-        // Inject subtitle tracks into the video element before Plyr wraps it
-        // Only include entries where `file` is a real path (starts with / or http).
-        // LookMovie sometimes returns comma-separated metadata instead of a path — skip those.
-        while (video.firstChild) video.removeChild(video.firstChild);
         let trackIndex = 0;
         uniqueSubs.forEach(sub => {
             const rawSub = String(sub.file || sub.url || '');
@@ -226,6 +239,7 @@ export default function App() {
         return () => {
             if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
             if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+            container.innerHTML = '';
         };
     }, [lmUrl]);
 
@@ -460,9 +474,12 @@ export default function App() {
                     if (ToData !== "VNF") {
                         localStorage.setItem("episode" + id, response.data.episode)
                         localStorage.setItem("season" + id, response.data.season)
+                        setEpisode(response.data.episode)
+                        setSeason(response.data.season)
                     }
-                    setEpisode(response.data.episode)
-                    setSeason(response.data.season)
+                    setProgressReady(true);
+                }).catch(() => {
+                    setProgressReady(true); // unblock even if the request fails
                 });
                 setFirst(1)
             } else {
@@ -613,19 +630,10 @@ export default function App() {
 
     if(similarOn == -1 && document.getElementById("watch-similar") && document.getElementById("watch-holder")) {
         document.getElementById("watch-similar").style.right = "-22%"
-        if (reviewsOn == -1) document.getElementById("watch-holder").style.marginRight = "0%"
+        document.getElementById("watch-holder").style.marginRight = "0%"
     } else if (document.getElementById("watch-similar") && document.getElementById("watch-holder")) {
         document.getElementById("watch-similar").style.right = "0.5%"
         document.getElementById("watch-holder").style.marginRight = "19.5%"
-        if (document.getElementById("watch-reviews")) document.getElementById("watch-reviews").style.right = "-22%"
-    }
-    if(reviewsOn == -1 && document.getElementById("watch-reviews") && document.getElementById("watch-holder")) {
-        document.getElementById("watch-reviews").style.right = "-22%"
-        if (similarOn == -1) document.getElementById("watch-holder").style.marginRight = "0%"
-    } else if (reviewsOn !== -1 && document.getElementById("watch-reviews") && document.getElementById("watch-holder")) {
-        document.getElementById("watch-reviews").style.right = "0.5%"
-        document.getElementById("watch-holder").style.marginRight = "19.5%"
-        if (document.getElementById("watch-similar")) document.getElementById("watch-similar").style.right = "-22%"
     }
 
 
@@ -663,6 +671,7 @@ export default function App() {
     // }
 
     return (
+        <>
         <div className= "watch-main" id= "watch-main">
             {!(seriesData == null) ? (!(seriesData.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + seriesData.backdrop_path}/>  : null): null}
             {!(data == null) ? (!(data.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + data.backdrop_path}/>  : null): null}
@@ -671,44 +680,45 @@ export default function App() {
                 <div className= "watch-system">
                 <div className= "watch-player">
                     {parseInt(provider) === 4 ? (
-                        lmLoading ? (
-                            <div className="watch-lm-state">
-                                <div className="watch-lm-spinner"/>
-                                <p>Fetching LookMovie stream…</p>
-                            </div>
-                        ) : lmError ? (
-                            <div className="watch-lm-state watch-lm-error">
-                                <p>⚠ {lmError}</p>
-                            </div>
-                        ) : (
-                            <>
-                                <video
-                                    ref={lmVideoRef}
-                                    className="watch-player-file"
-                                    playsInline
-                                    crossOrigin="anonymous"
-                                />
-                                <div className="lm-skip-overlay">
-                                    <button className="lm-skip-btn lm-skip-back" onClick={handleSkipBack} aria-label="Back 10 seconds">
-                                        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-                                        </svg>
-                                        <span className="lm-skip-label">10</span>
-                                    </button>
-                                    <button className="lm-skip-btn lm-skip-forward" onClick={handleSkipForward} aria-label="Forward 10 seconds">
-                                        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style={{transform:'scaleX(-1)'}}>
-                                            <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-                                        </svg>
-                                        <span className="lm-skip-label">10</span>
-                                    </button>
+                        <>
+                            {/* Container is always mounted so Plyr always has a live DOM node.
+                                Loading / error states are absolute overlays on top. */}
+                            <div
+                                ref={lmContainerRef}
+                                className="watch-player-file"
+                                style={{background: '#000'}}
+                            />
+                            {lmLoading && (
+                                <div className="watch-lm-state" style={{position:'absolute',inset:0,zIndex:5}}>
+                                    <div className="watch-lm-spinner"/>
+                                    <p>Fetching LookMovie stream…</p>
                                 </div>
-                                {skipFlash && (
-                                    <div className={`lm-skip-flash lm-skip-flash-${skipFlash}`}>
-                                        {skipFlash === 'forward' ? '+10s' : '−10s'}
-                                    </div>
-                                )}
-                            </>
-                        )
+                            )}
+                            {lmError && !lmLoading && (
+                                <div className="watch-lm-state watch-lm-error" style={{position:'absolute',inset:0,zIndex:5}}>
+                                    <p>⚠ {lmError}</p>
+                                </div>
+                            )}
+                            <div className="lm-skip-overlay">
+                                <button className="lm-skip-btn lm-skip-back" onClick={handleSkipBack} aria-label="Back 10 seconds">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                                    </svg>
+                                    <span className="lm-skip-label">10</span>
+                                </button>
+                                <button className="lm-skip-btn lm-skip-forward" onClick={handleSkipForward} aria-label="Forward 10 seconds">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style={{transform:'scaleX(-1)'}}>
+                                        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                                    </svg>
+                                    <span className="lm-skip-label">10</span>
+                                </button>
+                            </div>
+                            {skipFlash && (
+                                <div className={`lm-skip-flash lm-skip-flash-${skipFlash}`}>
+                                    {skipFlash === 'forward' ? '+10s' : '−10s'}
+                                </div>
+                            )}
+                        </>
                     ) : (
                         <iframe
                             referrerpolicy="origin"
@@ -793,10 +803,6 @@ export default function App() {
                                 <span className="watch-server-num">{provider}</span>
                                 <span className="watch-server-label">SERVER</span>
                             </button>
-                            <button className={reviewsOn === 1 ? "watch-toggles-button-selected watch-toggles-reviews-btn" : "watch-toggles-button watch-toggles-reviews-btn"} onClick={() => setReviewsOn(reviewsOn === 1 ? -1 : 1)}>
-                                <span className="watch-server-num">★</span>
-                                <span className="watch-server-label">REVIEWS</span>
-                            </button>
                             {window.innerWidth < 800 ? <button className = "watch-toggles-button watch-toggles-review" onClick={() => {
                                 setSimilar(-1 * similarOn)
                             }}>
@@ -809,8 +815,9 @@ export default function App() {
 
             </div>
 
-            {/* ── Reviews panel — slides in from the right ── */}
-            <div className="watch-reviews" id="watch-reviews">
+        </div>
+        {/* ── Reviews section — below the player, outside watch-main ── */}
+        <div className="watch-reviews-section">
                 <p className="watch-reviews-title">REVIEWS</p>
                 {reviews.length > 0 && (
                     <p className="watch-reviews-avg">
@@ -870,7 +877,7 @@ export default function App() {
                     ))}
                 </div>
             </div>
-        </div>
+        </>
     );
   }
 

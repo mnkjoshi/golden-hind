@@ -45,6 +45,8 @@ export default function App() {
     const [recentRecs, setRecentRecs] = useState(null)
     const [lifetimeRecsLoading, setLifetimeRecsLoading] = useState(false)
     const [recentRecsLoading, setRecentRecsLoading] = useState(false)
+    const [recentlyReviewed, setRecentlyReviewed] = useState(null)
+    const [recentlyReviewedLoading, setRecentlyReviewedLoading] = useState(false)
 
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
@@ -135,6 +137,13 @@ export default function App() {
                         .catch(() => setLifetimeRecs([]))
                         .finally(() => setLifetimeRecsLoading(false));
                 }
+
+                // Recently reviewed by users — no cache, always fresh
+                setRecentlyReviewedLoading(true);
+                axios.get('https://goldenhind.tech/recently-reviewed')
+                    .then(r => setRecentlyReviewed(r.data.items || []))
+                    .catch(() => setRecentlyReviewed([]))
+                    .finally(() => setRecentlyReviewedLoading(false));
 
                 const cachedRecent     = localStorage.getItem('ghRecentRecs_v2');
                 const cachedRecentTime = localStorage.getItem('ghRecentRecsTime_v2');
@@ -300,7 +309,7 @@ export default function App() {
                 row.removeEventListener('mousemove', handleMouseMove);
             };
         });
-    }, [continueData, bookmarkData, trendingData])
+    }, [continueData, bookmarkData, trendingData, recentlyReviewed])
 
     // Tooltip functions
     const showTooltip = (event, data) => {
@@ -650,6 +659,56 @@ export default function App() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Recently Reviewed by Users */}
+                {(recentlyReviewedLoading || (recentlyReviewed && recentlyReviewed.length > 0)) && (
+                    <div className="content-section">
+                        <div className="section-header">
+                            <h2 className="section-title">Recently Reviewed by Users</h2>
+                            <div className="section-controls">
+                                <button className="section-arrow" onClick={() => { document.getElementById('recently-reviewed-row').scrollBy({ left: -320, behavior: 'smooth' }); }}>‹</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('recently-reviewed-row').scrollBy({ left: 320, behavior: 'smooth' }); }}>›</button>
+                            </div>
+                        </div>
+                        <div className="content-row" id="recently-reviewed-row">
+                            {recentlyReviewedLoading
+                                ? [...Array(5)].map((_, i) => (
+                                    <div key={i} className="content-card rec-wide-card">
+                                        <div className="card-image-container rec-skeleton-img"></div>
+                                    </div>
+                                ))
+                                : recentlyReviewed.filter(r => r && r.id).map(result => (
+                                    <div
+                                        key={result.id}
+                                        className="content-card rec-wide-card"
+                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
+                                        onMouseEnter={(e) => showTooltip(e, result)}
+                                        onMouseLeave={hideTooltip}
+                                    >
+                                        <div className="card-image-container">
+                                            <img className="rec-backdrop" src={`https://image.tmdb.org/t/p/w780/${result.backdrop_path || result.poster_path}`} loading="lazy" decoding="async" alt=""/>
+                                            <div className="rec-scrim"/>
+                                            <div className="rec-title-area">
+                                                {result.logo_path
+                                                    ? <img className="rec-logo" src={`https://image.tmdb.org/t/p/w500/${result.logo_path}`} loading="lazy" decoding="async" alt={result.name || result.title}/>
+                                                    : <span className="rec-title-fallback">{result.name || result.title || 'Untitled'}</span>
+                                                }
+                                            </div>
+                                            <div className="card-overlay">
+                                                <div className="card-info">
+                                                    <div className="card-meta">
+                                                        <span className="card-rating">⭐ {result.vote_average}</span>
+                                                        <span className="card-type">{result.media_type === 'movie' || result.number_of_episodes == null ? 'Movie' : 'TV'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            }
                         </div>
                     </div>
                 )}
