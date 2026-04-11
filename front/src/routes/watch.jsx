@@ -146,10 +146,14 @@ export default function App() {
             track.label = sub.language || sub.lang || `Track ${i + 1}`;
             track.srclang = (sub.language || sub.lang || 'en').slice(0, 2).toLowerCase();
             const rawSub = sub.file || sub.url || '';
-            const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
-            track.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
-            if (i === 0) track.default = true;
-            video.appendChild(track);
+            if ( typeof(rawSub) === 'string') {
+                
+                const absSubUrl = `https://www.lookmovie2.to${rawSub}`;
+                track.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
+                if (i === 0) track.default = true;
+                video.appendChild(track);
+            }
+            
         });
 
         const initPlyr = () => {
