@@ -33,7 +33,7 @@ export default function App() {
     const [autoNext, setAutoNext] = useState(0);
     const [autoPlay, setAutoPlay] = useState(0);
 
-    const [provider, setProvider] = useState(1);
+    const [provider, setProvider] = useState(4);
 
     const [lmUrl, setLmUrl] = useState(null);
     const [lmSubtitles, setLmSubtitles] = useState([]);
@@ -138,31 +138,45 @@ export default function App() {
 
         const video = lmVideoRef.current;
 
+        // crossOrigin must be set before tracks are added for cross-origin VTT to load
+        video.crossOrigin = 'anonymous';
+
+        // Deduplicate subtitles: one track per language, keep first occurrence
+        const seenLangs = new Set();
+        const uniqueSubs = lmSubtitles.filter(sub => {
+            const lang = String(sub.language || sub.lang || 'unknown').toLowerCase();
+            if (seenLangs.has(lang)) return false;
+            seenLangs.add(lang);
+            return true;
+        });
+
         // Inject subtitle tracks into the video element before Plyr wraps it
+        // Only include entries where `file` is a real path (starts with / or http).
+        // LookMovie sometimes returns comma-separated metadata instead of a path — skip those.
         while (video.firstChild) video.removeChild(video.firstChild);
-        lmSubtitles.forEach((sub, i) => {
+        let trackIndex = 0;
+        uniqueSubs.forEach(sub => {
+            const rawSub = String(sub.file || sub.url || '');
+            if (!rawSub.startsWith('/') && !rawSub.startsWith('http')) return;
+            const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
             const track = document.createElement('track');
             track.kind = 'subtitles';
-            track.label = sub.language || sub.lang || `Track ${i + 1}`;
-            track.srclang = (sub.language || sub.lang || 'en').slice(0, 2).toLowerCase();
-            const rawSub = sub.file || sub.url || '';
-            if ( typeof(rawSub) === 'string') {
-                
-                const absSubUrl = `https://www.lookmovie2.to${rawSub}`;
-                track.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
-                if (i === 0) track.default = true;
-                video.appendChild(track);
-            }
-            
+            track.label = sub.language || sub.lang || `Track ${trackIndex + 1}`;
+            track.srclang = String(sub.language || sub.lang || 'en').slice(0, 2).toLowerCase();
+            track.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
+            if (trackIndex === 0) track.default = true;
+            video.appendChild(track);
+            trackIndex++;
         });
 
         const initPlyr = () => {
             const player = new Plyr(video, {
                 controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'captions', 'settings', 'pip', 'fullscreen'],
                 settings: ['captions', 'quality', 'speed'],
-                captions: { active: lmSubtitles.length > 0, update: true },
+                captions: { active: uniqueSubs.length > 0, update: true },
                 ratio: '16:9',
-                keyboard: { focused: false, global: false }, // we handle keys ourselves
+                keyboard: { focused: false, global: false },
+                fullscreen: { enabled: true, fallback: true, iosNative: true },
             });
             plyrRef.current = player;
         };
@@ -249,6 +263,7 @@ export default function App() {
                     e.preventDefault();
                     p.volume = Math.max(0, p.volume - 0.1);
                     break;
+
             }
         };
         document.addEventListener('keydown', onKey);
@@ -635,16 +650,17 @@ export default function App() {
                                     ref={lmVideoRef}
                                     className="watch-player-file"
                                     playsInline
+                                    crossOrigin="anonymous"
                                 />
                                 <div className="lm-skip-overlay">
-                                    <button className="lm-skip-btn" onClick={handleSkipBack} aria-label="Back 10 seconds">
-                                        <svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                                    <button className="lm-skip-btn lm-skip-back" onClick={handleSkipBack} aria-label="Back 10 seconds">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                                             <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
                                         </svg>
                                         <span className="lm-skip-label">10</span>
                                     </button>
-                                    <button className="lm-skip-btn" onClick={handleSkipForward} aria-label="Forward 10 seconds">
-                                        <svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" style={{transform:'scaleX(-1)'}}>
+                                    <button className="lm-skip-btn lm-skip-forward" onClick={handleSkipForward} aria-label="Forward 10 seconds">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style={{transform:'scaleX(-1)'}}>
                                             <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
                                         </svg>
                                         <span className="lm-skip-label">10</span>

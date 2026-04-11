@@ -1320,14 +1320,22 @@ app.get('/proxy/subtitle', async (req, res) => {
     if (!raw) return res.status(400).send('Missing url');
     const url = decodeURIComponent(raw);
 
+    // Reject obviously malformed URLs (metadata entries that slipped through)
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        return res.status(400).send('WEBVTT\n\nNOTE invalid subtitle url');
+    }
+
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
 
     try {
         const { data } = await axios.get(url, {
-            headers: { 'Referer': 'https://www.lookmovie2.to/', 'User-Agent': lookmovieHeaders['User-Agent'] },
+            headers: {
+                ...lookmovieHeaders,
+                'Accept': 'text/vtt, text/plain, */*',
+            },
             responseType: 'text',
-            timeout: 10000,
+            timeout: 15000,
         });
         // VTT files pass through as-is; SRT files get converted
         const isVtt = url.toLowerCase().includes('.vtt') || data.trimStart().startsWith('WEBVTT');
@@ -1338,7 +1346,10 @@ app.get('/proxy/subtitle', async (req, res) => {
                 .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
         res.send(vtt);
     } catch (e) {
-        res.status(502).send('WEBVTT\n\n');
+        const status = e.response?.status || 'no-response';
+        const msg = e.message || 'unknown error';
+        console.error(`[proxy/subtitle] failed: ${status} — ${msg} — url: ${url}`);
+        res.status(502).send(`WEBVTT\n\nNOTE subtitle fetch failed: ${status} ${msg}`);
     }
 });
 

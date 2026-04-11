@@ -173,17 +173,6 @@ export default function App() {
                     }
                 });
 
-                axios({
-                    method: 'post',
-                    url: 'https://golden-hind.onrender.com/similar',
-                    data: {
-                        user: user,
-                        token: token,
-                        ID: id,
-                    }
-                }).then((response) => {
-                    setSimilarData(response.data)
-                });
             }
 
             if (first == 0) {
