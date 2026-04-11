@@ -359,11 +359,17 @@ async function getTMDBLogo(mediaType, id) {
     const key = `${mediaType}-${id}`;
     if (logoCache.has(key)) return logoCache.get(key);
     try {
-        const url = `https://api.themoviedb.org/3/${mediaType}/${id}/images?api_key=${process.env.TMDB_Credentials}&include_image_language=en,null`;
+        // Fetch all logos without language restriction — TMDB tagging is inconsistent
+        const url = `https://api.themoviedb.org/3/${mediaType}/${id}/images?api_key=${process.env.TMDB_Credentials}`;
         const res = await axios.get(url);
-        const logos = (res.data.logos || []).filter(l => l.iso_639_1 === 'en' || l.iso_639_1 == null);
-        logos.sort((a, b) => b.vote_average - a.vote_average);
-        const path = logos[0]?.file_path || null;
+        const logos = res.data.logos || [];
+        // Prefer English, then null-language, then highest-voted anything
+        const sorted = [
+            ...logos.filter(l => l.iso_639_1 === 'en').sort((a, b) => b.vote_average - a.vote_average),
+            ...logos.filter(l => l.iso_639_1 == null).sort((a, b) => b.vote_average - a.vote_average),
+            ...logos.filter(l => l.iso_639_1 !== 'en' && l.iso_639_1 != null).sort((a, b) => b.vote_average - a.vote_average),
+        ];
+        const path = sorted[0]?.file_path || null;
         logoCache.set(key, path);
         return path;
     } catch {

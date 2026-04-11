@@ -119,8 +119,8 @@ export default function App() {
                 const REC_TTL = 4 * 60 * 60 * 1000;
                 const now = Date.now();
 
-                const cachedLifetime     = localStorage.getItem('ghLifetimeRecs');
-                const cachedLifetimeTime = localStorage.getItem('ghLifetimeRecsTime');
+                const cachedLifetime     = localStorage.getItem('ghLifetimeRecs_v2');
+                const cachedLifetimeTime = localStorage.getItem('ghLifetimeRecsTime_v2');
                 if (cachedLifetime && cachedLifetimeTime && now - parseInt(cachedLifetimeTime) < REC_TTL) {
                     try { setLifetimeRecs(JSON.parse(cachedLifetime)); } catch {}
                 } else {
@@ -129,15 +129,15 @@ export default function App() {
                         .then(r => {
                             const data = Array.isArray(r.data) ? r.data : [];
                             setLifetimeRecs(data);
-                            localStorage.setItem('ghLifetimeRecs', JSON.stringify(data));
-                            localStorage.setItem('ghLifetimeRecsTime', now.toString());
+                            localStorage.setItem('ghLifetimeRecs_v2', JSON.stringify(data));
+                            localStorage.setItem('ghLifetimeRecsTime_v2', now.toString());
                         })
                         .catch(() => setLifetimeRecs([]))
                         .finally(() => setLifetimeRecsLoading(false));
                 }
 
-                const cachedRecent     = localStorage.getItem('ghRecentRecs');
-                const cachedRecentTime = localStorage.getItem('ghRecentRecsTime');
+                const cachedRecent     = localStorage.getItem('ghRecentRecs_v2');
+                const cachedRecentTime = localStorage.getItem('ghRecentRecsTime_v2');
                 if (cachedRecent && cachedRecentTime && now - parseInt(cachedRecentTime) < REC_TTL) {
                     try { setRecentRecs(JSON.parse(cachedRecent)); } catch {}
                 } else {
@@ -146,8 +146,8 @@ export default function App() {
                         .then(r => {
                             const data = Array.isArray(r.data) ? r.data : [];
                             setRecentRecs(data);
-                            localStorage.setItem('ghRecentRecs', JSON.stringify(data));
-                            localStorage.setItem('ghRecentRecsTime', now.toString());
+                            localStorage.setItem('ghRecentRecs_v2', JSON.stringify(data));
+                            localStorage.setItem('ghRecentRecsTime_v2', now.toString());
                         })
                         .catch(() => setRecentRecs([]))
                         .finally(() => setRecentRecsLoading(false));
