@@ -1115,6 +1115,145 @@ async function logAnalytic(user, event, data) {
     } catch (_) {}
 }
 
+// ── LookMovie helpers ─────────────────────────────────────────────────────────
+
+async function getIMDBId(tmdbId, mediaType) {
+    const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}/external_ids?api_key=${process.env.TMDB_Credentials}`;
+    const res = await axios.get(url);
+    return res.data.imdb_id || null; // e.g. "tt0317219"
+}
+
+function slugify(title) {
+    return title.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+}
+
+const lookmovieHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://www.lookmovie2.to/',
+};
+
+// In-memory cache for LookMovie internal IDs (keyed by TMDB content ID e.g. "m123")
+const lmIdCache = new Map();
+
+async function getOrFetchLookmovieId(contentId, imdbId, mediaType, title, year) {
+    // 1. In-memory hit
+    if (lmIdCache.has(contentId)) return lmIdCache.get(contentId);
+
+    // 2. Firebase hit
+    const db = admin.database();
+    const snap = await db.ref(`lookmovie/${contentId}`).once('value');
+    if (snap.exists()) {
+        const lmId = snap.val();
+        lmIdCache.set(contentId, lmId);
+        return lmId;
+    }
+
+    // 3. Scrape and persist
+    const { id: lmId } = await getLookmovieInternalId(imdbId, mediaType, title, year);
+    db.ref(`lookmovie/${contentId}`).set(lmId).catch(() => {});
+    lmIdCache.set(contentId, lmId);
+    return lmId;
+}
+
+async function getLookmovieInternalId(imdbId, mediaType, title, year) {
+    const numericId = imdbId.replace('tt', '');
+    const slug = slugify(title);
+    const contentPath = mediaType === 'tv' ? 'shows' : 'movies';
+    const url = `https://www.lookmovie2.to/${contentPath}/view/${numericId}-${slug}-${year}`;
+
+    const res = await axios.get(url, { headers: lookmovieHeaders, timeout: 20000 });
+    const html = res.data;
+
+    // Next.js embeds all page data in __NEXT_DATA__ — most reliable
+    const nextMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (nextMatch) {
+        try {
+            const nd = JSON.parse(nextMatch[1]);
+            const pp = nd?.props?.pageProps;
+            const id = pp?.movie?.id || pp?.show?.id || pp?.data?.id;
+            if (id) return { id: String(id), url };
+        } catch {}
+    }
+
+    // Fallback regex patterns
+    const patterns = [
+        /(?:id_movie|id_show)['":\s]+(\d{4,})/,
+        /manifest\?id=(\d{4,})/,
+        /"id":\s*(\d{5,})/,
+    ];
+    for (const p of patterns) {
+        const m = html.match(p);
+        if (m) return { id: m[1], url };
+    }
+
+    throw new Error(`Could not find LookMovie ID at ${url}`);
+}
+
+async function getLookmovieEpisodeId(showInternalId, season, episode) {
+    // Episode list API: keyed by season number → episode number → { id_episode }
+    const url = `https://www.lookmovie2.to/api/v2/download/episode/list?id=${showInternalId}`;
+    const res = await axios.get(url, { headers: lookmovieHeaders, timeout: 10000 });
+    const epId = res.data?.list?.[String(season)]?.[String(episode)]?.id_episode;
+    if (!epId) throw new Error(`S${season}E${episode} not found in LookMovie episode list`);
+    return String(epId);
+}
+
+async function getLookmovieStreamUrl(internalId, mediaType) {
+    const endpoint = mediaType === 'tv' ? 'episode-access' : 'movie-access';
+    const param    = mediaType === 'tv' ? 'id_episode'    : 'id_movie';
+    const url = `https://www.lookmovie2.to/api/v1/security/${endpoint}?${param}=${internalId}&expires=9999999999`;
+
+    const res = await axios.get(url, { headers: lookmovieHeaders, timeout: 10000 });
+    if (!res.data.success) throw new Error('LookMovie stream access denied');
+
+    const s = res.data.streams;
+    // Movies use keys with 'p' (1080p/720p/480p); TV episodes use plain numbers (1080/720/480)
+    const streamUrl = s['1080p'] || s['720p'] || s['480p'] || s['1080'] || s['720'] || s['480'];
+    if (!streamUrl) throw new Error('No stream URL in LookMovie response');
+
+    return { streamUrl, subtitles: res.data.subtitles || [] };
+}
+
+app.post('/server/lookmovie', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, id, season, episode } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+
+    try {
+        const mediaType = id.startsWith('t') ? 'tv' : 'movie';
+        const tmdbId    = id.slice(1);
+
+        const info   = await GetInfo(id);
+        const title  = info.title || info.name;
+        const year   = new Date(info.release_date || info.first_air_date || '2000').getFullYear();
+
+        const imdbId = await getIMDBId(tmdbId, mediaType);
+        if (!imdbId) throw new Error('No IMDB ID found for this title');
+
+        const lmId = await getOrFetchLookmovieId(id, imdbId, mediaType, title, year);
+
+        let targetId = lmId;
+        if (mediaType === 'tv') {
+            targetId = await getLookmovieEpisodeId(lmId, season || 1, episode || 1);
+        }
+
+        const { streamUrl, subtitles } = await getLookmovieStreamUrl(targetId, mediaType);
+        response.json({ success: true, url: streamUrl, subtitles });
+    } catch (error) {
+        logError(user, '/server/lookmovie', error).catch(() => {});
+        response.status(200).json({ success: false, error: error.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function searchTMDBByTitle(title, year, type) {
     const endpoint = type === 'tv' ? 'tv' : 'movie';
     const yearParam = type === 'tv' ? 'first_air_date_year' : 'year';

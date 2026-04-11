@@ -1,0 +1,148 @@
+* {
+    z-index: 1;
+}
+
+body, html {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    overflow: hidden;
+}
+
+p {
+    margin: 0;
+}
+
+#root {
+    width: 100%;
+    height: 100%;
+}
+
+/* ── Page shell ── */
+.test-main {
+    width: 100%;
+    height: 100vh;
+    background-color: #111;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ── Content area below topbar ── */
+.test-holder {
+    flex: 1;                   /* fill everything the topbar doesn't */
+    min-height: 0;             /* prevent flex blowout */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 16px;
+    box-sizing: border-box;
+}
+
+/* ── Player + options stacked vertically ── */
+.test-system {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    max-width: 1600px;
+}
+
+/* ── Video container — fills system, minus options bar ── */
+.test-player {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    box-shadow: 0 0 32px rgba(0, 0, 0, 0.8);
+}
+
+/* ── The actual video / iframe element ── */
+.test-player-file {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border: none;
+    border-radius: 8px 8px 0 0;
+    background: #000;
+}
+
+/* ── Options bar — fixed height ── */
+.test-options {
+    height: 42px;
+    flex-shrink: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Left side of options bar ── */
+.test-left {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    gap: 8px;
+}
+
+.test-url-label {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 11px;
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Right side of options bar ── */
+.test-right {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ── Reusable icon buttons ── */
+.test-toggles-button,
+.test-toggles-button-selected {
+    height: 28px;
+    aspect-ratio: 1;
+    background: #1e1e1e;
+    border: 2px solid white;
+    border-radius: 5px;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.2s;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.test-toggles-button:hover {
+    filter: invert(100%);
+    border-color: black;
+}
+
+.test-toggles-button-selected {
+    border-color: gray;
+    filter: invert(100%);
+}
+
+.test-toggles-button-selected:hover {
+    filter: invert(0%);
+    border-color: white;
+}
+
+.test-toggles-button-icon {
+    height: 70%;
+    aspect-ratio: 1;
+}

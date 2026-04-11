@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation, useParams } from "react-router-dom";
 import axios from 'axios'
 import React, { useEffect, useState, useRef } from 'react';
+import Hls from 'hls.js';
 import { track } from '../utils/analytics.js'
 import Topbar from "../components/topbar"
 
@@ -31,6 +32,12 @@ export default function App() {
     const [autoPlay, setAutoPlay] = useState(0);
 
     const [provider, setProvider] = useState(1);
+
+    const [lmUrl, setLmUrl] = useState(null);
+    const [lmLoading, setLmLoading] = useState(false);
+    const [lmError, setLmError] = useState(null);
+    const lmVideoRef = useRef(null);
+    const hlsRef = useRef(null);
 
     const[bookmarked, setBookmark] = useState(-1);
     const[similarOn, setSimilar] = useState(-1);
@@ -92,6 +99,42 @@ export default function App() {
             contentNameRef.current = data.name || data.title;
         }
     }, [data]);
+
+    // Fetch LookMovie stream when provider 4 is selected or episode changes
+    useEffect(() => {
+        if (parseInt(provider) !== 4) return;
+        setLmUrl(null);
+        setLmError(null);
+        setLmLoading(true);
+        axios({
+            method: 'post',
+            url: 'https://goldenhind.tech/server/lookmovie',
+            data: { user, token, id, season, episode }
+        }).then(r => {
+            if (r.data.success) setLmUrl(r.data.url);
+            else setLmError(r.data.error || 'Stream unavailable');
+        }).catch(() => setLmError('Failed to reach server'))
+          .finally(() => setLmLoading(false));
+    }, [provider, season, episode]);
+
+    // Attach HLS.js when a stream URL arrives
+    useEffect(() => {
+        if (!lmUrl || !lmVideoRef.current) return;
+        if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+
+        if (Hls.isSupported()) {
+            const hls = new Hls();
+            hlsRef.current = hls;
+            hls.loadSource(lmUrl);
+            hls.attachMedia(lmVideoRef.current);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => lmVideoRef.current?.play());
+        } else if (lmVideoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+            // Native HLS (Safari)
+            lmVideoRef.current.src = lmUrl;
+            lmVideoRef.current.play();
+        }
+        return () => { if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; } };
+    }, [lmUrl]);
     if (type == "m") {
         type = "movie"
     } else if (type == "t") {
@@ -141,8 +184,9 @@ export default function App() {
         }
 
         if (!(localStorage.getItem("provider" + vidID) == null)) {
-            if(localStorage.getItem("provider" + vidID) == 1 || localStorage.getItem("provider" + vidID) == 2 || localStorage.getItem("provider" + vidID) == 3) {
-                setProvider(localStorage.getItem("provider" + vidID))
+            const saved = parseInt(localStorage.getItem("provider" + vidID));
+            if (saved >= 1 && saved <= 4) {
+                setProvider(saved)
             } else {
                 localStorage.setItem("provider" + vidID, 1)
                 setProvider(1)
@@ -455,15 +499,35 @@ export default function App() {
             <div className= "watch-holder" id= "watch-holder">
                 <div className= "watch-system">
                 <div className= "watch-player">
-                    <iframe 
-                        referrerpolicy="origin" 
-                        className="watch-player-file" 
-                        id="watch-player-file" 
-                        src={video} 
-                        frameBorder="0" 
-                        allowFullScreen="yes" 
-                        allow="autoplay"
-                    ></iframe>
+                    {parseInt(provider) === 4 ? (
+                        lmLoading ? (
+                            <div className="watch-lm-state">
+                                <div className="watch-lm-spinner"/>
+                                <p>Fetching LookMovie stream…</p>
+                            </div>
+                        ) : lmError ? (
+                            <div className="watch-lm-state watch-lm-error">
+                                <p>⚠ {lmError}</p>
+                            </div>
+                        ) : (
+                            <video
+                                ref={lmVideoRef}
+                                className="watch-player-file"
+                                controls
+                                playsInline
+                            />
+                        )
+                    ) : (
+                        <iframe
+                            referrerpolicy="origin"
+                            className="watch-player-file"
+                            id="watch-player-file"
+                            src={video}
+                            allowFullScreen="yes"
+                            allow="autoplay"
+                            style={{border: 'none'}}
+                        ></iframe>
+                    )}
                 </div>
                 <div className= "watch-options">
                     <div className= "watch-left">
@@ -529,8 +593,12 @@ export default function App() {
                             {/* <div className= "watch-rating-underline"/> */}
                         </div>
                         <div className= "watch-toggles2">
-                            <button className = "watch-toggles-button watch-toggles-server" onClick={() => {if (parseInt(provider) >= 3) {setProvider(1); localStorage.setItem("provider" + vidID, parseInt(1))} else {console.log("setting provider" + parseInt(parseInt(provider) + 1)); setProvider(parseInt(provider) + 1); localStorage.setItem("provider" + vidID, parseInt(parseInt(provider) + parseInt(1)))}}}>
-                                <img className = "watch-toggles-button-icon watch-toggles-server-icon" src = {ServerIcon}/>
+                            <button className="watch-toggles-button watch-toggles-server" onClick={() => {
+                                const next = parseInt(provider) >= 4 ? 1 : parseInt(provider) + 1;
+                                setProvider(next);
+                                localStorage.setItem("provider" + vidID, next);
+                            }}>
+                                <img className="watch-toggles-button-icon watch-toggles-server-icon" src={ServerIcon}/>
                             </button>
                             {window.innerWidth < 800 ? <button className = "watch-toggles-button watch-toggles-review" onClick={() => {
                                 setSimilar(-1 * similarOn)

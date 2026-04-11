@@ -567,10 +567,10 @@ export default function App() {
                                     >
                                         <div className="card-image-container">
                                             <img className="rec-backdrop" src={`https://image.tmdb.org/t/p/w780/${result.backdrop_path || result.poster_path}`} loading="lazy" decoding="async" alt=""/>
-                                            <img className="rec-poster" src={`https://image.tmdb.org/t/p/w300/${result.poster_path || result.backdrop_path}`} loading="lazy" decoding="async" alt={result.name || result.title}/>
+                                            <div className="rec-scrim"/>
                                             <div className="rec-title-area">
                                                 {result.logo_path
-                                                    ? <img className="rec-logo" src={`https://image.tmdb.org/t/p/w300/${result.logo_path}`} loading="lazy" decoding="async" alt={result.name || result.title}/>
+                                                    ? <img className="rec-logo" src={`https://image.tmdb.org/t/p/w500/${result.logo_path}`} loading="lazy" decoding="async" alt={result.name || result.title}/>
                                                     : <span className="rec-title-fallback">{result.name || result.title || 'Untitled'}</span>
                                                 }
                                             </div>
@@ -755,10 +755,10 @@ export default function App() {
                                     >
                                         <div className="card-image-container">
                                             <img className="rec-backdrop" src={`https://image.tmdb.org/t/p/w780/${result.backdrop_path || result.poster_path}`} loading="lazy" decoding="async" alt=""/>
-                                            <img className="rec-poster" src={`https://image.tmdb.org/t/p/w300/${result.poster_path || result.backdrop_path}`} loading="lazy" decoding="async" alt={result.name || result.title}/>
+                                            <div className="rec-scrim"/>
                                             <div className="rec-title-area">
                                                 {result.logo_path
-                                                    ? <img className="rec-logo" src={`https://image.tmdb.org/t/p/w300/${result.logo_path}`} loading="lazy" decoding="async" alt={result.name || result.title}/>
+                                                    ? <img className="rec-logo" src={`https://image.tmdb.org/t/p/w500/${result.logo_path}`} loading="lazy" decoding="async" alt={result.name || result.title}/>
                                                     : <span className="rec-title-fallback">{result.name || result.title || 'Untitled'}</span>
                                                 }
                                             </div>
