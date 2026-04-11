@@ -1167,40 +1167,71 @@ async function getLookmovieInternalId(imdbId, mediaType, title, year) {
     const contentPath = mediaType === 'tv' ? 'shows' : 'movies';
     const url = `https://www.lookmovie2.to/${contentPath}/view/${numericId}-${slug}-${year}`;
 
+    console.log(`[LM] Fetching page: ${url}`);
+
     const res = await axios.get(url, { headers: lookmovieHeaders, timeout: 20000 });
     const html = res.data;
+
+    console.log(`[LM] HTTP ${res.status} — response length: ${html.length} chars`);
+    console.log(`[LM] First 400 chars:\n${html.slice(0, 400)}`);
 
     // Next.js embeds all page data in __NEXT_DATA__ — most reliable
     const nextMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
     if (nextMatch) {
+        console.log('[LM] Found __NEXT_DATA__, parsing...');
         try {
             const nd = JSON.parse(nextMatch[1]);
             const pp = nd?.props?.pageProps;
+            console.log('[LM] pageProps keys:', Object.keys(pp || {}));
             const id = pp?.movie?.id || pp?.show?.id || pp?.data?.id;
-            if (id) return { id: String(id), url };
-        } catch {}
+            if (id) {
+                console.log(`[LM] Found ID in __NEXT_DATA__: ${id}`);
+                return { id: String(id), url };
+            }
+            // Dump the pageProps structure so we can see where the ID actually lives
+            console.log('[LM] ID not at expected paths. pageProps sample:', JSON.stringify(pp).slice(0, 600));
+        } catch (e) {
+            console.log('[LM] Failed to parse __NEXT_DATA__:', e.message);
+        }
+    } else {
+        console.log('[LM] No __NEXT_DATA__ script tag found');
     }
 
     // Fallback regex patterns
     const patterns = [
-        /(?:id_movie|id_show)['":\s]+(\d{4,})/,
-        /manifest\?id=(\d{4,})/,
-        /"id":\s*(\d{5,})/,
+        { label: 'id_movie/id_show key',  re: /(?:id_movie|id_show)['":\s]+(\d{4,})/ },
+        { label: 'manifest?id=',           re: /manifest\?id=(\d{4,})/ },
+        { label: 'episode/list?id=',       re: /episode\/list\?id=(\d{4,})/ },
+        { label: '"id": 5+ digits',        re: /"id":\s*(\d{5,})/ },
+        { label: "'id': 5+ digits",        re: /'id':\s*(\d{5,})/ },
     ];
-    for (const p of patterns) {
-        const m = html.match(p);
-        if (m) return { id: m[1], url };
+
+    for (const { label, re } of patterns) {
+        const m = html.match(re);
+        if (m) {
+            console.log(`[LM] Found ID via fallback pattern "${label}": ${m[1]}`);
+            return { id: m[1], url };
+        }
+        console.log(`[LM] Fallback pattern "${label}" — no match`);
     }
+
+    // Last resort: dump a larger HTML chunk to logs so we can see what's actually there
+    console.log('[LM] All patterns failed. HTML sample (chars 400-1200):\n', html.slice(400, 1200));
 
     throw new Error(`Could not find LookMovie ID at ${url}`);
 }
 
 async function getLookmovieEpisodeId(showInternalId, season, episode) {
-    // Episode list API: keyed by season number → episode number → { id_episode }
     const url = `https://www.lookmovie2.to/api/v2/download/episode/list?id=${showInternalId}`;
+    console.log(`[LM] Fetching episode list: ${url}`);
     const res = await axios.get(url, { headers: lookmovieHeaders, timeout: 10000 });
+    console.log(`[LM] Episode list HTTP ${res.status}, seasons available:`, Object.keys(res.data?.list || {}));
     const epId = res.data?.list?.[String(season)]?.[String(episode)]?.id_episode;
-    if (!epId) throw new Error(`S${season}E${episode} not found in LookMovie episode list`);
+    if (!epId) {
+        console.log(`[LM] S${season}E${episode} not found. Season ${season} episodes:`, res.data?.list?.[String(season)]);
+        throw new Error(`S${season}E${episode} not found in LookMovie episode list`);
+    }
+    console.log(`[LM] Episode ID for S${season}E${episode}: ${epId}`);
     return String(epId);
 }
 
@@ -1209,7 +1240,9 @@ async function getLookmovieStreamUrl(internalId, mediaType) {
     const param    = mediaType === 'tv' ? 'id_episode'    : 'id_movie';
     const url = `https://www.lookmovie2.to/api/v1/security/${endpoint}?${param}=${internalId}&expires=9999999999`;
 
+    console.log(`[LM] Fetching stream access: ${url}`);
     const res = await axios.get(url, { headers: lookmovieHeaders, timeout: 10000 });
+    console.log(`[LM] Stream access HTTP ${res.status}, success: ${res.data.success}, streams:`, res.data.streams);
     if (!res.data.success) throw new Error('LookMovie stream access denied');
 
     const s = res.data.streams;
