@@ -1263,29 +1263,27 @@ async function getLookmovieStreamUrl(internalId, mediaType, dbg) {
     return { streamUrl, subtitles: res.data.subtitles || [] };
 }
 
-// HLS proxy — rewrites m3u8 segment URLs so the browser never hits the CDN directly
+// HLS proxy — manifests are rewritten, segments are piped (never buffered)
 app.get('/proxy/hls', async (req, res) => {
     const raw = req.query.url;
     if (!raw) return res.status(400).send('Missing url');
     const url = decodeURIComponent(raw);
 
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Range');
+    res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type');
+
+    const isManifest = url.includes('.m3u8');
 
     try {
-        const upstream = await axios.get(url, {
-            headers: { 'Referer': 'https://www.lookmovie2.to/', 'User-Agent': lookmovieHeaders['User-Agent'] },
-            responseType: 'arraybuffer',
-            timeout: 30000,
-        });
-
-        const ct = upstream.headers['content-type'] || '';
-        const isManifest = url.includes('.m3u8') || ct.includes('mpegurl');
-
         if (isManifest) {
-            const text = Buffer.from(upstream.data).toString('utf8');
+            // Fetch manifest as text, rewrite segment lines, return immediately
+            const upstream = await axios.get(url, {
+                headers: { 'Referer': 'https://www.lookmovie2.to/', 'User-Agent': lookmovieHeaders['User-Agent'] },
+                responseType: 'text',
+                timeout: 15000,
+            });
             const base = url.substring(0, url.lastIndexOf('/') + 1);
-            const rewritten = text.split('\n').map(line => {
+            const rewritten = upstream.data.split('\n').map(line => {
                 const t = line.trim();
                 if (!t || t.startsWith('#')) return line;
                 const abs = t.startsWith('http') ? t : base + t;
@@ -1295,12 +1293,24 @@ app.get('/proxy/hls', async (req, res) => {
             return res.send(rewritten);
         }
 
-        // Binary segment (.ts / .mp4 chunk)
-        res.setHeader('Content-Type', ct || 'video/MP2T');
+        // Segment — pipe directly, never buffer in memory
+        const upstream = await axios.get(url, {
+            headers: {
+                'Referer': 'https://www.lookmovie2.to/',
+                'User-Agent': lookmovieHeaders['User-Agent'],
+                ...(req.headers.range ? { 'Range': req.headers.range } : {}),
+            },
+            responseType: 'stream',
+            timeout: 30000,
+        });
+
+        res.setHeader('Content-Type', upstream.headers['content-type'] || 'video/MP2T');
         if (upstream.headers['content-length']) res.setHeader('Content-Length', upstream.headers['content-length']);
-        res.send(Buffer.from(upstream.data));
+        if (upstream.headers['content-range']) res.setHeader('Content-Range', upstream.headers['content-range']);
+        res.status(upstream.status);
+        upstream.data.pipe(res);
     } catch (e) {
-        res.status(502).send(e.message);
+        if (!res.headersSent) res.status(502).send(e.message);
     }
 });
 
