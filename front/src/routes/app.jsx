@@ -41,8 +41,10 @@ export default function App() {
     const [isToastDismissed, setIsToastDismissed] = useState(false)
     const [latestCommitMessage, setLatestCommitMessage] = useState('')
     const [showChristmas, setShowChristmas] = useState(false)
-
-
+    const [lifetimeRecs, setLifetimeRecs] = useState(null)
+    const [recentRecs, setRecentRecs] = useState(null)
+    const [lifetimeRecsLoading, setLifetimeRecsLoading] = useState(false)
+    const [recentRecsLoading, setRecentRecsLoading] = useState(false)
 
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
@@ -113,7 +115,44 @@ export default function App() {
                     console.error('Failed to load trending:', error)
                 });
 
-                
+                // Load AI recommendations with 4-hour localStorage cache
+                const REC_TTL = 4 * 60 * 60 * 1000;
+                const now = Date.now();
+
+                const cachedLifetime     = localStorage.getItem('ghLifetimeRecs');
+                const cachedLifetimeTime = localStorage.getItem('ghLifetimeRecsTime');
+                if (cachedLifetime && cachedLifetimeTime && now - parseInt(cachedLifetimeTime) < REC_TTL) {
+                    try { setLifetimeRecs(JSON.parse(cachedLifetime)); } catch {}
+                } else {
+                    setLifetimeRecsLoading(true);
+                    axios({ method: 'post', url: 'https://goldenhind.tech/recommendations/lifetime', data: { user, token } })
+                        .then(r => {
+                            const data = Array.isArray(r.data) ? r.data : [];
+                            setLifetimeRecs(data);
+                            localStorage.setItem('ghLifetimeRecs', JSON.stringify(data));
+                            localStorage.setItem('ghLifetimeRecsTime', now.toString());
+                        })
+                        .catch(() => setLifetimeRecs([]))
+                        .finally(() => setLifetimeRecsLoading(false));
+                }
+
+                const cachedRecent     = localStorage.getItem('ghRecentRecs');
+                const cachedRecentTime = localStorage.getItem('ghRecentRecsTime');
+                if (cachedRecent && cachedRecentTime && now - parseInt(cachedRecentTime) < REC_TTL) {
+                    try { setRecentRecs(JSON.parse(cachedRecent)); } catch {}
+                } else {
+                    setRecentRecsLoading(true);
+                    axios({ method: 'post', url: 'https://goldenhind.tech/recommendations/recent', data: { user, token } })
+                        .then(r => {
+                            const data = Array.isArray(r.data) ? r.data : [];
+                            setRecentRecs(data);
+                            localStorage.setItem('ghRecentRecs', JSON.stringify(data));
+                            localStorage.setItem('ghRecentRecsTime', now.toString());
+                        })
+                        .catch(() => setRecentRecs([]))
+                        .finally(() => setRecentRecsLoading(false));
+                }
+
             }
         }
     }, [])
@@ -501,6 +540,70 @@ export default function App() {
                     </div>
                 )}
 
+                {/* Trending Section */}
+                {trendingData && trendingData.results && (
+                    <div className="content-section">
+                        <div className="section-header">
+                            <h2 className="section-title">Trending Now</h2>
+                            <div className="section-controls">
+                                <button 
+                                    className="section-arrow" 
+                                    onClick={() => {
+                                        const container = document.getElementById('trending-row');
+                                        container.scrollBy({ left: -300, behavior: 'smooth' });
+                                    }}
+                                >
+                                    ‹
+                                </button>
+                                <button 
+                                    className="section-arrow" 
+                                    onClick={() => {
+                                        const container = document.getElementById('trending-row');
+                                        container.scrollBy({ left: 300, behavior: 'smooth' });
+                                    }}
+                                >
+                                    ›
+                                </button>
+                            </div>
+                        </div>
+                        <div className="content-row" id="trending-row">
+                            {trendingData && trendingData.results && trendingData.results.filter(result => result && result.id).map(result => (
+                                <div 
+                                    key={result.id} 
+                                    className="content-card"
+                                    onClick={() => {
+                                        if (result.media_type === "movie") {
+                                            navigate("/watch/m" + result.id)
+                                        } else {
+                                            navigate("/watch/t" + result.id)
+                                        }
+                                    }}
+                                    onMouseEnter={(e) => showTooltip(e, result)}
+                                    onMouseLeave={hideTooltip}
+                                >
+                                    <div className="card-image-container">
+                                        <img 
+                                            className="card-image" 
+                                            src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`}
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                        <div className="card-overlay">
+                                            <div className="card-info">
+                                                <h3 className="card-title">{result.name || result.title || "Untitled"}</h3>
+                                                <div className="card-meta">
+                                                    <span className="card-rating">⭐ {result.vote_average}</span>
+                                                    <span className="card-type">{result.media_type === "movie" ? "Movie" : "TV"}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Bookmarked Section */}
                 {bookmarkData && bookmarkData.length > 0 && (
                     <div className="content-section">
@@ -574,69 +677,101 @@ export default function App() {
                     </div>
                 )}
 
-                {/* Trending Section */}
-                {trendingData && trendingData.results && (
+
+                {/* Lifetime Rec's — AI */}
+                {(lifetimeRecsLoading || (lifetimeRecs && lifetimeRecs.length > 0)) && (
                     <div className="content-section">
                         <div className="section-header">
-                            <h2 className="section-title">Trending Now</h2>
+                            <h2 className="section-title">
+                                Lifetime Rec's
+                                <span className="rec-ai-badge">✦ AI</span>
+                            </h2>
                             <div className="section-controls">
-                                <button 
-                                    className="section-arrow" 
-                                    onClick={() => {
-                                        const container = document.getElementById('trending-row');
-                                        container.scrollBy({ left: -300, behavior: 'smooth' });
-                                    }}
-                                >
-                                    ‹
-                                </button>
-                                <button 
-                                    className="section-arrow" 
-                                    onClick={() => {
-                                        const container = document.getElementById('trending-row');
-                                        container.scrollBy({ left: 300, behavior: 'smooth' });
-                                    }}
-                                >
-                                    ›
-                                </button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('lifetime-recs-row').scrollBy({ left: -300, behavior: 'smooth' }); }}>‹</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('lifetime-recs-row').scrollBy({ left: 300, behavior: 'smooth' }); }}>›</button>
                             </div>
                         </div>
-                        <div className="content-row" id="trending-row">
-                            {trendingData && trendingData.results && trendingData.results.filter(result => result && result.id).map(result => (
-                                <div 
-                                    key={result.id} 
-                                    className="content-card"
-                                    onClick={() => {
-                                        if (result.media_type === "movie") {
-                                            navigate("/watch/m" + result.id)
-                                        } else {
-                                            navigate("/watch/t" + result.id)
-                                        }
-                                    }}
-                                    onMouseEnter={(e) => showTooltip(e, result)}
-                                    onMouseLeave={hideTooltip}
-                                >
-                                    <div className="card-image-container">
-                                        <img 
-                                            className="card-image" 
-                                            src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`}
-                                            loading="lazy"
-                                            decoding="async"
-                                        />
-                                        <div className="card-overlay">
-                                            <div className="card-info">
-                                                <h3 className="card-title">{result.name || result.title || "Untitled"}</h3>
-                                                <div className="card-meta">
-                                                    <span className="card-rating">⭐ {result.vote_average}</span>
-                                                    <span className="card-type">{result.media_type === "movie" ? "Movie" : "TV"}</span>
+                        <div className="content-row" id="lifetime-recs-row">
+                            {lifetimeRecsLoading
+                                ? [...Array(5)].map((_, i) => (
+                                    <div key={i} className="content-card rec-skeleton-card">
+                                        <div className="card-image-container rec-skeleton-img"></div>
+                                    </div>
+                                ))
+                                : lifetimeRecs.filter(r => r && r.id).map(result => (
+                                    <div
+                                        key={result.id}
+                                        className="content-card"
+                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
+                                        onMouseEnter={(e) => showTooltip(e, result)}
+                                        onMouseLeave={hideTooltip}
+                                    >
+                                        <div className="card-image-container">
+                                            <img className="card-image" src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`} loading="lazy" decoding="async"/>
+                                            <div className="card-overlay">
+                                                <div className="card-info">
+                                                    <h3 className="card-title">{result.name || result.title || 'Untitled'}</h3>
+                                                    <div className="card-meta">
+                                                        <span className="card-rating">⭐ {result.vote_average}</span>
+                                                        <span className="card-type">{result.media_type === 'movie' || result.number_of_episodes == null ? 'Movie' : 'TV'}</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))
+                            }
                         </div>
                     </div>
                 )}
+
+                {/* Recent History Rec's — AI */}
+                {(recentRecsLoading || (recentRecs && recentRecs.length > 0)) && (
+                    <div className="content-section">
+                        <div className="section-header">
+                            <h2 className="section-title">
+                                Recent History Rec's
+                                <span className="rec-ai-badge">✦ AI</span>
+                            </h2>
+                            <div className="section-controls">
+                                <button className="section-arrow" onClick={() => { document.getElementById('recent-recs-row').scrollBy({ left: -300, behavior: 'smooth' }); }}>‹</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('recent-recs-row').scrollBy({ left: 300, behavior: 'smooth' }); }}>›</button>
+                            </div>
+                        </div>
+                        <div className="content-row" id="recent-recs-row">
+                            {recentRecsLoading
+                                ? [...Array(5)].map((_, i) => (
+                                    <div key={i} className="content-card rec-skeleton-card">
+                                        <div className="card-image-container rec-skeleton-img"></div>
+                                    </div>
+                                ))
+                                : recentRecs.filter(r => r && r.id).map(result => (
+                                    <div
+                                        key={result.id}
+                                        className="content-card"
+                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
+                                        onMouseEnter={(e) => showTooltip(e, result)}
+                                        onMouseLeave={hideTooltip}
+                                    >
+                                        <div className="card-image-container">
+                                            <img className="card-image" src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`} loading="lazy" decoding="async"/>
+                                            <div className="card-overlay">
+                                                <div className="card-info">
+                                                    <h3 className="card-title">{result.name || result.title || 'Untitled'}</h3>
+                                                    <div className="card-meta">
+                                                        <span className="card-rating">⭐ {result.vote_average}</span>
+                                                        <span className="card-type">{result.media_type === 'movie' || result.number_of_episodes == null ? 'Movie' : 'TV'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            }
+                        </div>
+                    </div>
+                )}
+
             </div>
                 </>
             )}

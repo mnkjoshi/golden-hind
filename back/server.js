@@ -796,6 +796,80 @@ app.post('/account/change-password', async (request, response) => {
     }
 });
 
+app.post('/recommendations/lifetime', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+
+    try {
+        const db = admin.database();
+        const [favsSnap, contsSnap] = await Promise.all([
+            db.ref(`users/${user}/favourites`).once('value'),
+            db.ref(`users/${user}/continues`).once('value')
+        ]);
+
+        const favIds  = JSON.parse(favsSnap.val()  || '[]');
+        const contIds = JSON.parse(contsSnap.val() || '[]');
+
+        // All bookmarks + last 5 continues; bookmarks are the emphasis
+        const ids = [...favIds, ...contIds.slice(-5)];
+        if (ids.length === 0) return response.status(200).json([]);
+
+        const contentInfo = (await Promise.all(ids.map(id => GetInfo(id).catch(() => null)))).filter(Boolean);
+        if (contentInfo.length === 0) return response.status(200).json([]);
+
+        const llmRecs = await getRecommendations(contentInfo, 'lifetime');
+
+        const recDetails = (await Promise.all(llmRecs.map(async rec => {
+            try {
+                const found = await searchTMDBByTitle(rec.title, rec.year, rec.type);
+                if (!found) return null;
+                return await GetInfo((found.type === 'tv' ? 't' : 'm') + found.id);
+            } catch { return null; }
+        }))).filter(Boolean);
+
+        response.status(200).json(recDetails);
+    } catch (error) {
+        logError(user, '/recommendations/lifetime', error).catch(() => {});
+        response.status(200).json([]);
+    }
+});
+
+app.post('/recommendations/recent', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+
+    try {
+        const db = admin.database();
+        const contsSnap = await db.ref(`users/${user}/continues`).once('value');
+        const contIds = JSON.parse(contsSnap.val() || '[]');
+        const recent5 = contIds.slice(-5);
+
+        if (recent5.length === 0) return response.status(200).json([]);
+
+        const contentInfo = (await Promise.all(recent5.map(id => GetInfo(id).catch(() => null)))).filter(Boolean);
+        if (contentInfo.length === 0) return response.status(200).json([]);
+
+        const llmRecs = await getRecommendations(contentInfo, 'recent');
+
+        const recDetails = (await Promise.all(llmRecs.map(async rec => {
+            try {
+                const found = await searchTMDBByTitle(rec.title, rec.year, rec.type);
+                if (!found) return null;
+                return await GetInfo((found.type === 'tv' ? 't' : 'm') + found.id);
+            } catch { return null; }
+        }))).filter(Boolean);
+
+        response.status(200).json(recDetails);
+    } catch (error) {
+        logError(user, '/recommendations/recent', error).catch(() => {});
+        response.status(200).json([]);
+    }
+});
+
 app.post('/admin/create-user', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -1000,4 +1074,48 @@ async function logAnalytic(user, event, data) {
             timestamp: Date.now()
         });
     } catch (_) {}
+}
+
+async function searchTMDBByTitle(title, year, type) {
+    const endpoint = type === 'tv' ? 'tv' : 'movie';
+    const yearParam = type === 'tv' ? 'first_air_date_year' : 'year';
+    try {
+        const r1 = await axios.get(
+            `https://api.themoviedb.org/3/search/${endpoint}?api_key=${process.env.TMDB_Credentials}&query=${encodeURIComponent(title)}&${yearParam}=${year}`
+        );
+        if (r1.data.results?.length) return { id: r1.data.results[0].id, type };
+        // Fallback without year constraint
+        const r2 = await axios.get(
+            `https://api.themoviedb.org/3/search/${endpoint}?api_key=${process.env.TMDB_Credentials}&query=${encodeURIComponent(title)}`
+        );
+        if (r2.data.results?.length) return { id: r2.data.results[0].id, type };
+    } catch {}
+    return null;
+}
+
+async function getRecommendations(contentList, mode) {
+    if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured');
+
+    const items = contentList.slice(0, 20).map(item => {
+        const title = item.name || item.title || 'Unknown';
+        const type = item.media_type === 'tv' ? 'TV Show' : 'Movie';
+        const overview = item.overview ? item.overview.slice(0, 120) : '';
+        return `- "${title}" (${type}${overview ? ` — ${overview}` : ''})`;
+    }).join('\n');
+
+    const modeDesc = mode === 'lifetime'
+        ? "the user's all-time favourites and watch history (weight the bookmarks heavily)"
+        : "the user's 5 most recently watched titles (match their current viewing mood)";
+
+    const prompt = `You are a movie and TV show recommendation engine. Here are ${modeDesc}:\n\n${items}\n\nRecommend exactly 5 movies or TV shows they would enjoy that are NOT already in the list above.\nReturn ONLY a raw JSON array with no markdown, no explanation, no code fences:\n[{"title":"Title","year":2021,"type":"movie"},{"title":"Other Title","year":2019,"type":"tv"}]`;
+
+    const resp = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        { contents: [{ parts: [{ text: prompt }] }] }
+    );
+
+    const text = resp.data.candidates[0].content.parts[0].text.trim();
+    const match = text.match(/\[[\s\S]*?\]/);
+    if (!match) throw new Error('No JSON array found in Gemini response');
+    return JSON.parse(match[0]);
 }
