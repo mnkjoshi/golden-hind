@@ -12,7 +12,6 @@ import BookmarkIcon from "../assets/bookmark.png"
 import ReloadIcon from "../assets/reload.png"
 import StarIcon from "../assets/star.png"
 import SimilarIcon from "../assets/GoldenHind.png"
-import ServerIcon from "../assets/server.png"
 import AutonextIcon from "../assets/autonext.png"
 
 let video = "null"
@@ -47,6 +46,12 @@ export default function App() {
 
     const[bookmarked, setBookmark] = useState(-1);
     const[similarOn, setSimilar] = useState(-1);
+    const [reviewsOn, setReviewsOn] = useState(-1);
+    const [reviews, setReviews] = useState([]);
+    const [reviewRating, setReviewRating] = useState(0);
+    const [reviewHover, setReviewHover] = useState(0);
+    const [reviewText, setReviewText] = useState('');
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
     const [episodeID, setEpisodeID] = useState("")
     
@@ -106,6 +111,30 @@ export default function App() {
         }
     }, [data]);
 
+    // Fetch reviews for this content
+    useEffect(() => {
+        axios.get(`https://goldenhind.tech/reviews?contentId=${id}`)
+            .then(r => setReviews(r.data.reviews || []))
+            .catch(() => {});
+    }, [id]);
+
+    const submitReview = () => {
+        if (!reviewRating || reviewSubmitting) return;
+        setReviewSubmitting(true);
+        axios.post('https://goldenhind.tech/review', {
+            user, token, contentId: id, rating: reviewRating, text: reviewText
+        }).then(r => {
+            if (r.data.success) {
+                setReviews(prev => {
+                    const filtered = prev.filter(rv => rv.username !== user);
+                    return [{ username: user, rating: reviewRating, text: reviewText, timestamp: Date.now() }, ...filtered];
+                });
+                setReviewText('');
+                setReviewRating(0);
+            }
+        }).catch(() => {}).finally(() => setReviewSubmitting(false));
+    };
+
     // Fetch LookMovie stream when provider 4 is selected or episode changes
     useEffect(() => {
         if (parseInt(provider) !== 4) return;
@@ -122,10 +151,14 @@ export default function App() {
                 setLmSubtitles(r.data.subtitles || []);
                 setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
             } else {
-                setLmError(r.data.error || 'Stream unavailable');
+                // Content not found on LookMovie — silently fall back to provider 1
+                setProvider(1);
+                localStorage.setItem("provider" + vidID, 1);
             }
-        }).catch(() => setLmError('Failed to reach server'))
-          .finally(() => setLmLoading(false));
+        }).catch(() => {
+            setProvider(1);
+            localStorage.setItem("provider" + vidID, 1);
+        }).finally(() => setLmLoading(false));
     }, [provider, season, episode]);
 
     // Attach HLS.js + Plyr when a stream URL arrives
@@ -141,14 +174,8 @@ export default function App() {
         // crossOrigin must be set before tracks are added for cross-origin VTT to load
         video.crossOrigin = 'anonymous';
 
-        // Deduplicate subtitles: one track per language, keep first occurrence
-        const seenLangs = new Set();
-        const uniqueSubs = lmSubtitles.filter(sub => {
-            const lang = String(sub.language || sub.lang || 'unknown').toLowerCase();
-            if (seenLangs.has(lang)) return false;
-            seenLangs.add(lang);
-            return true;
-        });
+        // All subtitles — no deduplication, user picks from full list
+        const uniqueSubs = lmSubtitles;
 
         // Inject subtitle tracks into the video element before Plyr wraps it
         // Only include entries where `file` is a real path (starts with / or http).
@@ -586,10 +613,19 @@ export default function App() {
 
     if(similarOn == -1 && document.getElementById("watch-similar") && document.getElementById("watch-holder")) {
         document.getElementById("watch-similar").style.right = "-22%"
-        document.getElementById("watch-holder").style.marginRight = "0%"
+        if (reviewsOn == -1) document.getElementById("watch-holder").style.marginRight = "0%"
     } else if (document.getElementById("watch-similar") && document.getElementById("watch-holder")) {
         document.getElementById("watch-similar").style.right = "0.5%"
         document.getElementById("watch-holder").style.marginRight = "19.5%"
+        if (document.getElementById("watch-reviews")) document.getElementById("watch-reviews").style.right = "-22%"
+    }
+    if(reviewsOn == -1 && document.getElementById("watch-reviews") && document.getElementById("watch-holder")) {
+        document.getElementById("watch-reviews").style.right = "-22%"
+        if (similarOn == -1) document.getElementById("watch-holder").style.marginRight = "0%"
+    } else if (reviewsOn !== -1 && document.getElementById("watch-reviews") && document.getElementById("watch-holder")) {
+        document.getElementById("watch-reviews").style.right = "0.5%"
+        document.getElementById("watch-holder").style.marginRight = "19.5%"
+        if (document.getElementById("watch-similar")) document.getElementById("watch-similar").style.right = "-22%"
     }
 
 
@@ -754,7 +790,12 @@ export default function App() {
                                 setProvider(next);
                                 localStorage.setItem("provider" + vidID, next);
                             }}>
-                                <img className="watch-toggles-button-icon watch-toggles-server-icon" src={ServerIcon}/>
+                                <span className="watch-server-num">{provider}</span>
+                                <span className="watch-server-label">SERVER</span>
+                            </button>
+                            <button className={reviewsOn === 1 ? "watch-toggles-button-selected watch-toggles-reviews-btn" : "watch-toggles-button watch-toggles-reviews-btn"} onClick={() => setReviewsOn(reviewsOn === 1 ? -1 : 1)}>
+                                <span className="watch-server-num">★</span>
+                                <span className="watch-server-label">REVIEWS</span>
                             </button>
                             {window.innerWidth < 800 ? <button className = "watch-toggles-button watch-toggles-review" onClick={() => {
                                 setSimilar(-1 * similarOn)
@@ -765,10 +806,70 @@ export default function App() {
                     </div>
                 </div>
                 </div>
-                
+
             </div>
-            
-            
+
+            {/* ── Reviews panel — slides in from the right ── */}
+            <div className="watch-reviews" id="watch-reviews">
+                <p className="watch-reviews-title">REVIEWS</p>
+                {reviews.length > 0 && (
+                    <p className="watch-reviews-avg">
+                        {'★'.repeat(Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length))}
+                        {'☆'.repeat(5 - Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length))}
+                        {' '}<span className="watch-reviews-avg-num">
+                            {(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)}
+                        </span>
+                        <span className="watch-reviews-count"> ({reviews.length})</span>
+                    </p>
+                )}
+                <div className="watch-review-form">
+                    <div className="watch-review-stars">
+                        {[1,2,3,4,5].map(n => (
+                            <button key={n}
+                                className="watch-review-star-btn"
+                                onClick={() => setReviewRating(n)}
+                                onMouseEnter={() => setReviewHover(n)}
+                                onMouseLeave={() => setReviewHover(0)}
+                            >
+                                {n <= (reviewHover || reviewRating) ? '★' : '☆'}
+                            </button>
+                        ))}
+                    </div>
+                    <textarea
+                        className="watch-review-input"
+                        placeholder="Write a review… (optional)"
+                        value={reviewText}
+                        onChange={e => setReviewText(e.target.value)}
+                        maxLength={1000}
+                        rows={3}
+                    />
+                    <button
+                        className="watch-review-submit"
+                        onClick={submitReview}
+                        disabled={!reviewRating || reviewSubmitting}
+                    >
+                        {reviewSubmitting ? 'Submitting…' : 'Submit'}
+                    </button>
+                </div>
+                <div className="watch-reviews-list">
+                    {reviews.length === 0 ? (
+                        <p className="watch-reviews-empty">No reviews yet. Be the first!</p>
+                    ) : reviews.map((rv, i) => (
+                        <div key={i} className="watch-review-card">
+                            <div className="watch-review-card-header">
+                                <span className="watch-review-card-user">{rv.username}</span>
+                                <span className="watch-review-card-stars">
+                                    {'★'.repeat(rv.rating)}{'☆'.repeat(5 - rv.rating)}
+                                </span>
+                            </div>
+                            {rv.text ? <p className="watch-review-card-text">{rv.text}</p> : null}
+                            <p className="watch-review-card-date">
+                                {new Date(rv.timestamp).toLocaleDateString()}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
   }

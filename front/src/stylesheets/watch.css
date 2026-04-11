@@ -476,6 +476,200 @@ p {
 
 
 
+/* ── Server & reviews buttons — text-based, column layout ── */
+.watch-toggles-server,
+.watch-toggles-reviews-btn {
+    aspect-ratio: unset !important;
+    width: auto !important;
+    padding: 2px 10px !important;
+    flex-direction: column !important;
+    gap: 1px;
+    min-width: 42px;
+}
+
+.watch-server-num {
+    font-family: Viga, sans-serif;
+    font-size: 13px;
+    line-height: 1;
+}
+
+.watch-server-label {
+    font-family: Viga, sans-serif;
+    font-size: 7px;
+    letter-spacing: 1px;
+    line-height: 1;
+    opacity: 0.65;
+}
+
+/* ── Reviews panel ── */
+.watch-reviews {
+    transition: 0.5s;
+    height: 91%;
+    width: 19%;
+    border-radius: 5px;
+    top: 6.2%;
+    position: absolute;
+    right: -22%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 8px 8px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.watch-reviews-title {
+    font-family: Viga, sans-serif;
+    font-size: 13px;
+    color: #3FA3FF;
+    letter-spacing: 2px;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.watch-reviews-avg {
+    font-size: 14px;
+    color: #f5c518;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.watch-reviews-avg-num {
+    color: white;
+    font-family: Viga, sans-serif;
+}
+
+.watch-reviews-count {
+    color: rgba(255,255,255,0.5);
+    font-size: 11px;
+}
+
+.watch-review-form {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 8px;
+}
+
+.watch-review-stars {
+    display: flex;
+    gap: 2px;
+}
+
+.watch-review-star-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #f5c518;
+    cursor: pointer;
+    padding: 0 1px;
+    line-height: 1;
+    transition: transform 0.1s;
+}
+
+.watch-review-star-btn:hover { transform: scale(1.2); }
+
+.watch-review-input {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 5px;
+    color: white;
+    font-family: Viga, sans-serif;
+    font-size: 11px;
+    padding: 6px 8px;
+    resize: none;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.watch-review-input:focus {
+    border-color: #3FA3FF;
+}
+
+.watch-review-submit {
+    background: #3FA3FF;
+    border: none;
+    border-radius: 5px;
+    color: #111;
+    font-family: Viga, sans-serif;
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 5px 0;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.watch-review-submit:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.watch-reviews-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+
+.watch-reviews-empty {
+    color: rgba(255,255,255,0.35);
+    font-size: 11px;
+    text-align: center;
+    margin: auto;
+}
+
+.watch-review-card {
+    background: rgba(255,255,255,0.05);
+    border-radius: 5px;
+    padding: 7px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.watch-review-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.watch-review-card-user {
+    font-family: Viga, sans-serif;
+    font-size: 11px;
+    color: #3FA3FF;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 55%;
+}
+
+.watch-review-card-stars {
+    color: #f5c518;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.watch-review-card-text {
+    font-size: 11px;
+    color: rgba(255,255,255,0.8);
+    margin: 0;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.watch-review-card-date {
+    font-size: 9px;
+    color: rgba(255,255,255,0.3);
+    margin: 0;
+}
+
 /* Legacy support for any remaining img icons */
 .watch-toggles-button-icon {
     height: 70%;

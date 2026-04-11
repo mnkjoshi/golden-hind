@@ -690,6 +690,40 @@ app.post('/progress_retrieve', async (request, response) => {
 
 
 
+// ── Reviews — one review per user per content, publicly readable ──
+app.post('/review', async (req, res) => {
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, contentId, rating, text } = req.body;
+    if (!await Authenticate(user, token)) return res.status(202).send("UNV");
+
+    const r = parseInt(rating);
+    if (!contentId || isNaN(r) || r < 1 || r > 5) return res.status(400).json({ error: 'Invalid data' });
+
+    const db = admin.database();
+    await db.ref(`reviews/${contentId}/${user}`).set({
+        username: user,
+        rating: r,
+        text: String(text || '').trim().slice(0, 1000),
+        timestamp: Date.now(),
+    });
+    res.json({ success: true });
+});
+
+app.get('/reviews', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const { contentId } = req.query;
+    if (!contentId) return res.json({ reviews: [] });
+
+    const db = admin.database();
+    const snap = await db.ref(`reviews/${contentId}`).once('value');
+    const val = snap.val();
+    const reviews = val
+        ? Object.values(val).sort((a, b) => b.timestamp - a.timestamp)
+        : [];
+    res.json({ reviews });
+});
+
 app.post('/track', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
