@@ -1141,63 +1141,65 @@ const lookmovieHeaders = {
 // In-memory cache for LookMovie internal IDs (keyed by TMDB content ID e.g. "m123")
 const lmIdCache = new Map();
 
-async function getOrFetchLookmovieId(contentId, imdbId, mediaType, title, year) {
+async function getOrFetchLookmovieId(contentId, imdbId, mediaType, title, year, dbg) {
     // 1. In-memory hit
-    if (lmIdCache.has(contentId)) return lmIdCache.get(contentId);
+    if (lmIdCache.has(contentId)) {
+        dbg.push(`LM ID cache hit (memory): ${lmIdCache.get(contentId)}`);
+        return lmIdCache.get(contentId);
+    }
 
     // 2. Firebase hit
     const db = admin.database();
     const snap = await db.ref(`lookmovie/${contentId}`).once('value');
     if (snap.exists()) {
         const lmId = snap.val();
+        dbg.push(`LM ID cache hit (Firebase): ${lmId}`);
         lmIdCache.set(contentId, lmId);
         return lmId;
     }
 
     // 3. Scrape and persist
-    const { id: lmId } = await getLookmovieInternalId(imdbId, mediaType, title, year);
+    dbg.push('LM ID not cached — scraping page...');
+    const { id: lmId } = await getLookmovieInternalId(imdbId, mediaType, title, year, dbg);
     db.ref(`lookmovie/${contentId}`).set(lmId).catch(() => {});
     lmIdCache.set(contentId, lmId);
     return lmId;
 }
 
-async function getLookmovieInternalId(imdbId, mediaType, title, year) {
+async function getLookmovieInternalId(imdbId, mediaType, title, year, dbg) {
     const numericId = imdbId.replace('tt', '');
     const slug = slugify(title);
     const contentPath = mediaType === 'tv' ? 'shows' : 'movies';
     const url = `https://www.lookmovie2.to/${contentPath}/view/${numericId}-${slug}-${year}`;
 
-    console.log(`[LM] Fetching page: ${url}`);
+    dbg.push(`Fetching page: ${url}`);
 
     const res = await axios.get(url, { headers: lookmovieHeaders, timeout: 20000 });
     const html = res.data;
 
-    console.log(`[LM] HTTP ${res.status} — response length: ${html.length} chars`);
-    console.log(`[LM] First 400 chars:\n${html.slice(0, 400)}`);
+    dbg.push(`HTTP ${res.status} — response length: ${html.length} chars`);
+    dbg.push(`First 400 chars: ${html.slice(0, 400)}`);
 
-    // Next.js embeds all page data in __NEXT_DATA__ — most reliable
     const nextMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
     if (nextMatch) {
-        console.log('[LM] Found __NEXT_DATA__, parsing...');
+        dbg.push('Found __NEXT_DATA__, parsing...');
         try {
             const nd = JSON.parse(nextMatch[1]);
             const pp = nd?.props?.pageProps;
-            console.log('[LM] pageProps keys:', Object.keys(pp || {}));
+            dbg.push(`pageProps keys: ${Object.keys(pp || {}).join(', ')}`);
             const id = pp?.movie?.id || pp?.show?.id || pp?.data?.id;
             if (id) {
-                console.log(`[LM] Found ID in __NEXT_DATA__: ${id}`);
+                dbg.push(`Found ID in __NEXT_DATA__: ${id}`);
                 return { id: String(id), url };
             }
-            // Dump the pageProps structure so we can see where the ID actually lives
-            console.log('[LM] ID not at expected paths. pageProps sample:', JSON.stringify(pp).slice(0, 600));
+            dbg.push(`ID not at expected paths. pageProps sample: ${JSON.stringify(pp).slice(0, 800)}`);
         } catch (e) {
-            console.log('[LM] Failed to parse __NEXT_DATA__:', e.message);
+            dbg.push(`Failed to parse __NEXT_DATA__: ${e.message}`);
         }
     } else {
-        console.log('[LM] No __NEXT_DATA__ script tag found');
+        dbg.push('No __NEXT_DATA__ script tag found');
     }
 
-    // Fallback regex patterns
     const patterns = [
         { label: 'id_movie/id_show key',  re: /(?:id_movie|id_show)['":\s]+(\d{4,})/ },
         { label: 'manifest?id=',           re: /manifest\?id=(\d{4,})/ },
@@ -1209,40 +1211,39 @@ async function getLookmovieInternalId(imdbId, mediaType, title, year) {
     for (const { label, re } of patterns) {
         const m = html.match(re);
         if (m) {
-            console.log(`[LM] Found ID via fallback pattern "${label}": ${m[1]}`);
+            dbg.push(`Found ID via fallback pattern "${label}": ${m[1]}`);
             return { id: m[1], url };
         }
-        console.log(`[LM] Fallback pattern "${label}" — no match`);
+        dbg.push(`Fallback pattern "${label}" — no match`);
     }
 
-    // Last resort: dump a larger HTML chunk to logs so we can see what's actually there
-    console.log('[LM] All patterns failed. HTML sample (chars 400-1200):\n', html.slice(400, 1200));
+    dbg.push(`All patterns failed. HTML chars 400-1600: ${html.slice(400, 1600)}`);
 
     throw new Error(`Could not find LookMovie ID at ${url}`);
 }
 
-async function getLookmovieEpisodeId(showInternalId, season, episode) {
+async function getLookmovieEpisodeId(showInternalId, season, episode, dbg) {
     const url = `https://www.lookmovie2.to/api/v2/download/episode/list?id=${showInternalId}`;
-    console.log(`[LM] Fetching episode list: ${url}`);
+    dbg.push(`Fetching episode list: ${url}`);
     const res = await axios.get(url, { headers: lookmovieHeaders, timeout: 10000 });
-    console.log(`[LM] Episode list HTTP ${res.status}, seasons available:`, Object.keys(res.data?.list || {}));
+    dbg.push(`Episode list HTTP ${res.status}, seasons available: ${Object.keys(res.data?.list || {}).join(', ')}`);
     const epId = res.data?.list?.[String(season)]?.[String(episode)]?.id_episode;
     if (!epId) {
-        console.log(`[LM] S${season}E${episode} not found. Season ${season} episodes:`, res.data?.list?.[String(season)]);
+        dbg.push(`S${season}E${episode} not found. Season ${season} data: ${JSON.stringify(res.data?.list?.[String(season)])}`);
         throw new Error(`S${season}E${episode} not found in LookMovie episode list`);
     }
-    console.log(`[LM] Episode ID for S${season}E${episode}: ${epId}`);
+    dbg.push(`Episode ID for S${season}E${episode}: ${epId}`);
     return String(epId);
 }
 
-async function getLookmovieStreamUrl(internalId, mediaType) {
+async function getLookmovieStreamUrl(internalId, mediaType, dbg) {
     const endpoint = mediaType === 'tv' ? 'episode-access' : 'movie-access';
     const param    = mediaType === 'tv' ? 'id_episode'    : 'id_movie';
     const url = `https://www.lookmovie2.to/api/v1/security/${endpoint}?${param}=${internalId}&expires=9999999999`;
 
-    console.log(`[LM] Fetching stream access: ${url}`);
+    dbg.push(`Fetching stream access: ${url}`);
     const res = await axios.get(url, { headers: lookmovieHeaders, timeout: 10000 });
-    console.log(`[LM] Stream access HTTP ${res.status}, success: ${res.data.success}, streams:`, res.data.streams);
+    dbg.push(`Stream access HTTP ${res.status}, success: ${res.data.success}, streams: ${JSON.stringify(res.data.streams)}`);
     if (!res.data.success) throw new Error('LookMovie stream access denied');
 
     const s = res.data.streams;
@@ -1259,6 +1260,7 @@ app.post('/server/lookmovie', async (request, response) => {
     const { user, token, id, season, episode } = request.body;
     if (!await Authenticate(user, token)) return response.status(202).send("UNV");
 
+    const dbg = [];
     try {
         const mediaType = id.startsWith('t') ? 'tv' : 'movie';
         const tmdbId    = id.slice(1);
@@ -1266,22 +1268,26 @@ app.post('/server/lookmovie', async (request, response) => {
         const info   = await GetInfo(id);
         const title  = info.title || info.name;
         const year   = new Date(info.release_date || info.first_air_date || '2000').getFullYear();
+        dbg.push(`Content: "${title}" (${year}), mediaType: ${mediaType}, tmdbId: ${tmdbId}`);
 
         const imdbId = await getIMDBId(tmdbId, mediaType);
+        dbg.push(`IMDB ID: ${imdbId}`);
         if (!imdbId) throw new Error('No IMDB ID found for this title');
 
-        const lmId = await getOrFetchLookmovieId(id, imdbId, mediaType, title, year);
+        const lmId = await getOrFetchLookmovieId(id, imdbId, mediaType, title, year, dbg);
+        dbg.push(`LookMovie internal ID: ${lmId}`);
 
         let targetId = lmId;
         if (mediaType === 'tv') {
-            targetId = await getLookmovieEpisodeId(lmId, season || 1, episode || 1);
+            targetId = await getLookmovieEpisodeId(lmId, season || 1, episode || 1, dbg);
         }
 
-        const { streamUrl, subtitles } = await getLookmovieStreamUrl(targetId, mediaType);
-        response.json({ success: true, url: streamUrl, subtitles });
+        const { streamUrl, subtitles } = await getLookmovieStreamUrl(targetId, mediaType, dbg);
+        response.json({ success: true, url: streamUrl, subtitles, dbg });
     } catch (error) {
         logError(user, '/server/lookmovie', error).catch(() => {});
-        response.status(200).json({ success: false, error: error.message });
+        dbg.push(`ERROR: ${error.message}`);
+        response.status(200).json({ success: false, error: error.message, dbg });
     }
 });
 

@@ -111,6 +111,7 @@ export default function App() {
             url: 'https://goldenhind.tech/server/lookmovie',
             data: { user, token, id, season, episode }
         }).then(r => {
+            if (r.data.dbg) console.group('[LookMovie Debug]'), r.data.dbg.forEach(l => console.log(l)), console.groupEnd();
             if (r.data.success) setLmUrl(r.data.url);
             else setLmError(r.data.error || 'Stream unavailable');
         }).catch(() => setLmError('Failed to reach server'))
