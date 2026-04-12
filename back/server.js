@@ -1147,14 +1147,16 @@ async function OfferVerify(username, token, email) {
         .setPersonalization([{
             email,
             data: {
-                product: {
-                    title: username,
-                    description: "Click the button below to verify your account and set sail.",
-                    url: link,
-                    image: "",
-                    price: "",
-                    priceOld: "",
-                }
+                message: [
+                    {
+                        url: link,
+                        image: "",
+                        price: "",
+                        title: username,
+                        priceOld: "",
+                        description: "Click the button below to verify your account and set sail.",
+                    }
+                ]
             }
         }]);
 

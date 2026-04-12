@@ -626,13 +626,6 @@ export default function App() {
         }
     }
 
-    if(similarOn == -1 && document.getElementById("watch-similar") && document.getElementById("watch-holder")) {
-        document.getElementById("watch-similar").style.right = "-22%"
-        document.getElementById("watch-holder").style.marginRight = "0%"
-    } else if (document.getElementById("watch-similar") && document.getElementById("watch-holder")) {
-        document.getElementById("watch-similar").style.right = "0.5%"
-        document.getElementById("watch-holder").style.marginRight = "19.5%"
-    }
 
 
     // async function HandleNextEpisode(eventType, episode, season, maxEp, maxSe, setSeason, setEpisode, currentTime, duration) {
