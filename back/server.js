@@ -931,6 +931,7 @@ app.post('/recommendations/lifetime', async (request, response) => {
 
         response.status(200).json(recDetails.slice(0, 5));
     } catch (error) {
+        console.error('[/recommendations/lifetime] error:', error?.response?.status, error?.response?.data ?? error?.message);
         logError(user, '/recommendations/lifetime', error).catch(() => {});
         response.status(200).json([]);
     }
@@ -975,6 +976,7 @@ app.post('/recommendations/recent', async (request, response) => {
 
         response.status(200).json(recDetails.slice(0, 5));
     } catch (error) {
+        console.error('[/recommendations/recent] error:', error?.response?.status, error?.response?.data ?? error?.message);
         logError(user, '/recommendations/recent', error).catch(() => {});
         response.status(200).json([]);
     }
@@ -1501,8 +1503,10 @@ async function getRecommendations(contentList, mode) {
         { contents: [{ parts: [{ text: prompt }] }] }
     );
 
+    console.log(`[getRecommendations:${mode}] HTTP ${resp.status} | finish:`, resp.data?.candidates?.[0]?.finishReason);
     const text = resp.data.candidates[0].content.parts[0].text.trim();
-    const match = text.match(/\[[\s\S]*?\]/);
+    console.log(`[getRecommendations:${mode}] raw text:`, text.slice(0, 300));
+    const match = text.match(/\[[\s\S]*\]/);  // greedy — captures full array including nested brackets
     if (!match) throw new Error('No JSON array found in Gemini response');
     return JSON.parse(match[0]);
 }

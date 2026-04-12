@@ -123,23 +123,24 @@ export default function App() {
 
                 const cachedLifetime     = localStorage.getItem('ghLifetimeRecs_v2');
                 const cachedLifetimeTime = localStorage.getItem('ghLifetimeRecsTime_v2');
-                if (cachedLifetime && cachedLifetimeTime && now - parseInt(cachedLifetimeTime) < REC_TTL) {
-                    try { setLifetimeRecs(JSON.parse(cachedLifetime)); } catch {}
+                const cachedLifetimeParsed = cachedLifetime ? (() => { try { return JSON.parse(cachedLifetime); } catch { return null; } })() : null;
+                const lifetimeCacheHit = Array.isArray(cachedLifetimeParsed) && cachedLifetimeParsed.length > 0
+                    && cachedLifetimeTime && now - parseInt(cachedLifetimeTime) < REC_TTL;
+                if (lifetimeCacheHit) {
+                    setLifetimeRecs(cachedLifetimeParsed);
                 } else {
-                    // Show stale data immediately while fetching fresh
-                    if (cachedLifetime) { try { setLifetimeRecs(JSON.parse(cachedLifetime)); } catch {} }
                     setLifetimeRecsLoading(true);
                     axios({ method: 'post', url: 'https://goldenhind.tech/recommendations/lifetime', data: { user, token } })
                         .then(r => {
                             const data = Array.isArray(r.data) ? r.data : [];
                             setLifetimeRecs(data);
-                            localStorage.setItem('ghLifetimeRecs_v2', JSON.stringify(data));
-                            localStorage.setItem('ghLifetimeRecsTime_v2', now.toString());
+                            // Only cache non-empty results so a bad response never poisons the cache
+                            if (data.length > 0) {
+                                localStorage.setItem('ghLifetimeRecs_v2', JSON.stringify(data));
+                                localStorage.setItem('ghLifetimeRecsTime_v2', now.toString());
+                            }
                         })
-                        .catch(() => {
-                            // Keep stale cache visible on failure — don't wipe the section
-                            if (!cachedLifetime) setLifetimeRecs([]);
-                        })
+                        .catch(() => {}) // silently fail — section just won't show
                         .finally(() => setLifetimeRecsLoading(false));
                 }
 
@@ -152,23 +153,23 @@ export default function App() {
 
                 const cachedRecent     = localStorage.getItem('ghRecentRecs_v2');
                 const cachedRecentTime = localStorage.getItem('ghRecentRecsTime_v2');
-                if (cachedRecent && cachedRecentTime && now - parseInt(cachedRecentTime) < REC_TTL) {
-                    try { setRecentRecs(JSON.parse(cachedRecent)); } catch {}
+                const cachedRecentParsed = cachedRecent ? (() => { try { return JSON.parse(cachedRecent); } catch { return null; } })() : null;
+                const recentCacheHit = Array.isArray(cachedRecentParsed) && cachedRecentParsed.length > 0
+                    && cachedRecentTime && now - parseInt(cachedRecentTime) < REC_TTL;
+                if (recentCacheHit) {
+                    setRecentRecs(cachedRecentParsed);
                 } else {
-                    // Show stale data immediately while fetching fresh
-                    if (cachedRecent) { try { setRecentRecs(JSON.parse(cachedRecent)); } catch {} }
                     setRecentRecsLoading(true);
                     axios({ method: 'post', url: 'https://goldenhind.tech/recommendations/recent', data: { user, token } })
                         .then(r => {
                             const data = Array.isArray(r.data) ? r.data : [];
                             setRecentRecs(data);
-                            localStorage.setItem('ghRecentRecs_v2', JSON.stringify(data));
-                            localStorage.setItem('ghRecentRecsTime_v2', now.toString());
+                            if (data.length > 0) {
+                                localStorage.setItem('ghRecentRecs_v2', JSON.stringify(data));
+                                localStorage.setItem('ghRecentRecsTime_v2', now.toString());
+                            }
                         })
-                        .catch(() => {
-                            // Keep stale cache visible on failure
-                            if (!cachedRecent) setRecentRecs([]);
-                        })
+                        .catch(() => {})
                         .finally(() => setRecentRecsLoading(false));
                 }
 
