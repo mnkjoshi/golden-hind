@@ -1,5 +1,5 @@
 import express from 'express';
-import sgMail from '@sendgrid/mail'
+import { MailerSend, EmailParams, Sender, Recipient } from "mailersend";
 import dotenv from 'dotenv'
 
 import cors from 'cors'
@@ -42,8 +42,8 @@ const firebaseApp = admin.initializeApp(firebaseConfig)
 
 
 
-const mailAPIkey = process.env.mailAPIkey
-sgMail.setApiKey('SG.' + mailAPIkey)
+const mailerSend = new MailerSend({ apiKey: process.env.MAILERSEND_API_KEY });
+const verifyEmailSender = new Sender("verify@goldenhind.tech", "Francis Drake");
 
 app.get('/', (request, response) => {
     response.status(200);
@@ -916,7 +916,7 @@ app.post('/recommendations/lifetime', async (request, response) => {
         // Build set of existing TMDB IDs so we can filter them out of recommendations
         const existingIdSet = new Set([...favIds, ...contIds].map(id => String(id.slice(1))));
 
-        const llmRecs = await getRecommendations(contentInfo, 'lifetime');
+        const llmRecs = await getRecommendationsWithRetry(contentInfo, 'lifetime');
 
         const recDetails = (await Promise.all(llmRecs.map(async rec => {
             try {
@@ -961,7 +961,7 @@ app.post('/recommendations/recent', async (request, response) => {
         // Filter out anything already in favourites or continue-watching
         const existingIdSet2 = new Set([...favIds2, ...contIds2].map(id => String(id.slice(1))));
 
-        const llmRecs = await getRecommendations(contentInfo, 'recent');
+        const llmRecs = await getRecommendationsWithRetry(contentInfo, 'recent');
 
         const recDetails = (await Promise.all(llmRecs.map(async rec => {
             try {
@@ -1129,30 +1129,38 @@ async function CheckUser(username, email) {
 
 async function OfferVerify(username, token, email) {
     if (email == null) {
-        const db = admin.database()
+        const db = admin.database();
         const EmailSnapshot = await db.ref(`users/${username}/email`).once('value');
         email = EmailSnapshot.val();
     }
 
-    email = email.replace("@@@", ".")
+    email = email.replace("@@@", ".");
 
-    let link = "https://the-golden-hind.web.app/auth/" + token
-    const msg = {
-        to: email, // Change to your recipient
-        from: 'disvelop@proton.me', // Change to your verified sender
-        subject: 'TGH Verification',
-        html: `<html> <head> <title>EMAIL</title> </head> <body> <div> <h1 style="text-align:center;">Welcome to TGH</h1> <hr> <p style= "text-align:center;">Click the link below to verify your account.</p> <a clicktracking=off href="${link}" style="text-align:center; align-self:center;">${link}</a> </div> </body> </html>`,
-    }
+    const link = "https://the-golden-hind.web.app/auth/" + token;
 
-    sgMail
-    .send(msg)
-    .then(() => {
-      console.log('Email verification sent!')
-    })
-    .catch((error) => {
-        console.log("VerE")
-      console.error(error)
-    })
+    const emailParams = new EmailParams()
+        .setFrom(verifyEmailSender)
+        .setTo([new Recipient(email, username)])
+        .setReplyTo(verifyEmailSender)
+        .setSubject("Verify your Golden Hind account")
+        .setTemplateId('3yxj6lje7j0gdo2r')
+        .setPersonalization([{
+            email,
+            data: {
+                product: {
+                    title: username,
+                    description: "Click the button below to verify your account and set sail.",
+                    url: link,
+                    image: "",
+                    price: "",
+                    priceOld: "",
+                }
+            }
+        }]);
+
+    mailerSend.email.send(emailParams)
+        .then(() => console.log(`[verify] Email sent to ${email}`))
+        .catch((error) => console.error('[verify] Email error:', error?.response?.body || error.message));
 }
 
 function GenerateToken() {
@@ -1480,6 +1488,21 @@ async function searchTMDBByTitle(title, year, type) {
         if (r2.data.results?.length) return { id: r2.data.results[0].id, type };
     } catch {}
     return null;
+}
+
+async function getRecommendationsWithRetry(contentList, mode, maxRetries = 2) {
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+        try {
+            return await getRecommendations(contentList, mode);
+        } catch (e) {
+            if (e?.response?.status === 503 && attempt <= maxRetries) {
+                console.log(`[getRecommendations:${mode}] 503, retry ${attempt}/${maxRetries}…`);
+                await new Promise(r => setTimeout(r, 1500 * attempt));
+            } else {
+                throw e;
+            }
+        }
+    }
 }
 
 async function getRecommendations(contentList, mode) {

@@ -83,8 +83,7 @@ export default function Topbar() {
     };
 
     const handleLogout = () => {
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
+        localStorage.clear();
         navigate('/auth');
         setDropdownOpen(false);
     };

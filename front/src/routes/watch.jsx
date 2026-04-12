@@ -11,7 +11,6 @@ import ListIcon from "../assets/list.png"
 import BookmarkIcon from "../assets/bookmark.png"
 import ReloadIcon from "../assets/reload.png"
 import StarIcon from "../assets/star.png"
-import SimilarIcon from "../assets/GoldenHind.png"
 import AutonextIcon from "../assets/autonext.png"
 
 let video = "null"
@@ -55,7 +54,6 @@ export default function App() {
     const flashTimeoutRef = useRef(null);
 
     const[bookmarked, setBookmark] = useState(-1);
-    const[similarOn, setSimilar] = useState(-1);
     const [reviews, setReviews] = useState([]);
     const [reviewRating, setReviewRating] = useState(0);
     const [reviewHover, setReviewHover] = useState(0);
@@ -803,11 +801,6 @@ export default function App() {
                                 <span className="watch-server-num">{provider}</span>
                                 <span className="watch-server-label">SERVER</span>
                             </button>
-                            {window.innerWidth < 800 ? <button className = "watch-toggles-button watch-toggles-review" onClick={() => {
-                                setSimilar(-1 * similarOn)
-                            }}>
-                                <img className = "watch-toggles-button-icon watch-toggles-similar-icon" src = {SimilarIcon}/>
-                            </button> : null}
                         </div>
                     </div>
                 </div>
