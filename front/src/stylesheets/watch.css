@@ -555,6 +555,14 @@ p {
     padding-bottom: 12px;
 }
 
+.watch-review-form-right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 .watch-review-stars {
     display: flex;
     gap: 2px;
@@ -604,7 +612,7 @@ p {
     cursor: pointer;
     transition: opacity 0.15s;
     flex-shrink: 0;
-    align-self: flex-end;
+    width: 100%;
 }
 
 .watch-review-submit:disabled {
@@ -670,46 +678,19 @@ p {
     margin: 0;
 }
 
-/* ── Episode selection panel ── */
-.watch-episode-panel {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    background: rgba(8, 8, 8, 0.97);
-    border-radius: 5px 5px 0 0;
+/* ── Inline season / episode selector ── */
+.watch-ep-selector {
+    width: 90%;
+    max-width: 90%;
+    margin: 12px auto 16px;
+    padding: 14px 20px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 5px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    gap: 10px;
 }
-
-.watch-ep-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    flex-shrink: 0;
-}
-
-.watch-ep-panel-title {
-    font-family: Viga, sans-serif;
-    font-size: 12px;
-    color: #3FA3FF;
-    letter-spacing: 3px;
-}
-
-.watch-ep-panel-close {
-    background: none;
-    border: none;
-    color: rgba(255,255,255,0.5);
-    font-size: 16px;
-    cursor: pointer;
-    line-height: 1;
-    padding: 2px 4px;
-    transition: color 0.15s;
-}
-
-.watch-ep-panel-close:hover { color: white; }
 
 .watch-ep-seasons {
     display: flex;
@@ -1144,6 +1125,12 @@ p {
         width: 100%;
         max-width: 100%;
         margin: 0;
+    }
+
+    .watch-ep-selector {
+        width: 100%;
+        max-width: 100%;
+        margin: 6px 0 0;
     }
 
     .watch-reviews-section {

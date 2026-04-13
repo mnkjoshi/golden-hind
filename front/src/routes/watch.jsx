@@ -7,7 +7,6 @@ import 'plyr/dist/plyr.css';
 import { track } from '../utils/analytics.js'
 import Topbar from "../components/topbar"
 
-import ListIcon from "../assets/list.png"
 import BookmarkIcon from "../assets/bookmark.png"
 import ReloadIcon from "../assets/reload.png"
 import StarIcon from "../assets/star.png"
@@ -71,7 +70,6 @@ export default function App() {
     const [seriesData, setSeriesData] = useState("")
     const [seriesID, setSeriesID] = useState("")
 
-    const [episodePanelOpen, setEpisodePanelOpen] = useState(false);
     const [panelSeason, setPanelSeason] = useState(1);
     const [subOffset, setSubOffset] = useState(0);
     const subOffsetRef = useRef(0);
@@ -327,12 +325,10 @@ export default function App() {
         return () => document.removeEventListener('keydown', onKey);
     }, [provider]);
 
-    // Close episode panel on Escape
+    // Keep panelSeason in sync when the user navigates via arrow buttons
     useEffect(() => {
-        const handleEsc = (e) => { if (e.key === 'Escape') setEpisodePanelOpen(false); };
-        document.addEventListener('keydown', handleEsc);
-        return () => document.removeEventListener('keydown', handleEsc);
-    }, []);
+        setPanelSeason(parseInt(season));
+    }, [season]);
 
     // Shift subtitle cue times when the user adjusts the offset.
     // subOffsetRef tracks the offset already applied so only the delta is added each time.
@@ -760,50 +756,6 @@ export default function App() {
                             style={{border: 'none'}}
                         ></iframe>
                     )}
-                    {/* ── Episode selection panel ── */}
-                    {episodePanelOpen && type === 'tv' && seriesData?.seasons && (
-                        <div className="watch-episode-panel">
-                            <div className="watch-ep-panel-header">
-                                <span className="watch-ep-panel-title">EPISODES</span>
-                                <button className="watch-ep-panel-close" onClick={() => setEpisodePanelOpen(false)}>✕</button>
-                            </div>
-                            <div className="watch-ep-seasons">
-                                {seriesData.seasons
-                                    .filter(s => s.season_number > 0)
-                                    .map(s => (
-                                        <button
-                                            key={s.season_number}
-                                            className={`watch-ep-season-tab${panelSeason === s.season_number ? ' active' : ''}`}
-                                            onClick={() => setPanelSeason(s.season_number)}
-                                        >
-                                            S{s.season_number}
-                                        </button>
-                                    ))
-                                }
-                            </div>
-                            <div className="watch-ep-episodes">
-                                {(() => {
-                                    const seasonInfo = seriesData.seasons.find(s => s.season_number === panelSeason);
-                                    const count = seasonInfo?.episode_count || 0;
-                                    return Array.from({ length: count }, (_, i) => i + 1).map(epNum => (
-                                        <button
-                                            key={epNum}
-                                            className={`watch-ep-episode-btn${panelSeason === parseInt(season) && epNum === parseInt(episode) ? ' active' : ''}`}
-                                            onClick={() => {
-                                                setSeason(panelSeason);
-                                                setEpisode(epNum);
-                                                localStorage.setItem('season' + id, panelSeason);
-                                                localStorage.setItem('episode' + id, epNum);
-                                                setEpisodePanelOpen(false);
-                                            }}
-                                        >
-                                            {epNum}
-                                        </button>
-                                    ));
-                                })()}
-                            </div>
-                        </div>
-                    )}
                 </div>
                 <div className= "watch-options">
                     <div className= "watch-left">
@@ -811,11 +763,6 @@ export default function App() {
                         {type == "movie" ? <MovieDisplay data= {data}/> : <EpisodeDisplay data = {data} season = {season} episode = {episode} setSeason = {setSeason} setEpisode = {setEpisode} maxEp= {maxEp} maxSe= {maxSe} id= {id}/>}
 
                         <div className= "watch-toggles1">
-                            {type == "tv" ?
-                            <button className = "watch-toggles-button watch-toggles-list" onClick={() => { setPanelSeason(parseInt(season)); setEpisodePanelOpen(true); }}>
-                                <img className = "watch-toggles-button-icon watch-toggles-list-icon" src = {ListIcon}/>
-                            </button> : null
-                            }
                             {localStorage.getItem("bookmarks").indexOf(id) == -1 ? 
                             <button className = "watch-toggles-button" onClick={() => Bookmark()}>
                                 <img className = "watch-toggles-button-icon" src = {BookmarkIcon}/>
@@ -878,7 +825,45 @@ export default function App() {
                 </div>
 
             </div>
-
+            {/* ── Season / episode selector — right below the player ── */}
+            {type === 'tv' && seriesData?.seasons && (
+                <div className="watch-ep-selector">
+                    <div className="watch-ep-seasons">
+                        {seriesData.seasons
+                            .filter(s => s.season_number > 0)
+                            .map(s => (
+                                <button
+                                    key={s.season_number}
+                                    className={`watch-ep-season-tab${panelSeason === s.season_number ? ' active' : ''}`}
+                                    onClick={() => setPanelSeason(s.season_number)}
+                                >
+                                    S{s.season_number}
+                                </button>
+                            ))
+                        }
+                    </div>
+                    <div className="watch-ep-episodes">
+                        {(() => {
+                            const seasonInfo = seriesData.seasons.find(s => s.season_number === panelSeason);
+                            const count = seasonInfo?.episode_count || 0;
+                            return Array.from({ length: count }, (_, i) => i + 1).map(epNum => (
+                                <button
+                                    key={epNum}
+                                    className={`watch-ep-episode-btn${panelSeason === parseInt(season) && epNum === parseInt(episode) ? ' active' : ''}`}
+                                    onClick={() => {
+                                        setSeason(panelSeason);
+                                        setEpisode(epNum);
+                                        localStorage.setItem('season' + id, panelSeason);
+                                        localStorage.setItem('episode' + id, epNum);
+                                    }}
+                                >
+                                    {epNum}
+                                </button>
+                            ));
+                        })()}
+                    </div>
+                </div>
+            )}
         </div>
         {/* ── Reviews section — below the player, outside watch-main ── */}
         <div className="watch-reviews-section">
@@ -894,18 +879,6 @@ export default function App() {
                     </p>
                 )}
                 <div className="watch-review-form">
-                    <div className="watch-review-stars">
-                        {[1,2,3,4,5].map(n => (
-                            <button key={n}
-                                className="watch-review-star-btn"
-                                onClick={() => setReviewRating(n)}
-                                onMouseEnter={() => setReviewHover(n)}
-                                onMouseLeave={() => setReviewHover(0)}
-                            >
-                                {n <= (reviewHover || reviewRating) ? '★' : '☆'}
-                            </button>
-                        ))}
-                    </div>
                     <textarea
                         className="watch-review-input"
                         placeholder="Write a review… (optional)"
@@ -914,13 +887,27 @@ export default function App() {
                         maxLength={1000}
                         rows={3}
                     />
-                    <button
-                        className="watch-review-submit"
-                        onClick={submitReview}
-                        disabled={!reviewRating || reviewSubmitting}
-                    >
-                        {reviewSubmitting ? 'Submitting…' : 'Submit'}
-                    </button>
+                    <div className="watch-review-form-right">
+                        <div className="watch-review-stars">
+                            {[1,2,3,4,5].map(n => (
+                                <button key={n}
+                                    className="watch-review-star-btn"
+                                    onClick={() => setReviewRating(n)}
+                                    onMouseEnter={() => setReviewHover(n)}
+                                    onMouseLeave={() => setReviewHover(0)}
+                                >
+                                    {n <= (reviewHover || reviewRating) ? '★' : '☆'}
+                                </button>
+                            ))}
+                        </div>
+                        <button
+                            className="watch-review-submit"
+                            onClick={submitReview}
+                            disabled={!reviewRating || reviewSubmitting}
+                        >
+                            {reviewSubmitting ? 'Submitting…' : 'Submit'}
+                        </button>
+                    </div>
                 </div>
                 <div className="watch-reviews-list">
                     {reviews.length === 0 ? (
