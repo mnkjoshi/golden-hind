@@ -71,7 +71,11 @@ export default function App() {
     const [seriesData, setSeriesData] = useState("")
     const [seriesID, setSeriesID] = useState("")
 
-    const [listStatus, openList] = useState(-1);
+    const [episodePanelOpen, setEpisodePanelOpen] = useState(false);
+    const [panelSeason, setPanelSeason] = useState(1);
+    const [subOffset, setSubOffset] = useState(0);
+    const subOffsetRef = useRef(0);
+    const videoRef = useRef(null);
 
     const startTimeRef = useRef(Date.now());
     const contentNameRef = useRef('');
@@ -189,21 +193,34 @@ export default function App() {
         video.style.width = '100%';
         video.style.height = '100%';
         container.appendChild(video);
+        videoRef.current = video;
 
-        // Inject subtitle tracks
+        // Inject subtitle tracks.
+        // Each track gets a unique srclang (sub0, sub1…) so Plyr can distinguish
+        // between multiple tracks of the same language in its settings menu.
         const uniqueSubs = lmSubtitles;
         let trackIndex = 0;
         uniqueSubs.forEach(sub => {
             const rawSub = String(sub.file || sub.url || '');
             if (!rawSub.startsWith('/') && !rawSub.startsWith('http')) return;
             const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
-            const track = document.createElement('track');
-            track.kind = 'subtitles';
-            track.label = sub.language || sub.lang || `Track ${trackIndex + 1}`;
-            track.srclang = String(sub.language || sub.lang || 'en').slice(0, 2).toLowerCase();
-            track.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
-            if (trackIndex === 0) track.default = true;
-            video.appendChild(track);
+            const trackEl = document.createElement('track');
+            trackEl.kind = 'subtitles';
+            trackEl.label = sub.language || sub.lang || `Track ${trackIndex + 1}`;
+            trackEl.srclang = `sub${trackIndex}`;
+            trackEl.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
+            if (trackIndex === 0) trackEl.default = true;
+            // Apply any existing subtitle offset once cues have loaded
+            trackEl.addEventListener('load', () => {
+                const offset = subOffsetRef.current;
+                if (offset !== 0 && trackEl.track?.cues) {
+                    Array.from(trackEl.track.cues).forEach(cue => {
+                        cue.startTime = Math.max(0, cue.startTime + offset);
+                        cue.endTime = Math.max(0, cue.endTime + offset);
+                    });
+                }
+            });
+            video.appendChild(trackEl);
             trackIndex++;
         });
 
@@ -211,7 +228,7 @@ export default function App() {
             const player = new Plyr(video, {
                 controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'captions', 'settings', 'pip', 'fullscreen'],
                 settings: ['captions', 'quality', 'speed'],
-                captions: { active: uniqueSubs.length > 0, update: true },
+                captions: { active: uniqueSubs.length > 0, update: true, language: 'sub0' },
                 ratio: '16:9',
                 keyboard: { focused: false, global: false },
                 fullscreen: { enabled: true, fallback: true, iosNative: true },
@@ -238,6 +255,7 @@ export default function App() {
             if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
             if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
             container.innerHTML = '';
+            videoRef.current = null;
         };
     }, [lmUrl]);
 
@@ -308,6 +326,31 @@ export default function App() {
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
     }, [provider]);
+
+    // Close episode panel on Escape
+    useEffect(() => {
+        const handleEsc = (e) => { if (e.key === 'Escape') setEpisodePanelOpen(false); };
+        document.addEventListener('keydown', handleEsc);
+        return () => document.removeEventListener('keydown', handleEsc);
+    }, []);
+
+    // Shift subtitle cue times when the user adjusts the offset.
+    // subOffsetRef tracks the offset already applied so only the delta is added each time.
+    useEffect(() => {
+        const vid = videoRef.current;
+        if (!vid) return;
+        const delta = subOffset - subOffsetRef.current;
+        subOffsetRef.current = subOffset;
+        if (delta === 0) return;
+        Array.from(vid.textTracks || []).forEach(textTrack => {
+            const cues = textTrack.cues;
+            if (!cues) return;
+            Array.from(cues).forEach(cue => {
+                cue.startTime = Math.max(0, cue.startTime + delta);
+                cue.endTime = Math.max(0, cue.endTime + delta);
+            });
+        });
+    }, [subOffset]);
 
     if (type == "m") {
         type = "movie"
@@ -583,11 +626,7 @@ export default function App() {
         }
     });
 
-    const arrayRange = (start, stop, step) =>
-        Array.from(
-        { length: (stop - start) / step + 1 },
-        (value, index) => start + index * step
-    );
+
 
     function Bookmark() {
         let bookmarks = localStorage.getItem("bookmarks")
@@ -721,6 +760,50 @@ export default function App() {
                             style={{border: 'none'}}
                         ></iframe>
                     )}
+                    {/* ── Episode selection panel ── */}
+                    {episodePanelOpen && type === 'tv' && seriesData?.seasons && (
+                        <div className="watch-episode-panel">
+                            <div className="watch-ep-panel-header">
+                                <span className="watch-ep-panel-title">EPISODES</span>
+                                <button className="watch-ep-panel-close" onClick={() => setEpisodePanelOpen(false)}>✕</button>
+                            </div>
+                            <div className="watch-ep-seasons">
+                                {seriesData.seasons
+                                    .filter(s => s.season_number > 0)
+                                    .map(s => (
+                                        <button
+                                            key={s.season_number}
+                                            className={`watch-ep-season-tab${panelSeason === s.season_number ? ' active' : ''}`}
+                                            onClick={() => setPanelSeason(s.season_number)}
+                                        >
+                                            S{s.season_number}
+                                        </button>
+                                    ))
+                                }
+                            </div>
+                            <div className="watch-ep-episodes">
+                                {(() => {
+                                    const seasonInfo = seriesData.seasons.find(s => s.season_number === panelSeason);
+                                    const count = seasonInfo?.episode_count || 0;
+                                    return Array.from({ length: count }, (_, i) => i + 1).map(epNum => (
+                                        <button
+                                            key={epNum}
+                                            className={`watch-ep-episode-btn${panelSeason === parseInt(season) && epNum === parseInt(episode) ? ' active' : ''}`}
+                                            onClick={() => {
+                                                setSeason(panelSeason);
+                                                setEpisode(epNum);
+                                                localStorage.setItem('season' + id, panelSeason);
+                                                localStorage.setItem('episode' + id, epNum);
+                                                setEpisodePanelOpen(false);
+                                            }}
+                                        >
+                                            {epNum}
+                                        </button>
+                                    ));
+                                })()}
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div className= "watch-options">
                     <div className= "watch-left">
@@ -728,22 +811,10 @@ export default function App() {
                         {type == "movie" ? <MovieDisplay data= {data}/> : <EpisodeDisplay data = {data} season = {season} episode = {episode} setSeason = {setSeason} setEpisode = {setEpisode} maxEp= {maxEp} maxSe= {maxSe} id= {id}/>}
 
                         <div className= "watch-toggles1">
-                            {type == "tv" ? 
-                            <button className = "watch-toggles-button watch-toggles-list" onClick={() => openList(-1 * listStatus)}>
+                            {type == "tv" ?
+                            <button className = "watch-toggles-button watch-toggles-list" onClick={() => { setPanelSeason(parseInt(season)); setEpisodePanelOpen(true); }}>
                                 <img className = "watch-toggles-button-icon watch-toggles-list-icon" src = {ListIcon}/>
                             </button> : null
-                            }
-                            {listStatus == 1 ? 
-                            <div className = "watch-list" style= {{width: (maxEp * 3)+ "%"}}>
-                                {arrayRange(1, maxEp, 1).map( result =>
-                                    <button className= "watch-list-episode" onClick={() => {localStorage.setItem("episode" + id, result); setEpisode(result)}}>
-                                        {result}
-                                    </button>
-                                )}
-                            </div>
-                            :
-                            <div className = "watch-list" style= {{width: "0%", visibility: "false", border: "none", padding: "0px"}}>
-                            </div>
                             }
                             {localStorage.getItem("bookmarks").indexOf(id) == -1 ? 
                             <button className = "watch-toggles-button" onClick={() => Bookmark()}>
@@ -794,6 +865,13 @@ export default function App() {
                                 <span className="watch-server-num">{provider}</span>
                                 <span className="watch-server-label">SERVER</span>
                             </button>
+                            {parseInt(provider) === 4 && lmSubtitles.length > 0 && (
+                                <div className="watch-sub-offset">
+                                    <button className="watch-sub-offset-btn" onClick={() => setSubOffset(v => parseFloat((v - 0.5).toFixed(1)))}>−</button>
+                                    <span className="watch-sub-offset-val">{subOffset > 0 ? `+${subOffset}s` : `${subOffset}s`}</span>
+                                    <button className="watch-sub-offset-btn" onClick={() => setSubOffset(v => parseFloat((v + 0.5).toFixed(1)))}>+</button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

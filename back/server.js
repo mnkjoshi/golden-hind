@@ -1150,7 +1150,7 @@ async function OfferVerify(username, token, email) {
                 message: [
                     {
                         url: link,
-                        image: "",
+                        image: "https://bucket.mailersendapp.com/351ndgwzmqgzqx8k/pzkmgq7092nl059v/images/a1876ca7-ded6-4072-89d5-a7ec0c9742d4.png",
                         price: "",
                         title: username,
                         priceOld: "",
