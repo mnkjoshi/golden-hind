@@ -704,7 +704,7 @@ app.post('/review', async (req, res) => {
     await db.ref(`reviews/${contentId}/${user}`).set({
         username: user,
         rating: r,
-        text: String(text || '').trim().slice(0, 1000),
+        text: String(text || '').trim().slice(0, 3000),
         timestamp: Date.now(),
     });
     res.json({ success: true });

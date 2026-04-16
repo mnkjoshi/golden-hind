@@ -884,8 +884,8 @@ export default function App() {
                         placeholder="Write a review… (optional)"
                         value={reviewText}
                         onChange={e => setReviewText(e.target.value)}
-                        maxLength={1000}
-                        rows={3}
+                        maxLength={3000}
+                        rows={6}
                     />
                     <div className="watch-review-form-right">
                         <div className="watch-review-stars">
