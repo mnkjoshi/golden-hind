@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import axios from 'axios'
 import Authenticate  from "../components/authenticate.jsx";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Topbar from "../components/topbar.jsx"
 import { track } from '../utils/analytics.js'
 
@@ -68,6 +68,13 @@ export default function App() {
     const [trailerKey, setTrailerKey] = useState(null)
     const [trailerLoading, setTrailerLoading] = useState(false)
     const [activeGenre, setActiveGenre] = useState(null)
+    const [heroDirection, setHeroDirection] = useState('right')
+    const [heroHovered, setHeroHovered] = useState(false)
+    const [heroInlineTrailer, setHeroInlineTrailer] = useState(false)
+    const [heroInlineTrailerKey, setHeroInlineTrailerKey] = useState(null)
+    const [currentHeroTrailerKey, setCurrentHeroTrailerKey] = useState(null)
+    const heroHoverTimerRef = useRef(null)
+    const heroInlineTrailerCacheRef = useRef({})
 
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
@@ -85,6 +92,67 @@ export default function App() {
         } catch {}
         setTrailerLoading(false);
     };
+
+    const handleHeroInfoEnter = () => {
+        setHeroHovered(true);
+        setIsHeroAutoplaying(false);
+        clearTimeout(heroHoverTimerRef.current);
+        heroHoverTimerRef.current = setTimeout(async () => {
+            if (!trendingData?.results) return;
+            const item = trendingData.results[heroIndex];
+            if (!heroInlineTrailerCacheRef.current[item.id]) {
+                try {
+                    const res = await axios.post('https://goldenhind.tech/home-trailer', {
+                        user, token,
+                        tmdbId: item.id,
+                        mediaType: item.media_type === 'movie' ? 'movie' : 'tv',
+                    });
+                    if (res.data.key) heroInlineTrailerCacheRef.current[item.id] = res.data.key;
+                } catch {}
+            }
+            const key = heroInlineTrailerCacheRef.current[item.id];
+            if (key) {
+                setHeroInlineTrailerKey(key);
+                setHeroInlineTrailer(true);
+            }
+        }, 2000);
+    };
+
+    const handleHeroInfoLeave = () => {
+        setHeroHovered(false);
+        setHeroInlineTrailer(false);
+        setHeroInlineTrailerKey(null);
+        clearTimeout(heroHoverTimerRef.current);
+        setIsHeroAutoplaying(true);
+    };
+
+    useEffect(() => {
+        setHeroInlineTrailer(false);
+        setHeroInlineTrailerKey(null);
+    }, [heroIndex]);
+
+    // Pre-fetch trailer key for the current hero slide so the button can hide if none exists
+    useEffect(() => {
+        if (!trendingData?.results) return;
+        const item = trendingData.results[heroIndex];
+        if (!item) return;
+        if (heroInlineTrailerCacheRef.current[item.id] !== undefined) {
+            setCurrentHeroTrailerKey(heroInlineTrailerCacheRef.current[item.id]);
+            return;
+        }
+        setCurrentHeroTrailerKey(null);
+        axios.post('https://goldenhind.tech/home-trailer', {
+            user, token, tmdbId: item.id,
+            mediaType: item.media_type === 'movie' ? 'movie' : 'tv',
+        }).then(res => {
+            const key = res.data.key || null;
+            heroInlineTrailerCacheRef.current[item.id] = key;
+            setCurrentHeroTrailerKey(key);
+        }).catch(() => {
+            heroInlineTrailerCacheRef.current[item.id] = null;
+            setCurrentHeroTrailerKey(null);
+        });
+    }, [heroIndex, trendingData]);
 
     useEffect(() => {
         document.title = "The Golden Hind"
@@ -246,8 +314,9 @@ export default function App() {
 
     // Auto-rotate hero slider with pause/resume functionality
     useEffect(() => {
-        if (trendingData && trendingData.results && trendingData.results.length > 0 && isHeroAutoplaying && !isTransitioning) {
+        if (trendingData && trendingData.results && trendingData.results.length > 0 && isHeroAutoplaying && !isTransitioning && !heroInlineTrailer && !trailerKey) {
             const interval = setInterval(() => {
+                setHeroDirection('right')
                 setIsTransitioning(true)
                 setTimeout(() => {
                     setHeroIndex(prev => (prev + 1) % Math.min(5, trendingData.results.length))
@@ -257,15 +326,18 @@ export default function App() {
             setHeroIntervalId(interval)
             return () => clearInterval(interval)
         }
-    }, [trendingData, isHeroAutoplaying, isTransitioning])
+    }, [trendingData, isHeroAutoplaying, isTransitioning, heroInlineTrailer, trailerKey])
 
     // Handle manual hero navigation with pause and resume
     const handleHeroNavigation = (newIndex) => {
-        if (isTransitioning) return
-        
+        if (isTransitioning || heroInlineTrailer || trailerKey) return
+
+        const total = Math.min(5, trendingData.results.length)
+        const dir = ((newIndex - heroIndex + total) % total) <= total / 2 ? 'right' : 'left'
+        setHeroDirection(dir)
         setIsTransitioning(true)
         setIsHeroAutoplaying(false)
-        
+
         setTimeout(() => {
             setHeroIndex(newIndex)
             setIsTransitioning(false)
@@ -445,15 +517,29 @@ export default function App() {
                     {trendingData && trendingData.results && trendingData.results.length > 0 && (
                 <div className="hero-section">
                     <div className={`hero-backdrop ${isTransitioning ? 'transitioning-out' : ''}`} key={heroIndex}>
-                        <img 
-                            className="hero-image" 
+                        <img
+                            className="hero-image"
                             src={`https://image.tmdb.org/t/p/w1280/${trendingData.results[heroIndex].backdrop_path}`}
                             alt="Hero backdrop"
                             loading="eager"
                             decoding="async"
                         />
                         <div className="hero-gradient"></div>
+                        <div className={`hero-backdrop-darkener ${heroInlineTrailer ? 'active' : ''}`}></div>
                     </div>
+
+                    {/* Inline trailer panel — right side, fades in on sustained hover */}
+                    {heroInlineTrailer && heroInlineTrailerKey && (
+                        <div className="hero-inline-trailer">
+                            <iframe
+                                src={`https://www.youtube.com/embed/${heroInlineTrailerKey}?autoplay=1&controls=0&loop=1&playlist=${heroInlineTrailerKey}`}
+                                title="Trailer Preview"
+                                allow="autoplay; encrypted-media"
+                                allowFullScreen={false}
+                            />
+                            <div className="hero-inline-trailer-fade" />
+                        </div>
+                    )}
                     
                     {/* Navigation Arrows */}
                     <button 
@@ -469,8 +555,12 @@ export default function App() {
                         ›
                     </button>
                     
-                    <div className={`hero-content ${isTransitioning ? 'transitioning-out' : ''}`} key={`content-${heroIndex}`}>
-                        <div className="hero-info">
+                    <div className={`hero-content ${isTransitioning ? 'transitioning-out' : ''} direction-${heroDirection}`} key={`content-${heroIndex}`}>
+                        <div
+                            className={`hero-info${heroHovered ? ' hovered' : ''}`}
+                            onMouseEnter={handleHeroInfoEnter}
+                            onMouseLeave={handleHeroInfoLeave}
+                        >
                             {trendingData.results[heroIndex].logo_path
                                 ? <img
                                     className="hero-title-logo"
@@ -513,25 +603,30 @@ export default function App() {
                                 >
                                     ▶ Play
                                 </button>
-                                <button
-                                    className="hero-trailer-btn"
-                                    onClick={() => fetchTrailer(trendingData.results[heroIndex])}
-                                    disabled={trailerLoading}
-                                >
-                                    {trailerLoading ? '…' : '🎬 Trailer'}
-                                </button>
+                                {currentHeroTrailerKey && (
+                                    <button
+                                        className="hero-trailer-btn"
+                                        onClick={() => setTrailerKey(currentHeroTrailerKey)}
+                                    >
+                                        <svg viewBox="0 0 24 24" fill="none">
+                                            <polygon points="5,3 19,12 5,21" fill="currentColor"/>
+                                        </svg>
+                                        Trailer
+                                    </button>
+                                )}
                             </div>
                         </div>
-                        
-                        <div className="hero-indicators">
-                            {trendingData && trendingData.results && trendingData.results.slice(0, 5).map((_, index) => (
-                                <div 
-                                    key={index}
-                                    className={`hero-indicator ${index === heroIndex ? 'active' : ''}`}
-                                    onClick={() => handleHeroNavigation(index)}
-                                ></div>
-                            ))}
-                        </div>
+                    </div>
+
+                    {/* Indicators sit outside hero-content so they don't animate with the title */}
+                    <div className="hero-indicators">
+                        {trendingData.results.slice(0, 5).map((_, index) => (
+                            <div
+                                key={index}
+                                className={`hero-indicator ${index === heroIndex ? 'active' : ''}`}
+                                onClick={() => handleHeroNavigation(index)}
+                            ></div>
+                        ))}
                     </div>
                 </div>
             )}

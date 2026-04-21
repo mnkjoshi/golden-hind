@@ -125,27 +125,26 @@ p {
     }
 }
 
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+@keyframes slideFromLeft {
+    from { opacity: 0; transform: translateX(-28px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideToRight {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(28px); }
+}
+@keyframes slideFromRight {
+    from { opacity: 0; transform: translateX(28px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideToLeft {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(-28px); }
 }
 
-@keyframes slideDown {
-    from {
-        opacity: 1;
-        transform: translateY(0);
-    }
-    to {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-}
+/* keep old names as aliases so nothing else breaks */
+@keyframes slideUp   { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideDown { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(28px); } }
 
 .hero-image {
     width: 100%;
@@ -174,9 +173,8 @@ p {
     position: absolute;
     bottom: 0;
     left: 0;
-    animation: slideUp 0.5s ease-out;
     right: 0;
-    z-index: 1;
+    z-index: 3;
     width: 100%;
     padding: 0 4rem 4rem;
     display: flex;
@@ -184,8 +182,16 @@ p {
     align-items: flex-end;
 }
 
-.hero-content.transitioning-out {
-    animation: slideDown 0.5s ease-out forwards;
+.hero-content.direction-right              { animation: slideFromLeft  0.5s ease-out; }
+.hero-content.direction-right.transitioning-out { animation: slideToRight   0.5s ease-out forwards; }
+.hero-content.direction-left               { animation: slideFromRight 0.5s ease-out; }
+.hero-content.direction-left.transitioning-out  { animation: slideToLeft    0.5s ease-out forwards; }
+
+.hero-indicators {
+    position: absolute;
+    bottom: 4rem;
+    right: 4rem;
+    z-index: 3;
 }
 
 .hero-info {
@@ -215,14 +221,24 @@ p {
 .hero-overview {
     font-size: 1.2rem;
     line-height: 1.5;
-    margin-bottom: 1.5rem;
     max-width: 600px;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
     display: -webkit-box;
     -webkit-line-clamp: 3;
     line-clamp: 3;
     -webkit-box-orient: vertical;
+    /* Hidden until hero-info is hovered */
+    opacity: 0;
+    max-height: 0;
+    margin-bottom: 0;
     overflow: hidden;
+    transition: opacity 0.35s ease, max-height 0.35s ease, margin-bottom 0.35s ease;
+}
+
+.hero-info.hovered .hero-overview {
+    opacity: 1;
+    max-height: 120px;
+    margin-bottom: 1.5rem;
 }
 
 .hero-meta {
@@ -1754,4 +1770,75 @@ p {
     justify-content: space-between;
     align-items: flex-end;
     pointer-events: none;
+}
+
+/* ── Hero left darkener — gradient from black on left to transparent on right ── */
+.hero-backdrop-darkener {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(
+        to right,
+        rgba(0, 0, 0, 1) 0%,
+        rgba(0, 0, 0, 1) 42%,
+        rgba(0, 0, 0, 0.6) 56%,
+        transparent       68%
+    );
+    opacity: 0;
+    transition: opacity 1.4s ease;
+}
+
+.hero-backdrop-darkener.active {
+    opacity: 1;
+}
+
+/* ── Hero inline trailer (right-side YouTube, fills without black bars) ── */
+.hero-inline-trailer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 68%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+    overflow: hidden;
+    animation: hero-trailer-in 1.2s ease 0.5s both;
+}
+
+@keyframes hero-trailer-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* Trailer fades in after the darkener has had a moment to start */
+
+.hero-inline-trailer iframe {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    /* Cover technique: sized to viewport so video fills height and crops width — no letterbox bars */
+    width: 200vh;
+    height: 112.5vh;
+    min-width: 100%;
+    min-height: 56.25vw;
+    transform: translate(-50%, -50%);
+    border: none;
+}
+
+/* Fade: solid black on left edge (meets the darkener), solid black on right edge */
+.hero-inline-trailer-fade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to right,
+        rgba(0, 0, 0, 1)    0%,
+        rgba(0, 0, 0, 0.15) 22%,
+        transparent          36%,
+        transparent          78%,
+        rgba(0, 0, 0, 0.7)  92%,
+        rgba(0, 0, 0, 1)    100%
+    );
+    pointer-events: none;
+    z-index: 1;
 }
