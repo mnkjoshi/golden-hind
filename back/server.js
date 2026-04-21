@@ -338,8 +338,16 @@ app.post('/home-trending', async (request, response) => {
                 url: 'https://api.themoviedb.org/3/trending/all/week?api_key=' + process.env.TMDB_Credentials,
             });
 
+            const top5 = (Trending.data.results || []).slice(0, 5);
+            const enriched = await Promise.all(top5.map(async item => {
+                const mediaType = item.media_type === 'movie' ? 'movie' : 'tv';
+                const logo_path = await getTMDBLogo(mediaType, item.id).catch(() => null);
+                return { ...item, logo_path };
+            }));
+            const trendingData = { ...Trending.data, results: [...enriched, ...(Trending.data.results || []).slice(5)] };
+
             response.status(200);
-            response.json({ trendingData: Trending.data });
+            response.json({ trendingData });
         } catch(error) {
             logError(user, '/home-trending', error).catch(() => {});
             console.log(error);
@@ -1208,7 +1216,7 @@ async function getIMDBId(tmdbId, mediaType) {
 
 function slugify(title) {
     return title.toLowerCase()
-        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/[^a-z0-9\s-]/g, '')
         .replace(/\s+/g, '-')
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '');

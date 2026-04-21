@@ -436,9 +436,18 @@ export default function App() {
                     
                     <div className={`hero-content ${isTransitioning ? 'transitioning-out' : ''}`} key={`content-${heroIndex}`}>
                         <div className="hero-info">
-                            <h1 className="hero-title">
-                                {trendingData.results[heroIndex].name || trendingData.results[heroIndex].title || "Untitled"}
-                            </h1>
+                            {trendingData.results[heroIndex].logo_path
+                                ? <img
+                                    className="hero-title-logo"
+                                    src={`https://image.tmdb.org/t/p/w500/${trendingData.results[heroIndex].logo_path}`}
+                                    alt={trendingData.results[heroIndex].name || trendingData.results[heroIndex].title}
+                                    loading="eager"
+                                    decoding="async"
+                                  />
+                                : <h1 className="hero-title">
+                                    {trendingData.results[heroIndex].name || trendingData.results[heroIndex].title || "Untitled"}
+                                  </h1>
+                            }
                             <p className="hero-overview">
                                 {trendingData.results[heroIndex].overview}
                             </p>
