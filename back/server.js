@@ -324,6 +324,26 @@ app.post('/home-continues', async (request, response) => {
     }
 });
 
+// Trailer endpoint — returns a YouTube trailer key for a given TMDB id
+app.post('/home-trailer', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, tmdbId, mediaType } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}/videos?api_key=${process.env.TMDB_Credentials}`;
+        const res = await axios.get(url);
+        const videos = res.data.results || [];
+        const trailer = videos.find(v => v.site === 'YouTube' && v.type === 'Trailer')
+                     || videos.find(v => v.site === 'YouTube' && v.type === 'Teaser')
+                     || videos.find(v => v.site === 'YouTube');
+        response.status(200).json({ key: trailer?.key || null });
+    } catch (error) {
+        logError(user, '/home-trailer', error).catch(() => {});
+        response.status(200).json({ key: null });
+    }
+});
+
 // Trending endpoint
 app.post('/home-trending', async (request, response) => {
 

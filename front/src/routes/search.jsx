@@ -17,16 +17,19 @@ const genreMap = {
     10765: "Sci-Fi & Fantasy", 10766: "Soap", 10767: "Talk", 10768: "War & Politics"
 };
 
-export default function Search() {  
+export default function Search() {
     const navigate = useNavigate();
     const [results, setResults] = useState([]);
     const [currentSearch, setCurrentSearch] = useState("");
     const [page, setPage] = useState(0);
     const [loading, setLoading] = useState(false);
     const [tooltip, setTooltip] = useState({ visible: false, data: null, x: 0, y: 0 });
+    const [filterType, setFilterType] = useState('all');
+    const [filterYear, setFilterYear] = useState('');
+    const [filterGenre, setFilterGenre] = useState('');
     const { state } = useLocation();
     const searched = state?.searched || "";
-    
+
     const itemsPerPage = window.innerWidth < 800 ? 6 : 20;
     const user = localStorage.getItem("user");
     const token = localStorage.getItem("token");
@@ -37,10 +40,13 @@ export default function Search() {
             return;
         }
         Authenticate(user, token, navigate);
-        
+
         if (searched && searched !== currentSearch) {
             track('search', { query: searched })
             setLoading(true);
+            setFilterType('all');
+            setFilterYear('');
+            setFilterGenre('');
             axios({
                 method: 'post',
                 url: 'https://goldenhind.tech/search',
@@ -87,9 +93,33 @@ export default function Search() {
         setTooltip({ visible: false, data: null, x: 0, y: 0 });
     };
     
-    const totalPages = Math.ceil(results.length / itemsPerPage);
-    const currentResults = results.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
-    
+    // Build filter options dynamically from current results
+    const availableYears = [...new Set(
+        results.map(r => { const d = r.release_date || r.first_air_date; return d ? new Date(d).getFullYear() : null; }).filter(Boolean)
+    )].sort((a, b) => b - a).slice(0, 10);
+
+    const availableGenres = [...new Set(results.flatMap(r => r.genre_ids || []))]
+        .map(id => ({ id, name: genreMap[id] }))
+        .filter(g => g.name)
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    const filteredResults = results.filter(r => {
+        if (filterType !== 'all' && r.media_type !== filterType) return false;
+        if (filterYear) {
+            const d = r.release_date || r.first_air_date;
+            if (!d || new Date(d).getFullYear() !== parseInt(filterYear)) return false;
+        }
+        if (filterGenre) {
+            if (!r.genre_ids || !r.genre_ids.includes(parseInt(filterGenre))) return false;
+        }
+        return true;
+    });
+
+    const setFilter = (setter) => (val) => { setter(val); setPage(0); };
+
+    const totalPages = Math.ceil(filteredResults.length / itemsPerPage);
+    const currentResults = filteredResults.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
+
     const getGenreNames = (genreIds) => {
         if (!genreIds || !Array.isArray(genreIds)) return [];
         return genreIds.map(id => genreMap[id] || `Genre ${id}`).filter(Boolean);
@@ -107,7 +137,7 @@ export default function Search() {
                             {searched ? `Results for "${searched}"` : 'Search Results'}
                         </h1>
                         <p className="search-subtitle">
-                            {loading ? 'Searching...' : `${results.length} ${results.length === 1 ? 'result' : 'results'} found`}
+                            {loading ? 'Searching...' : `${filteredResults.length} ${filteredResults.length === 1 ? 'result' : 'results'}${filteredResults.length !== results.length ? ` of ${results.length}` : ''} found`}
                         </p>
                     </div>
                     
@@ -139,6 +169,53 @@ export default function Search() {
                     )}
                 </div>
 
+                {/* Filter Bar */}
+                {results.length > 0 && !loading && (
+                    <div className="search-filter-bar">
+                        <div className="filter-group">
+                            {['all', 'movie', 'tv'].map(t => (
+                                <button
+                                    key={t}
+                                    className={`filter-chip ${filterType === t ? 'active' : ''}`}
+                                    onClick={() => setFilter(setFilterType)(t)}
+                                >
+                                    {t === 'all' ? 'All' : t === 'movie' ? 'Movies' : 'TV Shows'}
+                                </button>
+                            ))}
+                        </div>
+                        {availableYears.length > 0 && (
+                            <div className="filter-group">
+                                <button
+                                    className={`filter-chip ${!filterYear ? 'active' : ''}`}
+                                    onClick={() => setFilter(setFilterYear)('')}
+                                >Any Year</button>
+                                {availableYears.map(y => (
+                                    <button
+                                        key={y}
+                                        className={`filter-chip ${filterYear === String(y) ? 'active' : ''}`}
+                                        onClick={() => setFilter(setFilterYear)(String(y))}
+                                    >{y}</button>
+                                ))}
+                            </div>
+                        )}
+                        {availableGenres.length > 0 && (
+                            <div className="filter-group filter-group-genres">
+                                <button
+                                    className={`filter-chip ${!filterGenre ? 'active' : ''}`}
+                                    onClick={() => setFilter(setFilterGenre)('')}
+                                >All Genres</button>
+                                {availableGenres.map(g => (
+                                    <button
+                                        key={g.id}
+                                        className={`filter-chip ${filterGenre === String(g.id) ? 'active' : ''}`}
+                                        onClick={() => setFilter(setFilterGenre)(String(g.id))}
+                                    >{g.name}</button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Search Results */}
                 <div className="search-results-grid">
                     {loading ? (
@@ -146,14 +223,14 @@ export default function Search() {
                             <div className="loading-spinner"></div>
                             <p>Searching for amazing content...</p>
                         </div>
-                    ) : results.length === 0 ? (
+                    ) : filteredResults.length === 0 ? (
                         <div className="search-empty">
                             <svg viewBox="0 0 24 24" fill="none">
                                 <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/>
                                 <path d="m21 21-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
-                            <h3>No results found</h3>
-                            <p>Try searching for something else</p>
+                            <h3>{results.length === 0 ? 'No results found' : 'No matches for these filters'}</h3>
+                            <p>{results.length === 0 ? 'Try searching for something else' : 'Try adjusting your filters'}</p>
                         </div>
                     ) : (
                         currentResults.map((result) => (

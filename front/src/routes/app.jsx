@@ -23,6 +23,24 @@ const getGenreNames = (genreIds) => {
     return genreIds.map(id => genreMap[id] || "Unknown").filter(name => name !== "Unknown").join(", ") || "Unknown";
 };
 
+const formatRelativeTime = (ts) => {
+    if (!ts) return '';
+    const diff = Date.now() - parseInt(ts);
+    const mins = Math.floor(diff / 60000);
+    if (mins < 2) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return days === 1 ? 'Yesterday' : `${days}d ago`;
+};
+
+const POPULAR_GENRES = [
+    { id: 28, name: 'Action' }, { id: 35, name: 'Comedy' }, { id: 18, name: 'Drama' },
+    { id: 27, name: 'Horror' }, { id: 878, name: 'Sci-Fi' }, { id: 10749, name: 'Romance' },
+    { id: 53, name: 'Thriller' }, { id: 16, name: 'Animation' }, { id: 80, name: 'Crime' },
+];
+
 export default function App() {  
     let location = useLocation();
     const navigate = useNavigate();
@@ -47,9 +65,26 @@ export default function App() {
     const [recentRecsLoading, setRecentRecsLoading] = useState(false)
     const [recentlyReviewed, setRecentlyReviewed] = useState(null)
     const [recentlyReviewedLoading, setRecentlyReviewedLoading] = useState(false)
+    const [trailerKey, setTrailerKey] = useState(null)
+    const [trailerLoading, setTrailerLoading] = useState(false)
+    const [activeGenre, setActiveGenre] = useState(null)
 
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
+
+    const fetchTrailer = async (item) => {
+        if (trailerLoading) return;
+        setTrailerLoading(true);
+        try {
+            const res = await axios.post('https://goldenhind.tech/home-trailer', {
+                user, token,
+                tmdbId: item.id,
+                mediaType: item.media_type === 'movie' ? 'movie' : 'tv',
+            });
+            if (res.data.key) setTrailerKey(res.data.key);
+        } catch {}
+        setTrailerLoading(false);
+    };
 
     useEffect(() => {
         document.title = "The Golden Hind"
@@ -466,7 +501,7 @@ export default function App() {
                                 </span>
                             </div>
                             <div className="hero-buttons">
-                                <button 
+                                <button
                                     className="hero-play-btn"
                                     onClick={() => {
                                         if (trendingData.results[heroIndex].media_type === "movie") {
@@ -477,6 +512,13 @@ export default function App() {
                                     }}
                                 >
                                     ▶ Play
+                                </button>
+                                <button
+                                    className="hero-trailer-btn"
+                                    onClick={() => fetchTrailer(trendingData.results[heroIndex])}
+                                    disabled={trailerLoading}
+                                >
+                                    {trailerLoading ? '…' : '🎬 Trailer'}
                                 </button>
                             </div>
                         </div>
@@ -496,6 +538,20 @@ export default function App() {
 
             {/* Content Sections */}
             <div className="content-sections">
+                {/* Continue Watching — empty state */}
+                {continueData !== null && continueData.length === 0 && (
+                    <div className="content-section">
+                        <div className="section-header">
+                            <h2 className="section-title">Continue Watching</h2>
+                        </div>
+                        <div className="empty-state">
+                            <span className="empty-state-icon">▶</span>
+                            <p className="empty-state-text">Nothing to continue yet.</p>
+                            <button className="empty-state-cta" onClick={() => navigate('/search')}>Find something to watch</button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Continue Watching Section */}
                 {continueData && continueData.length > 0 && (
                     <div className="content-section">
@@ -551,8 +607,20 @@ export default function App() {
                                                     <span className="card-rating">⭐ {result.vote_average}</span>
                                                     <span className="card-type">{result.number_of_episodes ? "TV" : "Movie"}</span>
                                                 </div>
+                                                {(() => {
+                                                    const cid = (result.number_of_episodes == null ? 'm' : 't') + result.id;
+                                                    const ts = localStorage.getItem('lastWatched_' + cid);
+                                                    const ep = localStorage.getItem('episode' + cid);
+                                                    const se = localStorage.getItem('season' + cid);
+                                                    return (ts || (ep && se && result.number_of_episodes != null)) ? (
+                                                        <div className="card-last-watched">
+                                                            {ep && se && result.number_of_episodes != null && <span>S{se}E{ep}</span>}
+                                                            {ts && <span>{formatRelativeTime(ts)}</span>}
+                                                        </div>
+                                                    ) : null;
+                                                })()}
                                             </div>
-                                            <button 
+                                            <button
                                                 className="card-remove-btn"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -624,6 +692,12 @@ export default function App() {
                     <div className="content-section">
                         <div className="section-header">
                             <h2 className="section-title">Trending Now</h2>
+                            <div className="genre-pills">
+                                <button className={`genre-pill${activeGenre === null ? ' active' : ''}`} onClick={() => setActiveGenre(null)}>All</button>
+                                {POPULAR_GENRES.map(g => (
+                                    <button key={g.id} className={`genre-pill${activeGenre === g.id ? ' active' : ''}`} onClick={() => setActiveGenre(activeGenre === g.id ? null : g.id)}>{g.name}</button>
+                                ))}
+                            </div>
                             <div className="section-controls">
                                 <button 
                                     className="section-arrow" 
@@ -646,7 +720,10 @@ export default function App() {
                             </div>
                         </div>
                         <div className="content-row" id="trending-row">
-                            {trendingData && trendingData.results && trendingData.results.filter(result => result && result.id).map(result => (
+                            {trendingData && trendingData.results && trendingData.results
+                                .filter(result => result && result.id)
+                                .filter(result => activeGenre === null || (result.genre_ids && result.genre_ids.includes(activeGenre)))
+                                .map(result => (
                                 <div 
                                     key={result.id} 
                                     className="content-card"
@@ -729,6 +806,20 @@ export default function App() {
                                     </div>
                                 ))
                             }
+                        </div>
+                    </div>
+                )}
+
+                {/* My List — empty state */}
+                {bookmarkData !== null && bookmarkData.length === 0 && (
+                    <div className="content-section">
+                        <div className="section-header">
+                            <h2 className="section-title">My List</h2>
+                        </div>
+                        <div className="empty-state">
+                            <span className="empty-state-icon">🔖</span>
+                            <p className="empty-state-text">Your list is empty.</p>
+                            <button className="empty-state-cta" onClick={() => navigate('/search')}>Browse and add titles</button>
                         </div>
                     </div>
                 )}
@@ -863,6 +954,22 @@ export default function App() {
                 </>
             )}
             
+            {/* Trailer Modal */}
+            {trailerKey && (
+                <div className="trailer-backdrop" onClick={() => setTrailerKey(null)}>
+                    <div className="trailer-modal" onClick={e => e.stopPropagation()}>
+                        <button className="trailer-close" onClick={() => setTrailerKey(null)}>×</button>
+                        <iframe
+                            className="trailer-iframe"
+                            src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
+                            title="Trailer"
+                            allowFullScreen
+                            allow="autoplay; encrypted-media"
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* External Tooltip Component */}
             {tooltip.visible && tooltip.data && (
                 <div 

@@ -715,3 +715,58 @@
         font-size: 0.8rem;
     }
 }
+
+/* ── Search filter bar ── */
+.search-filter-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 1.75rem;
+}
+
+.filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.filter-group-genres {
+    padding-top: 2px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.filter-chip {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 20px;
+    color: rgba(255,255,255,0.65);
+    font-family: Viga, sans-serif;
+    font-size: 12px;
+    padding: 5px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.filter-chip:hover {
+    border-color: #3FA3FF;
+    color: #3FA3FF;
+}
+
+.filter-chip.active {
+    background: #3FA3FF;
+    border-color: #3FA3FF;
+    color: #111;
+}
+
+@media (max-width: 800px) {
+    .search-filter-bar {
+        margin-bottom: 1.25rem;
+    }
+
+    .filter-chip {
+        font-size: 11px;
+        padding: 4px 11px;
+    }
+}

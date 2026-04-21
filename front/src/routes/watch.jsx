@@ -12,10 +12,6 @@ import ReloadIcon from "../assets/reload.png"
 import StarIcon from "../assets/star.png"
 import AutonextIcon from "../assets/autonext.png"
 
-let video = "null"
-
-let DisplayData
-
 export default function App() {
     // useParams must come first — id is needed to initialize progressReady
     const { id } = useParams();
@@ -52,6 +48,14 @@ export default function App() {
     const plyrRef = useRef(null);
     const flashTimeoutRef = useRef(null);
 
+    const [upNextInfo, setUpNextInfo] = useState(null); // { targetEpisode, targetSeason }
+    const [upNextSeconds, setUpNextSeconds] = useState(5);
+    const upNextTimerRef = useRef(null);
+    const upNextInfoRef = useRef(null);
+
+    const [providerToast, setProviderToast] = useState(null);
+    const providerToastTimerRef = useRef(null);
+
     const[bookmarked, setBookmark] = useState(-1);
     const [reviews, setReviews] = useState([]);
     const [reviewRating, setReviewRating] = useState(0);
@@ -77,6 +81,9 @@ export default function App() {
 
     const startTimeRef = useRef(Date.now());
     const contentNameRef = useRef('');
+    const continueTrackedRef = useRef(false);
+    const playbackStateRef = useRef({});
+    const savePositionTimerRef = useRef(null);
 
     let location = useLocation();
     const navigate = useNavigate();
@@ -108,6 +115,27 @@ export default function App() {
                 }).catch(() => {});
             }
         };
+    }, []);
+
+    // Log to continue watching only after 30 seconds to avoid accidental entries
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (continueTrackedRef.current) return;
+            continueTrackedRef.current = true;
+            const trackUser = localStorage.getItem('user');
+            const trackToken = localStorage.getItem('token');
+            if (!trackUser || !trackToken) return;
+            let continues;
+            try { continues = JSON.parse(localStorage.getItem('continues')); } catch { continues = []; }
+            if (!Array.isArray(continues)) continues = [];
+            if (!continues.includes(id)) {
+                continues.push(id);
+                localStorage.setItem('continues', JSON.stringify(continues));
+            }
+            localStorage.setItem('lastWatched_' + id, Date.now());
+            axios({ method: 'post', url: 'https://goldenhind.tech/continue', data: { user: trackUser, token: trackToken, favId: id } });
+        }, 30000);
+        return () => clearTimeout(timer);
     }, []);
 
     // Keep contentNameRef in sync so the unmount closure always has the latest title
@@ -160,13 +188,14 @@ export default function App() {
                 setLmSubtitles(r.data.subtitles || []);
                 setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
             } else {
-                // Content not found on LookMovie — silently fall back to provider 1
                 setProvider(1);
                 localStorage.setItem("provider" + vidID, 1);
+                showProviderToast('LookMovie unavailable — switched to Server 1');
             }
         }).catch(() => {
             setProvider(1);
             localStorage.setItem("provider" + vidID, 1);
+            showProviderToast('LookMovie unavailable — switched to Server 1');
         }).finally(() => setLmLoading(false));
     }, [provider, season, episode, progressReady]);
 
@@ -222,7 +251,15 @@ export default function App() {
             trackIndex++;
         });
 
+        const posKey = type === 'tv'
+            ? `playbackPos_${id}_s${season}_e${episode}`
+            : `playbackPos_${id}`;
+
         const initPlyr = () => {
+            const savedVolume = parseFloat(localStorage.getItem('playerVolume'));
+            const savedSpeed = parseFloat(localStorage.getItem('playerSpeed'));
+            const savedPos = parseFloat(localStorage.getItem(posKey) || '0');
+
             const player = new Plyr(video, {
                 controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'captions', 'settings', 'pip', 'fullscreen'],
                 settings: ['captions', 'quality', 'speed'],
@@ -230,8 +267,41 @@ export default function App() {
                 ratio: '16:9',
                 keyboard: { focused: false, global: false },
                 fullscreen: { enabled: true, fallback: true, iosNative: true },
+                volume: isNaN(savedVolume) ? 1 : Math.min(1, Math.max(0, savedVolume)),
+                speed: { selected: isNaN(savedSpeed) ? 1 : savedSpeed, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
             });
             plyrRef.current = player;
+
+            // Restore playback position (skip if < 5s to avoid replaying a fresh start)
+            if (savedPos > 5) {
+                video.addEventListener('canplay', () => { video.currentTime = savedPos; }, { once: true });
+            }
+
+            // Save position every 5 seconds while playing
+            let lastSaved = 0;
+            player.on('timeupdate', () => {
+                const now = Date.now();
+                if (now - lastSaved > 5000 && player.currentTime > 5) {
+                    lastSaved = now;
+                    localStorage.setItem(posKey, player.currentTime);
+                }
+            });
+
+            // Persist volume and speed preferences across sessions
+            player.on('volumechange', () => localStorage.setItem('playerVolume', player.volume));
+            player.on('ratechange', () => localStorage.setItem('playerSpeed', player.speed));
+
+            // Auto-next for provider 4 — show countdown overlay, advance when it reaches 0
+            player.on('ended', () => {
+                localStorage.removeItem(posKey);
+                const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
+                if (an !== 1) return;
+                if (ep == mEp) {
+                    if (se < mSe) triggerUpNext(1, parseInt(se) + 1);
+                } else {
+                    triggerUpNext(parseInt(ep) + 1, parseInt(se));
+                }
+            });
         };
 
         if (Hls.isSupported()) {
@@ -242,6 +312,21 @@ export default function App() {
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
                 initPlyr();
                 plyrRef.current?.play().catch(() => {});
+            });
+            hls.on(Hls.Events.ERROR, (_, data) => {
+                if (!data.fatal) return;
+                switch (data.type) {
+                    case Hls.ErrorTypes.NETWORK_ERROR:
+                        hls.startLoad();
+                        break;
+                    case Hls.ErrorTypes.MEDIA_ERROR:
+                        hls.recoverMediaError();
+                        break;
+                    default:
+                        hls.destroy();
+                        hlsRef.current = null;
+                        break;
+                }
             });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = lmUrl;
@@ -275,6 +360,53 @@ export default function App() {
         p.currentTime = Math.min(p.duration || 0, p.currentTime + 10);
         triggerFlash('forward');
     };
+
+    // ── Up-next countdown helpers ────────────────────────────────────────────────
+
+    const triggerUpNext = (targetEpisode, targetSeason) => {
+        upNextInfoRef.current = { targetEpisode, targetSeason };
+        setUpNextInfo({ targetEpisode, targetSeason });
+        setUpNextSeconds(5);
+    };
+
+    const cancelUpNext = () => {
+        upNextInfoRef.current = null;
+        setUpNextInfo(null);
+        clearInterval(upNextTimerRef.current);
+        upNextTimerRef.current = null;
+    };
+
+    const showProviderToast = (msg) => {
+        clearTimeout(providerToastTimerRef.current);
+        setProviderToast(msg);
+        providerToastTimerRef.current = setTimeout(() => setProviderToast(null), 4000);
+    };
+
+    useEffect(() => {
+        if (!upNextInfo) return;
+        clearInterval(upNextTimerRef.current);
+        upNextTimerRef.current = setInterval(() => {
+            setUpNextSeconds(s => {
+                if (s <= 1) {
+                    clearInterval(upNextTimerRef.current);
+                    upNextTimerRef.current = null;
+                    const info = upNextInfoRef.current;
+                    if (info) {
+                        upNextInfoRef.current = null;
+                        setUpNextInfo(null);
+                        localStorage.setItem('episode' + id, info.targetEpisode);
+                        localStorage.setItem('season' + id, info.targetSeason);
+                        setEpisode(info.targetEpisode);
+                        setSeason(info.targetSeason);
+                        setAutoPlay(1);
+                    }
+                    return 5;
+                }
+                return s - 1;
+            });
+        }, 1000);
+        return () => clearInterval(upNextTimerRef.current);
+    }, [upNextInfo]);
 
     // Keyboard shortcuts for provider 4
     useEffect(() => {
@@ -325,6 +457,34 @@ export default function App() {
         return () => document.removeEventListener('keydown', onKey);
     }, [provider]);
 
+    // Keep a live snapshot of playback state so event handler closures never go stale
+    useEffect(() => {
+        playbackStateRef.current = { autoNext, episode, season, maxEp, maxSe };
+    }, [autoNext, episode, season, maxEp, maxSe]);
+
+    // Block ad pop-ups from iframe providers — run once on mount
+    useEffect(() => {
+        const originalOpen = window.open;
+        window.open = () => { console.log("window!"); };
+        return () => { window.open = originalOpen; };
+    }, []);
+
+    // Auto-next for iframe providers (1–3) — single persistent listener, reads live state via ref
+    useEffect(() => {
+        const handler = (event) => {
+            if (event.data?.data?.event !== 'ended') return;
+            const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
+            if (an !== 1) return;
+            if (ep == mEp) {
+                if (se < mSe) triggerUpNext(1, parseInt(se) + 1);
+            } else {
+                triggerUpNext(parseInt(ep) + 1, parseInt(se));
+            }
+        };
+        window.addEventListener('message', handler);
+        return () => window.removeEventListener('message', handler);
+    }, []);
+
     // Keep panelSeason in sync when the user navigates via arrow buttons
     useEffect(() => {
         setPanelSeason(parseInt(season));
@@ -358,6 +518,7 @@ export default function App() {
         })
     }
 
+    let video = '';
     if (!(id == null)) {
         if (provider == 1) {
             if (type == 'movie') {
@@ -560,67 +721,9 @@ export default function App() {
             setBookmark(1)
         }
 
-        if(localStorage.getItem("continues").indexOf(id) == -1) { 
-            let continues = localStorage.getItem("continues")
-            continues = JSON.parse(continues)
-
-            continues.push(id)
-            continues = JSON.stringify(continues)
-            localStorage.setItem("continues", continues)
-
-            axios({
-                method: 'post',
-                url: 'https://goldenhind.tech/continue',
-                data: {
-                    user: user,
-                    token: token,
-                    favId: id,
-                }
-            });
-        } else {
-            console.log("already in continues")
-            axios({
-                method: 'post',
-                url: 'https://goldenhind.tech/continue',
-                data: {
-                    user: user,
-                    token: token,
-                    favId: id,
-                }
-            });
-        }
 
     })
 
-    window.open = function (open) {
-        return function (url, name, features) {
-            // set name if missing here
-            console.log("window!")
-        };
-    }(window.open);
-
-    window.addEventListener('message', (event) => {
-        if (event.data?.data.event === 'ended') {
-            if (autoNext == 1) {
-                if (episode == maxEp) {
-                    if (season == maxSe) {
-
-                    } else {
-                        localStorage.setItem("episode" + id, 1); 
-                        localStorage.setItem("season" + id, parseInt(season) + 1);
-                        setEpisode(1);
-                        setSeason(parseInt(season) + 1);
-                        setAutoPlay(1); 
-                    }
-                } else {
-                    localStorage.setItem("episode" + id, parseInt(episode) + 1); 
-                    
-                    setEpisode(parseInt(episode) + 1);
-                    setAutoPlay(1);
-                }
-            }
-        }
-    });
 
 
 
@@ -712,7 +815,7 @@ export default function App() {
                             <div
                                 ref={lmContainerRef}
                                 className="watch-player-file"
-                                style={{background: '#000'}}
+                                style={{ background: '#000', opacity: lmLoading ? 0 : 1, transition: 'opacity 0.3s' }}
                             />
                             {lmLoading && (
                                 <div className="watch-lm-state" style={{position:'absolute',inset:0,zIndex:5}}>
@@ -742,6 +845,12 @@ export default function App() {
                             {skipFlash && (
                                 <div className={`lm-skip-flash lm-skip-flash-${skipFlash}`}>
                                     {skipFlash === 'forward' ? '+10s' : '−10s'}
+                                </div>
+                            )}
+                            {upNextInfo && (
+                                <div className="up-next-overlay">
+                                    <span className="up-next-text">Next episode in {upNextSeconds}s</span>
+                                    <button className="up-next-cancel" onClick={cancelUpNext}>Cancel</button>
                                 </div>
                             )}
                         </>
@@ -928,6 +1037,9 @@ export default function App() {
                     ))}
                 </div>
             </div>
+            {providerToast && (
+                <div className="provider-toast">{providerToast}</div>
+            )}
         </>
     );
   }

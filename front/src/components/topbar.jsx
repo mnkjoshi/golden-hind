@@ -18,6 +18,15 @@ export default function Topbar() {
     const [isScrolled, setIsScrolled] = useState(false);
     const [showChristmas, setShowChristmas] = useState(true);
 
+    const [suggestions, setSuggestions] = useState([]);
+    const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+    const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+    const [searchHistory, setSearchHistory] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('searchHistory') || '[]'); } catch { return []; }
+    });
+    const suggestDebounceRef = useRef(null);
+    const searchWrapperRef = useRef(null);
+
     // Account modal
     const [showAccountModal, setShowAccountModal] = useState(false);
     const [accountInfo, setAccountInfo] = useState(null);
@@ -56,6 +65,9 @@ export default function Topbar() {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                 setDropdownOpen(false);
             }
+            if (searchWrapperRef.current && !searchWrapperRef.current.contains(e.target)) {
+                setShowSearchDropdown(false);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -72,14 +84,49 @@ export default function Topbar() {
         return () => document.removeEventListener('keydown', handleEsc);
     }, []);
 
-    const handleSearch = (e) => {
-        if (e.key === 'Enter' && searchValue.trim()) {
-            if (location.pathname === '/books') {
-                navigate('/books', { state: { searched: searchValue.trim() } });
-            } else {
-                navigate('/search', { state: { searched: searchValue.trim() } });
-            }
+    const commitSearch = (query) => {
+        const q = query.trim();
+        if (!q) return;
+        const updated = [q, ...searchHistory.filter(h => h !== q)].slice(0, 8);
+        setSearchHistory(updated);
+        localStorage.setItem('searchHistory', JSON.stringify(updated));
+        setShowSearchDropdown(false);
+        setSuggestions([]);
+        clearTimeout(suggestDebounceRef.current);
+        if (location.pathname === '/books') {
+            navigate('/books', { state: { searched: q } });
+        } else {
+            navigate('/search', { state: { searched: q } });
         }
+    };
+
+    const handleSearch = (e) => {
+        if (e.key === 'Enter') commitSearch(searchValue);
+        if (e.key === 'Escape') setShowSearchDropdown(false);
+    };
+
+    const handleSearchChange = (e) => {
+        const val = e.target.value;
+        setSearchValue(val);
+        clearTimeout(suggestDebounceRef.current);
+        if (val.trim().length < 2) { setSuggestions([]); return; }
+        suggestDebounceRef.current = setTimeout(async () => {
+            setSuggestionsLoading(true);
+            try {
+                const res = await axios.post('https://goldenhind.tech/search', { query: val.trim() });
+                const raw = res.data;
+                const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                setSuggestions((list || []).slice(0, 5));
+            } catch { setSuggestions([]); }
+            setSuggestionsLoading(false);
+        }, 300);
+    };
+
+    const removeFromHistory = (e, item) => {
+        e.stopPropagation();
+        const updated = searchHistory.filter(h => h !== item);
+        setSearchHistory(updated);
+        localStorage.setItem('searchHistory', JSON.stringify(updated));
     };
 
     const handleLogout = () => {
@@ -183,7 +230,7 @@ export default function Topbar() {
 
                     {/* Right Side */}
                     <div className="topbar-right">
-                        <div className="search-container">
+                        <div className="search-container" ref={searchWrapperRef}>
                             <div className="search-wrapper">
                                 <svg className="search-icon" viewBox="0 0 24 24" fill="none">
                                     <path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -193,11 +240,47 @@ export default function Topbar() {
                                     type="text"
                                     placeholder="Search movies, TV shows..."
                                     value={searchValue}
-                                    onChange={(e) => setSearchValue(e.target.value)}
+                                    onChange={handleSearchChange}
                                     onKeyDown={handleSearch}
+                                    onFocus={() => setShowSearchDropdown(true)}
                                     autoComplete="off"
                                 />
                             </div>
+                            {showSearchDropdown && (suggestionsLoading || suggestions.length > 0 || (searchValue.trim().length < 2 && searchHistory.length > 0)) && (
+                                <div className="search-dropdown">
+                                    {suggestionsLoading && (
+                                        <div className="suggestion-loading">Searching…</div>
+                                    )}
+                                    {!suggestionsLoading && suggestions.length > 0 && suggestions.map((s, i) => (
+                                        <div
+                                            key={i}
+                                            className="suggestion-item"
+                                            onMouseDown={() => { const t = s.title || s.name || ''; setSearchValue(t); commitSearch(t); }}
+                                        >
+                                            <svg className="suggestion-search-icon" viewBox="0 0 24 24" fill="none">
+                                                <path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                            </svg>
+                                            <span className="suggestion-text">{s.title || s.name}</span>
+                                            <span className={`suggestion-badge suggestion-badge-${s.media_type === 'movie' ? 'movie' : 'tv'}`}>
+                                                {s.media_type === 'movie' ? 'Movie' : 'TV'}
+                                            </span>
+                                        </div>
+                                    ))}
+                                    {!suggestionsLoading && suggestions.length === 0 && searchValue.trim().length < 2 && searchHistory.length > 0 && (
+                                        <div className="search-history-section">
+                                            <div className="search-history-label">Recent searches</div>
+                                            <div className="search-history-chips">
+                                                {searchHistory.map((h, i) => (
+                                                    <div key={i} className="search-history-chip" onMouseDown={() => { setSearchValue(h); commitSearch(h); }}>
+                                                        <span>{h}</span>
+                                                        <button className="history-chip-remove" onMouseDown={(e) => removeFromHistory(e, h)}>×</button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <div className="account-section" ref={dropdownRef}>
