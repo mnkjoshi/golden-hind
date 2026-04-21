@@ -50,8 +50,11 @@ export default function App() {
 
     const [upNextInfo, setUpNextInfo] = useState(null); // { targetEpisode, targetSeason }
     const [upNextSeconds, setUpNextSeconds] = useState(5);
+    const [upNextCounting, setUpNextCounting] = useState(false);
+    const [nextEpData, setNextEpData] = useState(null); // { name, still_path }
     const upNextTimerRef = useRef(null);
     const upNextInfoRef = useRef(null);
+    const executeUpNextRef = useRef(null);
 
     const [providerToast, setProviderToast] = useState(null);
     const providerToastTimerRef = useRef(null);
@@ -277,13 +280,24 @@ export default function App() {
                 video.addEventListener('canplay', () => { video.currentTime = savedPos; }, { once: true });
             }
 
-            // Save position every 5 seconds while playing
+            // Save position every 5 seconds while playing; show up-next popup at 95%
             let lastSaved = 0;
+            let upNextShown = false;
             player.on('timeupdate', () => {
                 const now = Date.now();
                 if (now - lastSaved > 5000 && player.currentTime > 5) {
                     lastSaved = now;
                     localStorage.setItem(posKey, player.currentTime);
+                }
+                const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
+                if (an === 1 && !upNextShown && player.duration > 0 && player.currentTime / player.duration >= 0.95) {
+                    const hasNext = parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe);
+                    if (hasNext) {
+                        upNextShown = true;
+                        const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
+                        const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
+                        triggerUpNext(nextEp, nextSe);
+                    }
                 }
             });
 
@@ -291,15 +305,21 @@ export default function App() {
             player.on('volumechange', () => localStorage.setItem('playerVolume', player.volume));
             player.on('ratechange', () => localStorage.setItem('playerSpeed', player.speed));
 
-            // Auto-next for provider 4 — show countdown overlay, advance when it reaches 0
+            // Auto-next for provider 4 — execute immediately on end (popup already showing from 95%)
             player.on('ended', () => {
                 localStorage.removeItem(posKey);
                 const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
                 if (an !== 1) return;
-                if (ep == mEp) {
-                    if (se < mSe) triggerUpNext(1, parseInt(se) + 1);
+                if (upNextInfoRef.current) {
+                    executeUpNextRef.current?.();
                 } else {
-                    triggerUpNext(parseInt(ep) + 1, parseInt(se));
+                    // fallback if 95% trigger didn't fire
+                    const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
+                    const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
+                    if (parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe)) {
+                        upNextInfoRef.current = { targetEpisode: nextEp, targetSeason: nextSe };
+                        executeUpNextRef.current?.();
+                    }
                 }
             });
         };
@@ -372,6 +392,7 @@ export default function App() {
     const cancelUpNext = () => {
         upNextInfoRef.current = null;
         setUpNextInfo(null);
+        setUpNextCounting(false);
         clearInterval(upNextTimerRef.current);
         upNextTimerRef.current = null;
     };
@@ -382,31 +403,23 @@ export default function App() {
         providerToastTimerRef.current = setTimeout(() => setProviderToast(null), 4000);
     };
 
+    // Countdown only runs for iframe providers (provider 4 executes immediately on ended)
     useEffect(() => {
-        if (!upNextInfo) return;
+        if (!upNextCounting || !upNextInfo) return;
         clearInterval(upNextTimerRef.current);
         upNextTimerRef.current = setInterval(() => {
             setUpNextSeconds(s => {
                 if (s <= 1) {
                     clearInterval(upNextTimerRef.current);
                     upNextTimerRef.current = null;
-                    const info = upNextInfoRef.current;
-                    if (info) {
-                        upNextInfoRef.current = null;
-                        setUpNextInfo(null);
-                        localStorage.setItem('episode' + id, info.targetEpisode);
-                        localStorage.setItem('season' + id, info.targetSeason);
-                        setEpisode(info.targetEpisode);
-                        setSeason(info.targetSeason);
-                        setAutoPlay(1);
-                    }
+                    executeUpNextRef.current?.();
                     return 5;
                 }
                 return s - 1;
             });
         }, 1000);
         return () => clearInterval(upNextTimerRef.current);
-    }, [upNextInfo]);
+    }, [upNextCounting, upNextInfo]);
 
     // Keyboard shortcuts for provider 4
     useEffect(() => {
@@ -469,16 +482,17 @@ export default function App() {
         return () => { window.open = originalOpen; };
     }, []);
 
-    // Auto-next for iframe providers (1–3) — single persistent listener, reads live state via ref
+    // Auto-next for iframe providers (1–3) — show popup + start countdown on ended
     useEffect(() => {
         const handler = (event) => {
             if (event.data?.data?.event !== 'ended') return;
             const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
             if (an !== 1) return;
-            if (ep == mEp) {
-                if (se < mSe) triggerUpNext(1, parseInt(se) + 1);
-            } else {
-                triggerUpNext(parseInt(ep) + 1, parseInt(se));
+            const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
+            const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
+            if (parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe)) {
+                triggerUpNext(nextEp, nextSe);
+                setUpNextCounting(true);
             }
         };
         window.addEventListener('message', handler);
@@ -799,12 +813,43 @@ export default function App() {
     //     })
     // }
 
+    // Fetch next episode metadata for the up-next popup
+    useEffect(() => {
+        if (type !== 'tv' || !maxEp || !maxSe) return;
+        const nextEp = parseInt(episode) < parseInt(maxEp) ? parseInt(episode) + 1 : 1;
+        const nextSe = parseInt(episode) < parseInt(maxEp) ? parseInt(season) : parseInt(season) + 1;
+        if (nextSe > parseInt(maxSe)) { setNextEpData(null); return; }
+        axios.post('https://goldenhind.tech/eretrieve', { user, token, series: vidID, season: nextSe, episode: nextEp })
+            .then(r => setNextEpData({ name: r.data.name, still_path: r.data.still_path }))
+            .catch(() => setNextEpData(null));
+    }, [episode, season, maxEp, maxSe]);
+
+    // Keep executeUpNextRef current so Plyr event closures always call the latest version
+    executeUpNextRef.current = () => {
+        const info = upNextInfoRef.current;
+        if (!info) return;
+        upNextInfoRef.current = null;
+        setUpNextInfo(null);
+        setUpNextCounting(false);
+        clearInterval(upNextTimerRef.current);
+        upNextTimerRef.current = null;
+        localStorage.setItem('episode' + id, info.targetEpisode);
+        localStorage.setItem('season' + id, info.targetSeason);
+        setEpisode(info.targetEpisode);
+        setSeason(info.targetSeason);
+        setAutoPlay(1);
+    };
+
     return (
         <>
         <div className= "watch-main" id= "watch-main">
             {!(seriesData == null) ? (!(seriesData.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + seriesData.backdrop_path}/>  : null): null}
             {!(data == null) ? (!(data.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + data.backdrop_path}/>  : null): null}
             <Topbar/>
+            <button className="watch-back-btn" onClick={() => navigate(`/detail/${id}`)}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                Details
+            </button>
             <div className= "watch-holder" id= "watch-holder">
                 <div className= "watch-system">
                 <div className= "watch-player">
@@ -849,8 +894,18 @@ export default function App() {
                             )}
                             {upNextInfo && (
                                 <div className="up-next-overlay">
-                                    <span className="up-next-text">Next episode in {upNextSeconds}s</span>
-                                    <button className="up-next-cancel" onClick={cancelUpNext}>Cancel</button>
+                                    {nextEpData?.still_path && (
+                                        <img className="up-next-thumb" src={`https://image.tmdb.org/t/p/w300/${nextEpData.still_path}`} alt="" />
+                                    )}
+                                    <div className="up-next-info">
+                                        <span className="up-next-label">Up Next</span>
+                                        {nextEpData?.name && <span className="up-next-ep-name">{nextEpData.name}</span>}
+                                        {upNextCounting && <span className="up-next-text">Auto-playing in {upNextSeconds}s</span>}
+                                    </div>
+                                    <div className="up-next-actions">
+                                        <button className="up-next-play-now" onClick={() => executeUpNextRef.current?.()}>Play Now</button>
+                                        <button className="up-next-cancel" onClick={cancelUpNext}>✕</button>
+                                    </div>
                                 </div>
                             )}
                         </>
@@ -868,7 +923,6 @@ export default function App() {
                 </div>
                 <div className= "watch-options">
                     <div className= "watch-left">
-                        
                         {type == "movie" ? <MovieDisplay data= {data}/> : <EpisodeDisplay data = {data} season = {season} episode = {episode} setSeason = {setSeason} setEpisode = {setEpisode} maxEp= {maxEp} maxSe= {maxSe} id= {id}/>}
 
                         <div className= "watch-toggles1">

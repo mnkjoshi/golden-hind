@@ -27,6 +27,39 @@ export default function Detail() {
 
     const [resumeSeason, setResumeSeason] = useState(null);
     const [resumeEpisode, setResumeEpisode] = useState(null);
+    const [trailerVisible, setTrailerVisible] = useState(false);
+    const trailerTimerRef = useRef(null);
+
+    const [reviews, setReviews] = useState([]);
+    const [reviewRating, setReviewRating] = useState(0);
+    const [reviewHover, setReviewHover] = useState(0);
+    const [reviewText, setReviewText] = useState('');
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
+    // Fetch reviews
+    useEffect(() => {
+        axios.get(`${API}/reviews?contentId=${id}`)
+            .then(r => setReviews(r.data.reviews || []))
+            .catch(() => {});
+    }, [id]);
+
+    const submitReview = () => {
+        if (!reviewRating || reviewSubmitting) return;
+        setReviewSubmitting(true);
+        axios.post(`${API}/review`, { user, token, contentId: id, rating: reviewRating, text: reviewText })
+            .then(r => {
+                if (r.data.success) {
+                    setReviews(prev => {
+                        const filtered = prev.filter(rv => rv.username !== user);
+                        return [{ username: user, rating: reviewRating, text: reviewText, timestamp: Date.now() }, ...filtered];
+                    });
+                    setReviewText('');
+                    setReviewRating(0);
+                }
+            })
+            .catch(() => {})
+            .finally(() => setReviewSubmitting(false));
+    };
 
     // Read resume position from localStorage on mount
     useEffect(() => {
@@ -64,6 +97,16 @@ export default function Detail() {
         }).catch(() => setLoading(false));
     }, [id]);
 
+    // Fade trailer in after giving the iframe time to buffer
+    useEffect(() => {
+        clearTimeout(trailerTimerRef.current);
+        setTrailerVisible(false);
+        if (trailerKey) {
+            trailerTimerRef.current = setTimeout(() => setTrailerVisible(true), 2500);
+        }
+        return () => clearTimeout(trailerTimerRef.current);
+    }, [trailerKey]);
+
     // Fetch season episodes whenever selected season changes
     useEffect(() => {
         if (mediaType !== 'tv' || !detail) return;
@@ -82,6 +125,9 @@ export default function Detail() {
     const handleEpisodePlay = (season, episode) => {
         localStorage.setItem('season' + id, season);
         localStorage.setItem('episode' + id, episode);
+        axios.post(`${API}/progress_update`, {
+            user, token, progID: id, progStatus: `${season};${episode}`
+        }).catch(() => {});
         navigate(`/watch/${id}`);
     };
 
@@ -184,10 +230,22 @@ export default function Detail() {
             <Topbar />
 
             {/* ── Hero ── */}
-            <div
-                className="detail-hero"
-                style={{ backgroundImage: backdrop ? `url(https://image.tmdb.org/t/p/original/${backdrop})` : undefined }}
-            >
+            <div className="detail-hero">
+                {/* Backdrop image — fades out when trailer appears */}
+                <div
+                    className={`detail-hero-backdrop${trailerVisible ? ' hidden' : ''}`}
+                    style={{ backgroundImage: backdrop ? `url(https://image.tmdb.org/t/p/original/${backdrop})` : undefined }}
+                />
+                {/* Full-screen trailer — fades in after buffer */}
+                {trailerKey && (
+                    <div className={`detail-hero-trailer${trailerVisible ? ' visible' : ''}`}>
+                        <iframe
+                            src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&controls=0&loop=1&playlist=${trailerKey}&mute=1`}
+                            allow="autoplay; encrypted-media"
+                            title="Trailer"
+                        />
+                    </div>
+                )}
                 <div className="detail-hero-vignette" />
 
                 <div className="detail-hero-body">
@@ -246,7 +304,8 @@ export default function Detail() {
                                                 : <div className="detail-cast-placeholder">{actor.name[0]}</div>
                                             }
                                         </div>
-                                        <span className="detail-cast-name">{actor.name.split(' ')[0]}</span>
+                                        {actor.character && <span className="detail-cast-character">{actor.character}</span>}
+                                        <span className="detail-cast-name">{actor.name}</span>
                                     </div>
                                 ))}
                             </div>
@@ -279,105 +338,128 @@ export default function Detail() {
                         </div>
                     </div>
 
-                    {/* Trailer / backdrop panel */}
-                    <div className="detail-trailer-panel">
-                        <div className="detail-trailer-fade" />
-                        {trailerKey ? (
-                            <iframe
-                                src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&controls=0&loop=1&playlist=${trailerKey}&mute=1`}
-                                allow="autoplay; encrypted-media"
-                                title="Trailer"
-                            />
-                        ) : backdrop ? (
-                            <img
-                                className="detail-trailer-fallback"
-                                src={`https://image.tmdb.org/t/p/w1280/${backdrop}`}
-                                alt=""
-                            />
-                        ) : null}
-                    </div>
                 </div>
             </div>
 
-            {/* ── Episodes (TV only) ── */}
-            {mediaType === 'tv' && seasons.length > 0 && (
-                <div className="detail-episodes-section">
-                    <div className="detail-season-bar">
-                        <h2 className="detail-section-heading">Episodes</h2>
-                        <div className="detail-season-tabs">
-                            {seasons.map(s => (
-                                <button
-                                    key={s.season_number}
-                                    className={`detail-season-tab${selectedSeason === s.season_number ? ' active' : ''}`}
-                                    onClick={() => setSelectedSeason(s.season_number)}
-                                >
-                                    Season {s.season_number}
-                                </button>
-                            ))}
+            {/* ── Lower section: episodes + reviews ── */}
+            <div className={`detail-lower-section${mediaType === 'movie' ? ' detail-lower-movie' : ''}`}>
+                {/* Episodes — TV only */}
+                {mediaType === 'tv' && seasons.length > 0 && (
+                    <div className="detail-episodes-section">
+                        <div className="detail-season-bar">
+                            <h2 className="detail-section-heading">Episodes</h2>
+                            <div className="detail-season-tabs">
+                                {seasons.map(s => (
+                                    <button
+                                        key={s.season_number}
+                                        className={`detail-season-tab${selectedSeason === s.season_number ? ' active' : ''}`}
+                                        onClick={() => setSelectedSeason(s.season_number)}
+                                    >
+                                        Season {s.season_number}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="detail-episode-list">
+                            {seasonLoading
+                                ? [...Array(5)].map((_, i) => <div key={i} className="detail-episode-skeleton" />)
+                                : seasonEpisodes?.episodes?.map(ep => (
+                                    <div
+                                        key={ep.episode_number}
+                                        className="detail-episode-row"
+                                        onClick={() => handleEpisodePlay(selectedSeason, ep.episode_number)}
+                                    >
+                                        <div className="detail-episode-thumb">
+                                            {ep.still_path
+                                                ? <img src={`https://image.tmdb.org/t/p/w300/${ep.still_path}`} alt="" />
+                                                : <div className="detail-episode-no-thumb" />
+                                            }
+                                            <div className="detail-episode-play-icon">▶</div>
+                                        </div>
+                                        <div className="detail-episode-info">
+                                            <div className="detail-episode-header">
+                                                <span className="detail-episode-num">E{ep.episode_number}</span>
+                                                <span className="detail-episode-title">{ep.name}</span>
+                                                <div className="detail-episode-meta">
+                                                    {ep.runtime ? <span>{ep.runtime} min</span> : null}
+                                                    {ep.air_date ? <span>{formatDate(ep.air_date)}</span> : null}
+                                                    {ep.vote_average > 0 ? <span>★ {ep.vote_average.toFixed(1)}</span> : null}
+                                                </div>
+                                            </div>
+                                            {ep.overview && <p className="detail-episode-overview">{ep.overview}</p>}
+                                        </div>
+                                    </div>
+                                ))
+                            }
                         </div>
                     </div>
+                )}
 
-                    <div className="detail-episode-list">
-                        {seasonLoading
-                            ? [...Array(5)].map((_, i) => <div key={i} className="detail-episode-skeleton" />)
-                            : seasonEpisodes?.episodes?.map(ep => (
-                                <div
-                                    key={ep.episode_number}
-                                    className="detail-episode-row"
-                                    onClick={() => handleEpisodePlay(selectedSeason, ep.episode_number)}
-                                >
-                                    <div className="detail-episode-thumb">
-                                        {ep.still_path
-                                            ? <img src={`https://image.tmdb.org/t/p/w300/${ep.still_path}`} alt="" />
-                                            : <div className="detail-episode-no-thumb" />
-                                        }
-                                        <div className="detail-episode-play-icon">▶</div>
-                                    </div>
-                                    <div className="detail-episode-info">
-                                        <div className="detail-episode-header">
-                                            <span className="detail-episode-num">E{ep.episode_number}</span>
-                                            <span className="detail-episode-title">{ep.name}</span>
-                                            <div className="detail-episode-meta">
-                                                {ep.runtime ? <span>{ep.runtime} min</span> : null}
-                                                {ep.air_date ? <span>{formatDate(ep.air_date)}</span> : null}
-                                                {ep.vote_average > 0 ? <span>★ {ep.vote_average.toFixed(1)}</span> : null}
-                                            </div>
-                                        </div>
-                                        {ep.overview && <p className="detail-episode-overview">{ep.overview}</p>}
-                                    </div>
-                                </div>
-                            ))
-                        }
-                    </div>
-                </div>
-            )}
-
-            {/* ── Similar ── */}
-            {similarData.length > 0 && (
-                <div className="detail-similar-section">
-                    <h2 className="detail-section-heading">Similar</h2>
-                    <div className="detail-similar-row">
-                        {similarData.filter(item => item.poster_path).map(item => (
-                            <div
-                                key={item.id}
-                                className="detail-similar-card"
-                                onClick={() => similarNavigate(item)}
+                {/* Reviews */}
+                <div className="detail-reviews-section">
+                    <h2 className="detail-section-heading">Reviews</h2>
+                    {reviews.length > 0 && (
+                        <p className="detail-reviews-avg">
+                            {'★'.repeat(Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length))}
+                            {'☆'.repeat(5 - Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length))}
+                            {' '}<span className="detail-reviews-avg-num">
+                                {(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)}
+                            </span>
+                            <span className="detail-reviews-count"> ({reviews.length})</span>
+                        </p>
+                    )}
+                    <div className="detail-review-form">
+                        <textarea
+                            className="detail-review-input"
+                            placeholder="Write a review… (optional)"
+                            value={reviewText}
+                            onChange={e => setReviewText(e.target.value)}
+                            maxLength={3000}
+                            rows={4}
+                        />
+                        <div className="detail-review-form-bottom">
+                            <div className="detail-review-stars">
+                                {[1,2,3,4,5].map(n => (
+                                    <button key={n}
+                                        className="detail-review-star-btn"
+                                        onClick={() => setReviewRating(n)}
+                                        onMouseEnter={() => setReviewHover(n)}
+                                        onMouseLeave={() => setReviewHover(0)}
+                                    >
+                                        {n <= (reviewHover || reviewRating) ? '★' : '☆'}
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                className="detail-review-submit"
+                                onClick={submitReview}
+                                disabled={!reviewRating || reviewSubmitting}
                             >
-                                <img
-                                    src={`https://image.tmdb.org/t/p/w300/${item.poster_path}`}
-                                    alt={item.title || item.name}
-                                />
-                                <div className="detail-similar-overlay">
-                                    <span className="detail-similar-name">{item.title || item.name}</span>
-                                    {item.vote_average > 0 && (
-                                        <span className="detail-similar-rating">★ {item.vote_average.toFixed(1)}</span>
-                                    )}
+                                {reviewSubmitting ? 'Submitting…' : 'Submit'}
+                            </button>
+                        </div>
+                    </div>
+                    <div className="detail-reviews-list">
+                        {reviews.length === 0 ? (
+                            <p className="detail-reviews-empty">No reviews yet. Be the first!</p>
+                        ) : reviews.map((rv, i) => (
+                            <div key={i} className="detail-review-card">
+                                <div className="detail-review-card-header">
+                                    <span className="detail-review-card-user">{rv.username}</span>
+                                    <span className="detail-review-card-stars">
+                                        {'★'.repeat(rv.rating)}{'☆'.repeat(5 - rv.rating)}
+                                    </span>
                                 </div>
+                                {rv.text && <p className="detail-review-card-text">{rv.text}</p>}
+                                <p className="detail-review-card-date">
+                                    {new Date(rv.timestamp).toLocaleDateString()}
+                                </p>
                             </div>
                         ))}
                     </div>
                 </div>
-            )}
+            </div>
 
             <div className="detail-footer-pad" />
         </div>

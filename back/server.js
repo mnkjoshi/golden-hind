@@ -331,13 +331,17 @@ app.post('/home-trailer', async (request, response) => {
     const { user, token, tmdbId, mediaType } = request.body;
     if (!await Authenticate(user, token)) return response.status(202).send("UNV");
     try {
+        const cacheKey = `${mediaType}-${tmdbId}`;
+        if (trailerCache.has(cacheKey)) return response.status(200).json(trailerCache.get(cacheKey));
         const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}/videos?api_key=${process.env.TMDB_Credentials}`;
         const res = await axios.get(url);
         const videos = res.data.results || [];
         const trailer = videos.find(v => v.site === 'YouTube' && v.type === 'Trailer')
                      || videos.find(v => v.site === 'YouTube' && v.type === 'Teaser')
                      || videos.find(v => v.site === 'YouTube');
-        response.status(200).json({ key: trailer?.key || null });
+        const result = { key: trailer?.key || null };
+        trailerCache.set(cacheKey, result);
+        response.status(200).json(result);
     } catch (error) {
         logError(user, '/home-trailer', error).catch(() => {});
         response.status(200).json({ key: null });
@@ -382,6 +386,10 @@ app.post('/home-trending', async (request, response) => {
 
 const tmdbCache = new Map();
 const logoCache = new Map();
+const trailerCache = new Map();
+const detailCache = new Map();
+const seasonCache = new Map();
+const similarCache = new Map();
 
 async function getTMDBLogo(mediaType, id) {
     const key = `${mediaType}-${id}`;
@@ -457,15 +465,18 @@ app.post('/similar', async (request, response) => {
 
     if (Authenticate(user, token)) {
         try {
+            if (similarCache.has(ID)) return response.status(200).send(JSON.stringify(similarCache.get(ID)));
             const Key = ID.slice(1, 100000)
             const Link = (ID.slice(0, 1) == "t" ? 'https://api.themoviedb.org/3/tv/' + Key + '/similar?api_key=' + process.env.TMDB_Credentials : 'https://api.themoviedb.org/3/movie/' + Key + '/similar?api_key=' + process.env.TMDB_Credentials)
-           
+
             const apiResponse = await axios({
                 method: 'get',
                 url: Link,
             });
+            const results = apiResponse.data.results.slice(0,4);
+            similarCache.set(ID, results);
             response.status(200)
-            response.send(JSON.stringify(apiResponse.data.results.slice(0,4)))
+            response.send(JSON.stringify(results))
         } catch(error) {
             logError(user, '/similar', error).catch(() => {});
             console.log(error)
@@ -513,10 +524,12 @@ app.post('/mretrieve', async (request, response) => {
 
     if (Authenticate(user, token)) {
         try {
+            if (tmdbCache.has('m' + movie)) return response.status(200).send(JSON.stringify(tmdbCache.get('m' + movie)));
             const apiResponse = await axios({
                 method: 'get',
                 url: 'https://api.themoviedb.org/3/movie/' + movie + '?api_key=' + process.env.TMDB_Credentials,
             });
+            tmdbCache.set('m' + movie, apiResponse.data);
             response.status(200)
             response.send(JSON.stringify(apiResponse.data))
         } catch(error) {
@@ -539,10 +552,12 @@ app.post('/sretrieve', async (request, response) => {
 
     if (Authenticate(user, token)) {
         try {
+            if (tmdbCache.has('t' + series)) return response.status(200).send(JSON.stringify(tmdbCache.get('t' + series)));
             const apiResponse = await axios({
                 method: 'get',
                 url: 'https://api.themoviedb.org/3/tv/' + series + '?api_key=' + process.env.TMDB_Credentials,
             });
+            tmdbCache.set('t' + series, apiResponse.data);
             response.status(200)
             response.send(JSON.stringify(apiResponse.data))
         } catch(error) {
@@ -563,11 +578,14 @@ app.post('/detail', async (request, response) => {
     const { user, token, tmdbId, mediaType } = request.body;
     if (Authenticate(user, token)) {
         try {
+            const cacheKey = `${mediaType}-${tmdbId}`;
+            if (detailCache.has(cacheKey)) return response.status(200).json(detailCache.get(cacheKey));
             const append = mediaType === 'movie' ? 'credits,release_dates,images' : 'credits,content_ratings,images';
             const url = mediaType === 'movie'
                 ? `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${process.env.TMDB_Credentials}&append_to_response=${append}&include_image_language=en,null`
                 : `https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${process.env.TMDB_Credentials}&append_to_response=${append}&include_image_language=en,null`;
             const apiResponse = await axios.get(url);
+            detailCache.set(cacheKey, apiResponse.data);
             response.status(200).json(apiResponse.data);
         } catch (error) {
             console.log(error);
@@ -584,8 +602,11 @@ app.post('/season', async (request, response) => {
     const { user, token, seriesId, seasonNumber } = request.body;
     if (Authenticate(user, token)) {
         try {
+            const cacheKey = `${seriesId}-S${seasonNumber}`;
+            if (seasonCache.has(cacheKey)) return response.status(200).json(seasonCache.get(cacheKey));
             const url = `https://api.themoviedb.org/3/tv/${seriesId}/season/${seasonNumber}?api_key=${process.env.TMDB_Credentials}`;
             const apiResponse = await axios.get(url);
+            seasonCache.set(cacheKey, apiResponse.data);
             response.status(200).json(apiResponse.data);
         } catch (error) {
             console.log(error);
