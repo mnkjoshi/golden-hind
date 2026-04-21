@@ -557,6 +557,45 @@ app.post('/sretrieve', async (request, response) => {
 
 });
 
+app.post('/detail', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, tmdbId, mediaType } = request.body;
+    if (Authenticate(user, token)) {
+        try {
+            const append = mediaType === 'movie' ? 'credits,release_dates,images' : 'credits,content_ratings,images';
+            const url = mediaType === 'movie'
+                ? `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${process.env.TMDB_Credentials}&append_to_response=${append}&include_image_language=en,null`
+                : `https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${process.env.TMDB_Credentials}&append_to_response=${append}&include_image_language=en,null`;
+            const apiResponse = await axios.get(url);
+            response.status(200).json(apiResponse.data);
+        } catch (error) {
+            console.log(error);
+            response.status(202).send("UKE");
+        }
+    } else {
+        response.status(202).send("UNV");
+    }
+});
+
+app.post('/season', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, seriesId, seasonNumber } = request.body;
+    if (Authenticate(user, token)) {
+        try {
+            const url = `https://api.themoviedb.org/3/tv/${seriesId}/season/${seasonNumber}?api_key=${process.env.TMDB_Credentials}`;
+            const apiResponse = await axios.get(url);
+            response.status(200).json(apiResponse.data);
+        } catch (error) {
+            console.log(error);
+            response.status(202).send("UKE");
+        }
+    } else {
+        response.status(202).send("UNV");
+    }
+});
+
 app.post('/favourite', async (request, response) => {
 
     response.setHeader("Access-Control-Allow-Credentials", "true");

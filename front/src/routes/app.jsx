@@ -682,9 +682,9 @@ export default function App() {
                                     className="hero-play-btn"
                                     onClick={() => {
                                         if (trendingData.results[heroIndex].media_type === "movie") {
-                                            navigate("/watch/m" + trendingData.results[heroIndex].id)
+                                            navigate("/detail/m" + trendingData.results[heroIndex].id)
                                         } else {
-                                            navigate("/watch/t" + trendingData.results[heroIndex].id)
+                                            navigate("/detail/t" + trendingData.results[heroIndex].id)
                                         }
                                     }}
                                 >
@@ -768,9 +768,9 @@ export default function App() {
                                     style={expandedCard?.uid === `continue:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
                                     onClick={() => {
                                         if (result.number_of_episodes == null) {
-                                            navigate("/watch/m" + result.id)
+                                            navigate("/detail/m" + result.id)
                                         } else {
-                                            navigate("/watch/t" + result.id)
+                                            navigate("/detail/t" + result.id)
                                         }
                                     }}
                                     onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'continue'); }}
@@ -846,7 +846,7 @@ export default function App() {
                                     <div
                                         key={result.id}
                                         className="content-card rec-wide-card"
-                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
+                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/detail/m' + result.id : '/detail/t' + result.id)}
                                         onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'recent-recs'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >
@@ -918,9 +918,9 @@ export default function App() {
                                     style={expandedCard?.uid === `trending:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
                                     onClick={() => {
                                         if (result.media_type === "movie") {
-                                            navigate("/watch/m" + result.id)
+                                            navigate("/detail/m" + result.id)
                                         } else {
-                                            navigate("/watch/t" + result.id)
+                                            navigate("/detail/t" + result.id)
                                         }
                                     }}
                                     onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'trending'); }}
@@ -975,7 +975,7 @@ export default function App() {
                                     <div
                                         key={result.id}
                                         className="content-card rec-wide-card"
-                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
+                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/detail/m' + result.id : '/detail/t' + result.id)}
                                         onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'recently-reviewed'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >
@@ -1052,9 +1052,9 @@ export default function App() {
                                     style={expandedCard?.uid === `bookmark:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
                                     onClick={() => {
                                         if (result.number_of_episodes == null) {
-                                            navigate("/watch/m" + result.id)
+                                            navigate("/detail/m" + result.id)
                                         } else {
-                                            navigate("/watch/t" + result.id)
+                                            navigate("/detail/t" + result.id)
                                         }
                                     }}
                                     onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'bookmark'); }}
@@ -1119,7 +1119,7 @@ export default function App() {
                                     <div
                                         key={result.id}
                                         className="content-card rec-wide-card"
-                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
+                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/detail/m' + result.id : '/detail/t' + result.id)}
                                         onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'wide'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >

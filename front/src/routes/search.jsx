@@ -239,9 +239,9 @@ export default function Search() {
                                 className="search-result-card"
                                 onClick={() => {
                                     if (result.media_type === "movie") {
-                                        navigate("/watch/m" + result.id)
+                                        navigate("/detail/m" + result.id)
                                     } else {
-                                        navigate("/watch/t" + result.id)
+                                        navigate("/detail/t" + result.id)
                                     }
                                 }}
                                 onMouseEnter={(e) => showTooltip(e, result)}

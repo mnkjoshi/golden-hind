@@ -1,0 +1,630 @@
+/* ── Detail Page ── */
+
+.detail-page {
+    min-height: 100vh;
+    background: #0a0a0a;
+    color: white;
+}
+
+/* Loading */
+.detail-loading {
+    min-height: 100vh;
+    background: #0a0a0a;
+}
+
+.detail-loading-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: calc(100vh - 60px);
+}
+
+.detail-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(63, 163, 255, 0.2);
+    border-top-color: #3FA3FF;
+    border-radius: 50%;
+    animation: detail-spin 0.8s linear infinite;
+}
+
+@keyframes detail-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Hero ── */
+.detail-hero {
+    position: relative;
+    min-height: 100vh;
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.detail-hero-vignette {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(to bottom, rgba(10,10,10,0.55) 0%, transparent 30%, transparent 50%, rgba(10,10,10,0.9) 80%, #0a0a0a 100%),
+        linear-gradient(to right, rgba(10,10,10,0.95) 0%, rgba(10,10,10,0.6) 45%, transparent 65%);
+    z-index: 1;
+}
+
+.detail-hero-body {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: flex-end;
+    min-height: 100vh;
+    padding: 0 0 5rem 0;
+}
+
+/* ── Info panel ── */
+.detail-info {
+    flex: 0 0 52%;
+    max-width: 52%;
+    padding: 0 3rem 0 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.detail-logo {
+    max-width: 340px;
+    max-height: 120px;
+    object-fit: contain;
+    object-position: left center;
+    filter: drop-shadow(0 4px 16px rgba(0,0,0,0.7));
+}
+
+.detail-title-text {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1.1;
+    text-shadow: 0 2px 16px rgba(0,0,0,0.8);
+    margin: 0;
+}
+
+/* Tags */
+.detail-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.detail-tag {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.85);
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.detail-tag-cert {
+    background: rgba(255,200,60,0.15);
+    border-color: rgba(255,200,60,0.4);
+    color: #ffc83c;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+/* Score */
+.detail-score {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+}
+
+.detail-score-star {
+    color: #ffc83c;
+    font-size: 1.1rem;
+}
+
+.detail-score-val {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.detail-score-denom {
+    font-size: 1rem;
+    color: rgba(255,255,255,0.5);
+}
+
+.detail-score-count {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.4);
+    margin-left: 0.25rem;
+}
+
+/* Overview */
+.detail-overview {
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: rgba(255,255,255,0.82);
+    margin: 0;
+    max-width: 520px;
+}
+
+/* Crew */
+.detail-crew-row {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.detail-crew-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.detail-crew-label {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.detail-crew-value {
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.9);
+    font-weight: 500;
+}
+
+/* Cast */
+.detail-cast {
+    display: flex;
+    gap: 0.9rem;
+    flex-wrap: wrap;
+}
+
+.detail-cast-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    width: 56px;
+}
+
+.detail-cast-photo {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid rgba(63,163,255,0.35);
+    flex-shrink: 0;
+}
+
+.detail-cast-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.detail-cast-placeholder {
+    width: 100%;
+    height: 100%;
+    background: rgba(63,163,255,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #3FA3FF;
+}
+
+.detail-cast-name {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.6);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 56px;
+}
+
+/* Actions */
+.detail-actions {
+    display: flex;
+    gap: 0.85rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.detail-play-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #fff;
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    padding: 0.75rem 1.8rem;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+}
+
+.detail-play-btn:hover {
+    background: rgba(255,255,255,0.88);
+    transform: scale(1.03);
+}
+
+.detail-watchlist-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.35);
+    border-radius: 8px;
+    padding: 0.75rem 1.4rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.detail-watchlist-btn:hover {
+    background: rgba(255,255,255,0.2);
+    transform: scale(1.03);
+}
+
+.detail-watchlist-btn.active {
+    background: rgba(63,163,255,0.2);
+    border-color: #3FA3FF;
+    color: #3FA3FF;
+}
+
+.detail-watchlist-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+    transform: none;
+}
+
+/* ── Trailer panel ── */
+.detail-trailer-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 58%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 1;
+}
+
+.detail-trailer-panel iframe {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 177.78vh;
+    height: 100vh;
+    min-width: 100%;
+    min-height: 56.25vw;
+    transform: translate(-50%, -50%);
+    border: none;
+    pointer-events: none;
+}
+
+.detail-trailer-fade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to right,
+        #0a0a0a 0%,
+        rgba(10,10,10,0.7) 25%,
+        transparent 55%,
+        rgba(10,10,10,0.5) 85%,
+        #0a0a0a 100%
+    );
+    z-index: 2;
+    pointer-events: none;
+}
+
+.detail-trailer-fallback {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+
+/* ── Section heading ── */
+.detail-section-heading {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0;
+    color: #fff;
+}
+
+/* ── Episodes ── */
+.detail-episodes-section {
+    padding: 0 4rem 3rem;
+    max-width: 1100px;
+}
+
+.detail-season-bar {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.detail-season-tabs {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.detail-season-tab {
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.65);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 20px;
+    padding: 0.35rem 1rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.detail-season-tab:hover {
+    background: rgba(255,255,255,0.14);
+    color: #fff;
+}
+
+.detail-season-tab.active {
+    background: rgba(63,163,255,0.2);
+    border-color: #3FA3FF;
+    color: #3FA3FF;
+    font-weight: 600;
+}
+
+.detail-episode-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.detail-episode-skeleton {
+    height: 100px;
+    border-radius: 10px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+    background-size: 200% 100%;
+    animation: detail-shimmer 1.4s infinite;
+}
+
+@keyframes detail-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.detail-episode-row {
+    display: flex;
+    gap: 1.2rem;
+    align-items: flex-start;
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.detail-episode-row:hover {
+    background: rgba(255,255,255,0.06);
+}
+
+.detail-episode-row:hover .detail-episode-play-icon {
+    opacity: 1;
+}
+
+.detail-episode-thumb {
+    position: relative;
+    flex-shrink: 0;
+    width: 180px;
+    height: 101px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.05);
+}
+
+.detail-episode-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.detail-episode-no-thumb {
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.07);
+}
+
+.detail-episode-play-icon {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.45);
+    font-size: 1.5rem;
+    color: #fff;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.detail-episode-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    padding-top: 0.1rem;
+}
+
+.detail-episode-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.detail-episode-num {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.4);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.detail-episode-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+.detail-episode-meta {
+    display: flex;
+    gap: 0.75rem;
+    margin-left: auto;
+}
+
+.detail-episode-meta span {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.4);
+    white-space: nowrap;
+}
+
+.detail-episode-overview {
+    font-size: 0.83rem;
+    color: rgba(255,255,255,0.55);
+    line-height: 1.5;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ── Similar ── */
+.detail-similar-section {
+    padding: 0 4rem 3rem;
+}
+
+.detail-similar-row {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    scrollbar-width: none;
+    margin-top: 1rem;
+}
+
+.detail-similar-row::-webkit-scrollbar { display: none; }
+
+.detail-similar-card {
+    position: relative;
+    flex: 0 0 160px;
+    height: 240px;
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.detail-similar-card:hover {
+    transform: scale(1.04);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.6);
+}
+
+.detail-similar-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.detail-similar-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0.6rem 0.7rem;
+    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.detail-similar-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.detail-similar-rating {
+    font-size: 0.72rem;
+    color: #ffc83c;
+}
+
+.detail-footer-pad {
+    height: 4rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+    .detail-hero-body {
+        flex-direction: column;
+        justify-content: flex-end;
+        padding-bottom: 3rem;
+    }
+
+    .detail-info {
+        flex: unset;
+        max-width: 100%;
+        padding: 0 1.5rem;
+    }
+
+    .detail-trailer-panel {
+        width: 100%;
+        height: 50vw;
+        position: relative;
+        top: unset;
+        right: unset;
+    }
+
+    .detail-trailer-panel iframe {
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        transform: none;
+    }
+
+    .detail-episodes-section,
+    .detail-similar-section {
+        padding: 0 1.5rem 2rem;
+    }
+
+    .detail-episode-thumb {
+        width: 120px;
+        height: 68px;
+    }
+
+    .detail-logo {
+        max-width: 220px;
+    }
+
+    .detail-title-text {
+        font-size: 2rem;
+    }
+}
