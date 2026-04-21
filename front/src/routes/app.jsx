@@ -75,6 +75,17 @@ export default function App() {
     const [currentHeroTrailerKey, setCurrentHeroTrailerKey] = useState(null)
     const heroHoverTimerRef = useRef(null)
     const heroInlineTrailerCacheRef = useRef({})
+    const [tooltipExpanded, setTooltipExpanded] = useState(false)
+    const tooltipScrollTimerRef = useRef(null)
+    const overviewRef = useRef(null)
+
+    const [activeCardPreview, setActiveCardPreview] = useState(null)
+    const [expandedCard, setExpandedCard] = useState(null)
+    const cardHoverTimerRef = useRef(null)
+    const cardLeaveTimerRef = useRef(null)
+    const cardHoverTargetRef = useRef(null)
+    const cardTrailerCacheRef = useRef({})
+    const lastMousePos = useRef({ x: 0, y: 0 })
 
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
@@ -161,8 +172,8 @@ export default function App() {
         } else {
             track('page_view', { page: 'home' })
             if (bookmarkData === null && continueData === null && trendingData === null) {
-                console.log("Start mini load")
                 setIsLoading(true)
+                console.time('fetchData');
                 // Call mini endpoint first for fast initial load (last 10 items)
                 axios({
                     method: 'post',
@@ -171,7 +182,7 @@ export default function App() {
                 }).then((response) => {
                     localStorage.setItem("bookmarks", response.data.favourites)
                     localStorage.setItem("continues", response.data.continues)
-                    console.log("End mini load")
+                    console.timeEnd('fetchData');
                     const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
                     const validContinues = (response.data.continuesData || []).filter(item => item && item.id)
                     setBookmarkData(validBookmarks)
@@ -185,9 +196,7 @@ export default function App() {
                         data: { user: user, token: token }
                     }).then((response) => {
                         const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
-                        console.log(validBookmarks)
                         setBookmarkData(validBookmarks.reverse())
-                        console.log(validBookmarks)
                     }).catch((error) => {
                         console.error('Failed to load full favourites:', error)
                     });
@@ -348,6 +357,84 @@ export default function App() {
             setIsHeroAutoplaying(true)
         }, 5500)
     }
+
+    useEffect(() => {
+        const onMove = (e) => { lastMousePos.current = { x: e.clientX, y: e.clientY }; };
+        window.addEventListener('mousemove', onMove);
+        return () => window.removeEventListener('mousemove', onMove);
+    }, []);
+
+    useEffect(() => {
+        clearTimeout(tooltipScrollTimerRef.current);
+        setTooltipExpanded(false);
+        if (tooltip.visible && tooltip.data?.overview) {
+            tooltipScrollTimerRef.current = setTimeout(() => {
+                const el = overviewRef.current;
+                if (el && el.scrollHeight > (el.parentElement?.clientHeight ?? 0) + 2) {
+                    setTooltipExpanded(true);
+                }
+            }, 1500);
+        }
+        return () => clearTimeout(tooltipScrollTimerRef.current);
+    }, [tooltip.visible, tooltip.data]);
+
+    const handleCardEnter = (e, result, isWide, rowId) => {
+        const target = e.currentTarget;
+        const uid = `${rowId}:${result.id}`;
+
+        // Cancel any pending leave-debounce for this card
+        clearTimeout(cardLeaveTimerRef.current);
+
+        // If we're already timing this exact card in this exact row, don't reset the timer
+        if (cardHoverTargetRef.current === uid) return;
+
+        // New card — cancel previous timer, clear any active preview immediately
+        clearTimeout(cardHoverTimerRef.current);
+        cardHoverTargetRef.current = uid;
+        setExpandedCard(null);
+        setActiveCardPreview(null);
+
+        const cid = result.id;
+        cardHoverTimerRef.current = setTimeout(async () => {
+            // Verify cursor is still over the card at fire time
+            const rect = target.getBoundingClientRect();
+            const { x, y } = lastMousePos.current;
+            if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return;
+
+            if (cardTrailerCacheRef.current[cid] === undefined) {
+                try {
+                    const res = await axios.post('https://goldenhind.tech/home-trailer', {
+                        user, token,
+                        tmdbId: result.id,
+                        mediaType: result.media_type === 'movie' || result.number_of_episodes == null ? 'movie' : 'tv',
+                    });
+                    cardTrailerCacheRef.current[cid] = res.data.key || null;
+                } catch {
+                    cardTrailerCacheRef.current[cid] = null;
+                }
+            }
+            const key = cardTrailerCacheRef.current[cid];
+            if (key) {
+                if (isWide) {
+                    setActiveCardPreview({ uid, key, rect: target.getBoundingClientRect(), result });
+                } else {
+                    const r = target.getBoundingClientRect();
+                    setExpandedCard({ uid, key, expandedWidth: r.height * (16 / 9), cardHeight: r.height });
+                }
+            }
+        }, isWide ? 1000 : 2000);
+    };
+
+    const handleCardLeave = () => {
+        // Debounce the leave so brief excursions (tooltip, etc.) don't kill the timer
+        clearTimeout(cardLeaveTimerRef.current);
+        cardLeaveTimerRef.current = setTimeout(() => {
+            cardHoverTargetRef.current = null;
+            clearTimeout(cardHoverTimerRef.current);
+            setActiveCardPreview(null);
+            setExpandedCard(null);
+        }, 300);
+    };
 
     const dismissToast = () => {
         setIsToastDismissed(true)
@@ -675,9 +762,10 @@ export default function App() {
                         </div>
                         <div className="content-row" id="continue-row">
                             {continueData && continueData.filter(result => result && result.id).map(result => (
-                                <div 
-                                    key={result.id} 
-                                    className="content-card"
+                                <div
+                                    key={result.id}
+                                    className={`content-card${expandedCard?.uid === `continue:${result.id}` ? ' card-expanded' : ''}`}
+                                    style={expandedCard?.uid === `continue:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
                                     onClick={() => {
                                         if (result.number_of_episodes == null) {
                                             navigate("/watch/m" + result.id)
@@ -685,12 +773,17 @@ export default function App() {
                                             navigate("/watch/t" + result.id)
                                         }
                                     }}
-                                    onMouseEnter={(e) => showTooltip(e, result)}
-                                    onMouseLeave={hideTooltip}
+                                    onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'continue'); }}
+                                    onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                 >
+                                    {expandedCard?.uid === `continue:${result.id}` && (
+                                        <div className="card-inline-trailer">
+                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
+                                        </div>
+                                    )}
                                     <div className="card-image-container">
-                                        <img 
-                                            className="card-image" 
+                                        <img
+                                            className="card-image"
                                             src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`}
                                             loading="lazy"
                                             decoding="async"
@@ -754,8 +847,8 @@ export default function App() {
                                         key={result.id}
                                         className="content-card rec-wide-card"
                                         onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
-                                        onMouseEnter={(e) => showTooltip(e, result)}
-                                        onMouseLeave={hideTooltip}
+                                        onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'recent-recs'); }}
+                                        onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >
                                         <div className="card-image-container">
                                             <img className="rec-backdrop" src={`https://image.tmdb.org/t/p/w780/${result.backdrop_path || result.poster_path}`} loading="lazy" decoding="async" alt=""/>
@@ -819,9 +912,10 @@ export default function App() {
                                 .filter(result => result && result.id)
                                 .filter(result => activeGenre === null || (result.genre_ids && result.genre_ids.includes(activeGenre)))
                                 .map(result => (
-                                <div 
-                                    key={result.id} 
-                                    className="content-card"
+                                <div
+                                    key={result.id}
+                                    className={`content-card${expandedCard?.uid === `trending:${result.id}` ? ' card-expanded' : ''}`}
+                                    style={expandedCard?.uid === `trending:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
                                     onClick={() => {
                                         if (result.media_type === "movie") {
                                             navigate("/watch/m" + result.id)
@@ -829,12 +923,17 @@ export default function App() {
                                             navigate("/watch/t" + result.id)
                                         }
                                     }}
-                                    onMouseEnter={(e) => showTooltip(e, result)}
-                                    onMouseLeave={hideTooltip}
+                                    onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'trending'); }}
+                                    onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                 >
+                                    {expandedCard?.uid === `trending:${result.id}` && (
+                                        <div className="card-inline-trailer">
+                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
+                                        </div>
+                                    )}
                                     <div className="card-image-container">
-                                        <img 
-                                            className="card-image" 
+                                        <img
+                                            className="card-image"
                                             src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`}
                                             loading="lazy"
                                             decoding="async"
@@ -877,8 +976,8 @@ export default function App() {
                                         key={result.id}
                                         className="content-card rec-wide-card"
                                         onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
-                                        onMouseEnter={(e) => showTooltip(e, result)}
-                                        onMouseLeave={hideTooltip}
+                                        onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'recently-reviewed'); }}
+                                        onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >
                                         <div className="card-image-container">
                                             <img className="rec-backdrop" src={`https://image.tmdb.org/t/p/w780/${result.backdrop_path || result.poster_path}`} loading="lazy" decoding="async" alt=""/>
@@ -947,9 +1046,10 @@ export default function App() {
                         </div>
                         <div className="content-row" id="bookmark-row">
                             {bookmarkData && bookmarkData.filter(result => result && result.id).map(result => (
-                                <div 
-                                    key={result.id} 
-                                    className="content-card"
+                                <div
+                                    key={result.id}
+                                    className={`content-card${expandedCard?.uid === `bookmark:${result.id}` ? ' card-expanded' : ''}`}
+                                    style={expandedCard?.uid === `bookmark:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
                                     onClick={() => {
                                         if (result.number_of_episodes == null) {
                                             navigate("/watch/m" + result.id)
@@ -957,12 +1057,17 @@ export default function App() {
                                             navigate("/watch/t" + result.id)
                                         }
                                     }}
-                                    onMouseEnter={(e) => showTooltip(e, result)}
-                                    onMouseLeave={hideTooltip}
+                                    onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'bookmark'); }}
+                                    onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                 >
+                                    {expandedCard?.uid === `bookmark:${result.id}` && (
+                                        <div className="card-inline-trailer">
+                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
+                                        </div>
+                                    )}
                                     <div className="card-image-container">
-                                        <img 
-                                            className="card-image" 
+                                        <img
+                                            className="card-image"
                                             src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`}
                                             loading="lazy"
                                             decoding="async"
@@ -1015,8 +1120,8 @@ export default function App() {
                                         key={result.id}
                                         className="content-card rec-wide-card"
                                         onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/watch/m' + result.id : '/watch/t' + result.id)}
-                                        onMouseEnter={(e) => showTooltip(e, result)}
-                                        onMouseLeave={hideTooltip}
+                                        onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'wide'); }}
+                                        onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >
                                         <div className="card-image-container">
                                             <img className="rec-backdrop" src={`https://image.tmdb.org/t/p/w780/${result.backdrop_path || result.poster_path}`} loading="lazy" decoding="async" alt=""/>
@@ -1049,6 +1154,26 @@ export default function App() {
                 </>
             )}
             
+            {/* Card trailer preview — wide/rec cards only; portrait cards expand inline */}
+            {activeCardPreview && (() => {
+                const { rect, key, result } = activeCardPreview;
+                return (
+                    <div
+                        className="card-trailer-preview"
+                        style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height }}
+                        onMouseEnter={(e) => { clearTimeout(cardLeaveTimerRef.current); showTooltip(e, result); }}
+                        onMouseLeave={() => { handleCardLeave(); hideTooltip(); }}
+                    >
+                        <iframe
+                            src={`https://www.youtube.com/embed/${key}?autoplay=1&controls=0&loop=1&playlist=${key}`}
+                            allow="autoplay; encrypted-media"
+                            title="Preview"
+                        />
+                        <div className="card-trailer-preview-fade" />
+                    </div>
+                );
+            })()}
+
             {/* Trailer Modal */}
             {trailerKey && (
                 <div className="trailer-backdrop" onClick={() => setTrailerKey(null)}>
@@ -1067,8 +1192,8 @@ export default function App() {
 
             {/* External Tooltip Component */}
             {tooltip.visible && tooltip.data && (
-                <div 
-                    className="external-tooltip"
+                <div
+                    className={`external-tooltip${tooltipExpanded ? ' expanded' : ''}`}
                     style={{
                         left: tooltip.x + 'px',
                         top: tooltip.y + 'px'
@@ -1088,9 +1213,11 @@ export default function App() {
                         </span>
                         <span className="tooltip-language">{tooltip.data.original_language?.toUpperCase()}</span>
                     </div>
-                    <p className="tooltip-overview">
-                        {tooltip.data.overview || "No description available."}
-                    </p>
+                    <div className={`tooltip-overview-container${tooltipExpanded ? ' expanded' : ''}`}>
+                        <p ref={overviewRef} className="tooltip-overview">
+                            {tooltip.data.overview || "No description available."}
+                        </p>
+                    </div>
                     {tooltip.data.genre_ids && tooltip.data.genre_ids.length > 0 && (
                         <div className="tooltip-genres">
                             <span>Genres: {getGenreNames(tooltip.data.genre_ids.slice(0, 3))}</span>

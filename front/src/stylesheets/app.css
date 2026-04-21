@@ -616,6 +616,7 @@ p {
     position: fixed;
     width: 300px;
     max-width: 90vw;
+    transition: width 0.4s ease;
     background: rgba(20, 20, 20, 0.95);
     backdrop-filter: blur(15px);
     border: 2px solid #3FA3FF;
@@ -681,16 +682,26 @@ p {
     font-weight: 500;
 }
 
+.tooltip-overview-container {
+    max-height: 4.05rem;
+    overflow: hidden;
+    margin: 0 0 0.75rem 0;
+    transition: max-height 0.4s ease;
+}
+
+.tooltip-overview-container.expanded {
+    max-height: 300px;
+}
+
+.external-tooltip.expanded {
+    width: 480px;
+}
+
 .tooltip-overview {
     color: rgba(255, 255, 255, 0.85);
     font-size: 0.9rem;
     line-height: 1.5;
-    margin: 0 0 0.75rem 0;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    margin: 0;
 }
 
 .tooltip-genres {
@@ -1769,6 +1780,71 @@ p {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
+    pointer-events: none;
+}
+
+/* ── Card trailer preview (fixed overlay, appears after 4s hover) ── */
+.card-trailer-preview {
+    position: fixed;
+    z-index: 500;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
+    animation: card-preview-in 0.3s ease forwards;
+    pointer-events: auto;
+}
+
+@keyframes card-preview-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.content-card.card-expanded {
+    overflow: hidden;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 100;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
+    border-radius: 8px;
+}
+
+.content-card.card-expanded,
+.content-card.card-expanded:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.card-inline-trailer {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.card-inline-trailer iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    pointer-events: none;
+    display: block;
+}
+
+.card-trailer-preview iframe {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 110%;
+    height: 110%;
+    transform: translate(-50%, -50%);
+    border: none;
+    pointer-events: none;
+}
+
+.card-trailer-preview-fade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 40%);
     pointer-events: none;
 }
 
