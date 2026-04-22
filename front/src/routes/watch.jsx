@@ -7,10 +7,6 @@ import 'plyr/dist/plyr.css';
 import { track } from '../utils/analytics.js'
 import Topbar from "../components/topbar"
 
-import BookmarkIcon from "../assets/bookmark.png"
-import ReloadIcon from "../assets/reload.png"
-import StarIcon from "../assets/star.png"
-import AutonextIcon from "../assets/autonext.png"
 
 export default function App() {
     // useParams must come first — id is needed to initialize progressReady
@@ -25,13 +21,13 @@ export default function App() {
 
     const [relData, reloadVideo] = useState(1);
 
-    const [maxEp, setMaxEp] = useState(1);
-    const [maxSe, setMaxSe] = useState(1);
+    const [maxEp, setMaxEp] = useState(999);
+    const [maxSe, setMaxSe] = useState(999);
 
     const [autoNext, setAutoNext] = useState(0);
     const [autoPlay, setAutoPlay] = useState(0);
 
-    const [provider, setProvider] = useState(4);
+    const [provider, setProvider] = useState(1);
 
     // For TV shows, block the LookMovie request until progress_retrieve has responded
     // so we don't fire with season=1/episode=1 before the saved position loads.
@@ -60,11 +56,6 @@ export default function App() {
     const providerToastTimerRef = useRef(null);
 
     const[bookmarked, setBookmark] = useState(-1);
-    const [reviews, setReviews] = useState([]);
-    const [reviewRating, setReviewRating] = useState(0);
-    const [reviewHover, setReviewHover] = useState(0);
-    const [reviewText, setReviewText] = useState('');
-    const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
     const [episodeID, setEpisodeID] = useState("")
     
@@ -148,35 +139,11 @@ export default function App() {
         }
     }, [data]);
 
-    // Fetch reviews for this content
-    useEffect(() => {
-        axios.get(`https://goldenhind.tech/reviews?contentId=${id}`)
-            .then(r => setReviews(r.data.reviews || []))
-            .catch(() => {});
-    }, [id]);
-
-    const submitReview = () => {
-        if (!reviewRating || reviewSubmitting) return;
-        setReviewSubmitting(true);
-        axios.post('https://goldenhind.tech/review', {
-            user, token, contentId: id, rating: reviewRating, text: reviewText
-        }).then(r => {
-            if (r.data.success) {
-                setReviews(prev => {
-                    const filtered = prev.filter(rv => rv.username !== user);
-                    return [{ username: user, rating: reviewRating, text: reviewText, timestamp: Date.now() }, ...filtered];
-                });
-                setReviewText('');
-                setReviewRating(0);
-            }
-        }).catch(() => {}).finally(() => setReviewSubmitting(false));
-    };
-
     // Fetch LookMovie stream when provider 4 is selected or episode changes.
     // progressReady is false for TV shows until progress_retrieve returns so we
     // don't fire with the default season=1/episode=1 before saved progress loads.
     useEffect(() => {
-        if (parseInt(provider) !== 4) return;
+        if (parseInt(provider) !== 1) return;
         if (!progressReady) return;
         setLmUrl(null);
         setLmError(null);
@@ -423,7 +390,7 @@ export default function App() {
 
     // Keyboard shortcuts for provider 4
     useEffect(() => {
-        if (parseInt(provider) !== 4) return;
+        if (parseInt(provider) !== 1) return;
         const onKey = (e) => {
             const p = plyrRef.current;
             if (!p) return;
@@ -499,10 +466,19 @@ export default function App() {
         return () => window.removeEventListener('message', handler);
     }, []);
 
-    // Keep panelSeason in sync when the user navigates via arrow buttons
+    // Keep panelSeason in sync and update maxEp when season changes
     useEffect(() => {
         setPanelSeason(parseInt(season));
-    }, [season]);
+        const cur = seriesData?.seasons?.find(s => s.season_number === parseInt(season));
+        if (cur?.episode_count) {
+            setMaxEp(cur.episode_count);
+        } else if (vidID && type === 'tv') {
+            const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+            axios.post('https://goldenhind.tech/season', { user: u, token: t, seriesId: vidID, seasonNumber: parseInt(season) })
+                .then(res => { const c = res.data?.episodes?.length; if (c) setMaxEp(c); })
+                .catch(() => {});
+        }
+    }, [season, seriesData]);
 
     // Shift subtitle cue times when the user adjusts the offset.
     // subOffsetRef tracks the offset already applied so only the delta is added each time.
@@ -534,23 +510,17 @@ export default function App() {
 
     let video = '';
     if (!(id == null)) {
-        if (provider == 1) {
+        if (provider == 2) {
             if (type == 'movie') {
                 video = `https://vidlink.pro/${type}/${vidID}/?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`
             } else {
                 video = `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=${autoPlay == 1 ? "true" : "false"}&poster=true${autoPlay == 1 ? "&startAt=0" : ""}`
             }
-        } else if (provider == 2) {
+        } else if (provider == 3) {
             if (type == 'movie') {
                 video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}`
             } else {
                 video = `https://vidsrc.me/embed/${type}?tmdb=${vidID}&season=${season}&episode=${episode}&autoplay=${autoPlay}`
-            }
-        } else if(provider == 3) {
-            if (type == 'movie') {
-                video = `https://vidsrc.icu/embed/${type}/${vidID}`
-            } else {
-                video = `https://vidsrc.icu/embed/${type}/${vidID}/${season}/${episode}`
             }
         }
         
@@ -573,7 +543,7 @@ export default function App() {
 
         if (!(localStorage.getItem("provider" + vidID) == null)) {
             const saved = parseInt(localStorage.getItem("provider" + vidID));
-            if (saved >= 1 && saved <= 4) {
+            if (saved >= 1 && saved <= 3) {
                 setProvider(saved)
             } else {
                 localStorage.setItem("provider" + vidID, 1)
@@ -596,6 +566,7 @@ export default function App() {
                     const ToData = response.data
                     setVotes(response.data.vote_average)
                     setData(ToData)
+                    console.log(response.data)
                     let result = response.data
                     result.name == null ? (result.title == null ? document.title = "The Golden Hind" : document.title = result.title) : document.title = result.name
                 });
@@ -645,16 +616,19 @@ export default function App() {
                 }).then((response) => {
                     setSeriesID(vidID)
                     const ToData = response.data
+                    console.log(response.data.seasons)
                     setSeriesData(ToData)
                     let result = response.data
                     result.name == null ? (result.title == null ? document.title = "The Golden Hind" : document.title = result.title) : document.title = result.name  
-                    const currentSeason = ToData.seasons.find(s => s.season_number === season);
-                    if (currentSeason) {
-                        setMaxSe(ToData.seasons.length);
-                        setMaxEp(currentSeason.episode_count);
+                    const regularSeasons = ToData.seasons?.filter(s => s.season_number > 0) ?? [];
+                    setMaxSe(ToData.number_of_seasons ?? regularSeasons.length ?? 1);
+                    const curSeason = regularSeasons.find(s => s.season_number === parseInt(season));
+                    if (curSeason?.episode_count) {
+                        setMaxEp(curSeason.episode_count);
                     } else {
-                        setMaxSe(response.data.seasons.length)
-                        setMaxEp(response.data.seasons[season - 1].episode_count)
+                        axios.post('https://goldenhind.tech/season', { user, token, seriesId: vidID, seasonNumber: parseInt(season) })
+                            .then(res => { const c = res.data?.episodes?.length; if (c) setMaxEp(c); })
+                            .catch(() => {});
                     }
                 });
 
@@ -780,6 +754,54 @@ export default function App() {
 
 
 
+    const handlePrevEp = () => {
+        if (parseInt(episode) > 1) {
+            const prev = parseInt(episode) - 1;
+            localStorage.setItem('episode' + id, prev);
+            setEpisode(prev);
+        } else if (parseInt(season) > 1) {
+            const prevSe = parseInt(season) - 1;
+            const prevSeasonInfo = seriesData?.seasons?.find(s => s.season_number === prevSe);
+            if (prevSeasonInfo?.episode_count) {
+                const lastEp = prevSeasonInfo.episode_count;
+                localStorage.setItem('season' + id, prevSe);
+                localStorage.setItem('episode' + id, lastEp);
+                setSeason(prevSe);
+                setEpisode(lastEp);
+            } else {
+                const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+                axios.post('https://goldenhind.tech/season', { user: u, token: t, seriesId: vidID, seasonNumber: prevSe })
+                    .then(res => {
+                        const lastEp = res.data?.episodes?.length || 1;
+                        localStorage.setItem('season' + id, prevSe);
+                        localStorage.setItem('episode' + id, lastEp);
+                        setSeason(prevSe);
+                        setEpisode(lastEp);
+                    })
+                    .catch(() => {
+                        localStorage.setItem('season' + id, prevSe);
+                        localStorage.setItem('episode' + id, 1);
+                        setSeason(prevSe);
+                        setEpisode(1);
+                    });
+            }
+        }
+    };
+
+    const handleNextEp = () => {
+        if (parseInt(episode) < parseInt(maxEp)) {
+            const next = parseInt(episode) + 1;
+            localStorage.setItem('episode' + id, next);
+            setEpisode(next);
+        } else if (parseInt(season) < parseInt(maxSe)) {
+            const nextSe = parseInt(season) + 1;
+            localStorage.setItem('season' + id, nextSe);
+            localStorage.setItem('episode' + id, 1);
+            setSeason(nextSe);
+            setEpisode(1);
+        }
+    };
+
     // async function HandleNextEpisode(eventType, episode, season, maxEp, maxSe, setSeason, setEpisode, currentTime, duration) {
     //     if (currentTime == duration) {
     //         console.log("it's over")
@@ -824,6 +846,11 @@ export default function App() {
             .catch(() => setNextEpData(null));
     }, [episode, season, maxEp, maxSe]);
 
+    const _regularSeasons = seriesData?.seasons?.filter(s => s.season_number > 0) ?? [];
+    const effectiveMaxSe = seriesData?.number_of_seasons ?? (_regularSeasons.length || maxSe);
+    const _curSeason = _regularSeasons.find(s => s.season_number === parseInt(season));
+    const effectiveMaxEp = _curSeason?.episode_count || maxEp;
+
     // Keep executeUpNextRef current so Plyr event closures always call the latest version
     executeUpNextRef.current = () => {
         const info = upNextInfoRef.current;
@@ -846,14 +873,10 @@ export default function App() {
             {!(seriesData == null) ? (!(seriesData.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + seriesData.backdrop_path}/>  : null): null}
             {!(data == null) ? (!(data.backdrop_path == null) ? <img className= "watch-backdrop" src = {"https://image.tmdb.org/t/p/original/" + data.backdrop_path}/>  : null): null}
             <Topbar/>
-            <button className="watch-back-btn" onClick={() => navigate(`/detail/${id}`)}>
-                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-                Details
-            </button>
             <div className= "watch-holder" id= "watch-holder">
                 <div className= "watch-system">
                 <div className= "watch-player">
-                    {parseInt(provider) === 4 ? (
+                    {parseInt(provider) === 1 ? (
                         <>
                             {/* Container is always mounted so Plyr always has a live DOM node.
                                 Loading / error states are absolute overlays on top. */}
@@ -921,83 +944,95 @@ export default function App() {
                         ></iframe>
                     )}
                 </div>
-                <div className= "watch-options">
-                    <div className= "watch-left">
-                        {type == "movie" ? <MovieDisplay data= {data}/> : <EpisodeDisplay data = {data} season = {season} episode = {episode} setSeason = {setSeason} setEpisode = {setEpisode} maxEp= {maxEp} maxSe= {maxSe} id= {id}/>}
-
-                        <div className= "watch-toggles1">
-                            {localStorage.getItem("bookmarks").indexOf(id) == -1 ? 
-                            <button className = "watch-toggles-button" onClick={() => Bookmark()}>
-                                <img className = "watch-toggles-button-icon" src = {BookmarkIcon}/>
-                            </button>
-                            :
-                            <button className = "watch-toggles-button-selected" onClick={() => Bookmark()}>
-                                <img className = "watch-toggles-button-icon" src = {BookmarkIcon}/>
-                            </button>
-                            }
-                            <button className = "watch-toggles-button watch-toggles-reload" onClick={() => {reloadVideo(relData + 1); console.log(relData); window.location.reload()}}>
-                                <img className = "watch-toggles-button-icon watch-toggles-reload-icon" src = {ReloadIcon}/>
-                            </button>
-
-                           {autoNext == 1 ?
-                            <button className = "watch-toggles-button-selected watch-toggles-next" onClick={() => {setAutoNext(0); localStorage.setItem("autoNext", "0")}}>
-                                <img className = "watch-toggles-button-icon watch-toggles-next-icon" src = {AutonextIcon}/>
-                            </button>
-                            :
-                             <button className = "watch-toggles-button watch-toggles-next" onClick={() => {setAutoNext(1); localStorage.setItem("autoNext", "1")}}>
-                                <img className = "watch-toggles-button-icon watch-toggles-next-icon" src = {AutonextIcon}/>
-                            </button>
-                            }
-                        </div>
+                <div className="watch-options">
+                    <button className="wbar-details-btn" onClick={() => navigate(`/detail/${id}`)}>
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                        <span>Details</span>
+                    </button>
+                    <div className="wbar-info">
+                        <p className="wbar-title">
+                            {type === 'tv' ? (seriesData?.name || seriesData?.title || '') : (data?.title || data?.name || '')}
+                        </p>
+                        {type === 'tv' && (
+                            <div className="wbar-ep-row">
+                                <button
+                                    className="wbar-ep-arrow"
+                                    disabled={parseInt(episode) <= 1 && parseInt(season) <= 1}
+                                    onClick={handlePrevEp}
+                                >‹</button>
+                                <span className="wbar-ep-label">
+                                    S{season} · E{episode}
+                                    {data?.name ? <span className="wbar-ep-name"> - {data.name}</span> : null}
+                                </span>
+                                <button
+                                    className="wbar-ep-arrow"
+                                    disabled={parseInt(episode) >= effectiveMaxEp && parseInt(season) >= effectiveMaxSe}
+                                    onClick={handleNextEp}
+                                >›</button>
+                            </div>
+                        )}
                     </div>
-                    <div className= "watch-right">
-                        <div className= "watch-rating">
-                            <div className= "watch-rating-info">
-                                <p className= "watch-rating-score">
-                                    {voteAvg}
-                                </p>
-                                <div className= "watch-rating-stars">
-                                    {voteAvg >= 2 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 1.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
-                                    {voteAvg >= 4 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 3.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
-                                    {voteAvg >= 6 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 5.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
-                                    {voteAvg >= 8 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg > 7.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
-                                    {voteAvg >= 9.5 ? <img className= "watch-star-icon watch-star-full" src= {StarIcon}/> : (voteAvg >= 8.5 ? <img className= "watch-star-icon watch-star-half" src= {StarIcon}/> : <img className= "watch-star-icon watch-star-empty" src= {StarIcon}/>)}
+                    <div className="wbar-btns">
+                        <button className={`wbar-btn${bookmarked === 1 ? ' on' : ''}`} onClick={Bookmark}>
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                {bookmarked === 1
+                                    ? <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                                    : <path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15-5-2.18L7 18V5h10v13z"/>
+                                }
+                            </svg>
+                            <span>Watchlist</span>
+                        </button>
+                        <button className="wbar-btn" onClick={() => { reloadVideo(relData + 1); window.location.reload(); }}>
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4C7.58 4 4.01 7.57 4.01 12S7.58 20 12 20c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                            </svg>
+                            <span>Reload</span>
+                        </button>
+                        {type === 'tv' && (
+                            <button
+                                className={`wbar-btn${autoNext === 1 ? ' on' : ''}`}
+                                onClick={() => { const n = autoNext === 1 ? 0 : 1; setAutoNext(n); localStorage.setItem('autoNext', String(n)); }}
+                            >
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                    <path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z"/>
+                                </svg>
+                                <span>Auto Next</span>
+                            </button>
+                        )}
+                        <button className="wbar-btn wbar-btn-server" onClick={() => {
+                            const next = parseInt(provider) >= 3 ? 1 : parseInt(provider) + 1;
+                            setProvider(next);
+                            localStorage.setItem('provider' + vidID, next);
+                        }}>
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                <path d="M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zm-2 6c-.83 0-1.5-.67-1.5-1.5S17.17 16 18 16s1.5.67 1.5 1.5S18.83 19 18 19zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zm-2 6c-.83 0-1.5-.67-1.5-1.5S17.17 7 18 7s1.5.67 1.5 1.5S18.83 9 18 9z"/>
+                            </svg>
+                            <span>Server {provider}</span>
+                        </button>
+                        {parseInt(provider) === 1 && lmSubtitles.length > 0 && (
+                            <div className="wbar-sub-offset">
+                                <span className="wbar-sub-offset-label">Subtitle Offset</span>
+                                <div className="wbar-sub-offset-controls">
+                                    <button className="wbar-sub-offset-btn" onClick={() => setSubOffset(v => parseFloat((v - 0.5).toFixed(1)))}>−</button>
+                                    <span className="wbar-sub-offset-val">{subOffset > 0 ? `+${subOffset}s` : `${subOffset}s`}</span>
+                                    <button className="wbar-sub-offset-btn" onClick={() => setSubOffset(v => parseFloat((v + 0.5).toFixed(1)))}>+</button>
                                 </div>
                             </div>
-                            {/* <div className= "watch-rating-underline"/> */}
-                        </div>
-                        <div className= "watch-toggles2">
-                            <button className="watch-toggles-button watch-toggles-server" onClick={() => {
-                                const next = parseInt(provider) >= 4 ? 1 : parseInt(provider) + 1;
-                                setProvider(next);
-                                localStorage.setItem("provider" + vidID, next);
-                            }}>
-                                <span className="watch-server-num">{provider}</span>
-                                <span className="watch-server-label">SERVER</span>
-                            </button>
-                            {parseInt(provider) === 4 && lmSubtitles.length > 0 && (
-                                <div className="watch-sub-offset">
-                                    <button className="watch-sub-offset-btn" onClick={() => setSubOffset(v => parseFloat((v - 0.5).toFixed(1)))}>−</button>
-                                    <span className="watch-sub-offset-val">{subOffset > 0 ? `+${subOffset}s` : `${subOffset}s`}</span>
-                                    <button className="watch-sub-offset-btn" onClick={() => setSubOffset(v => parseFloat((v + 0.5).toFixed(1)))}>+</button>
-                                </div>
-                            )}
-                        </div>
+                        )}
                     </div>
                 </div>
                 </div>
 
             </div>
-            {/* ── Season / episode selector — right below the player ── */}
             {type === 'tv' && seriesData?.seasons && (
-                <div className="watch-ep-selector">
-                    <div className="watch-ep-seasons">
+                <div className="weps">
+                    <div className="weps-seasons">
                         {seriesData.seasons
                             .filter(s => s.season_number > 0)
                             .map(s => (
                                 <button
                                     key={s.season_number}
-                                    className={`watch-ep-season-tab${panelSeason === s.season_number ? ' active' : ''}`}
+                                    className={`weps-s-btn${panelSeason === s.season_number ? ' on' : ''}`}
                                     onClick={() => setPanelSeason(s.season_number)}
                                 >
                                     S{s.season_number}
@@ -1005,14 +1040,14 @@ export default function App() {
                             ))
                         }
                     </div>
-                    <div className="watch-ep-episodes">
+                    <div className="weps-eps">
                         {(() => {
                             const seasonInfo = seriesData.seasons.find(s => s.season_number === panelSeason);
                             const count = seasonInfo?.episode_count || 0;
                             return Array.from({ length: count }, (_, i) => i + 1).map(epNum => (
                                 <button
                                     key={epNum}
-                                    className={`watch-ep-episode-btn${panelSeason === parseInt(season) && epNum === parseInt(episode) ? ' active' : ''}`}
+                                    className={`weps-e-btn${panelSeason === parseInt(season) && epNum === parseInt(episode) ? ' on' : ''}`}
                                     onClick={() => {
                                         setSeason(panelSeason);
                                         setEpisode(epNum);
@@ -1028,102 +1063,11 @@ export default function App() {
                 </div>
             )}
         </div>
-        {/* ── Reviews section — below the player, outside watch-main ── */}
-        <div className="watch-reviews-section">
-                <p className="watch-reviews-title">REVIEWS</p>
-                {reviews.length > 0 && (
-                    <p className="watch-reviews-avg">
-                        {'★'.repeat(Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length))}
-                        {'☆'.repeat(5 - Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length))}
-                        {' '}<span className="watch-reviews-avg-num">
-                            {(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)}
-                        </span>
-                        <span className="watch-reviews-count"> ({reviews.length})</span>
-                    </p>
-                )}
-                <div className="watch-review-form">
-                    <textarea
-                        className="watch-review-input"
-                        placeholder="Write a review… (optional)"
-                        value={reviewText}
-                        onChange={e => setReviewText(e.target.value)}
-                        maxLength={3000}
-                        rows={6}
-                    />
-                    <div className="watch-review-form-right">
-                        <div className="watch-review-stars">
-                            {[1,2,3,4,5].map(n => (
-                                <button key={n}
-                                    className="watch-review-star-btn"
-                                    onClick={() => setReviewRating(n)}
-                                    onMouseEnter={() => setReviewHover(n)}
-                                    onMouseLeave={() => setReviewHover(0)}
-                                >
-                                    {n <= (reviewHover || reviewRating) ? '★' : '☆'}
-                                </button>
-                            ))}
-                        </div>
-                        <button
-                            className="watch-review-submit"
-                            onClick={submitReview}
-                            disabled={!reviewRating || reviewSubmitting}
-                        >
-                            {reviewSubmitting ? 'Submitting…' : 'Submit'}
-                        </button>
-                    </div>
-                </div>
-                <div className="watch-reviews-list">
-                    {reviews.length === 0 ? (
-                        <p className="watch-reviews-empty">No reviews yet. Be the first!</p>
-                    ) : reviews.map((rv, i) => (
-                        <div key={i} className="watch-review-card">
-                            <div className="watch-review-card-header">
-                                <span className="watch-review-card-user">{rv.username}</span>
-                                <span className="watch-review-card-stars">
-                                    {'★'.repeat(rv.rating)}{'☆'.repeat(5 - rv.rating)}
-                                </span>
-                            </div>
-                            {rv.text ? <p className="watch-review-card-text">{rv.text}</p> : null}
-                            <p className="watch-review-card-date">
-                                {new Date(rv.timestamp).toLocaleDateString()}
-                            </p>
-                        </div>
-                    ))}
-                </div>
-            </div>
             {providerToast && (
                 <div className="provider-toast">{providerToast}</div>
             )}
         </>
     );
   }
-
-export function EpisodeDisplay(input) {
-    const {data, season, episode, setSeason, setEpisode, maxEp, maxSe, id} = input
-    return (
-    <div className="watch-episode">
-        {episode == 1 ? <button className="watch-episode-arrow">{" "}</button> : <button className="watch-episode-arrow" onClick={() => {localStorage.setItem("episode" + id, parseInt(episode) - 1); setEpisode(parseInt(episode) - 1)}}>{"<<"}</button>}
-        <div className="watch-episode-display">
-            <p className="watch-episode-display-title">{data == null ? "Loading.." : "Ep " + episode+ ": " + data.name}</p>
-            <div className="watch-season-display">
-                {season == 1 ? <button className="watch-season-arrow">{" "}</button> : <button className="watch-season-arrow" onClick={() => {localStorage.setItem("season" + id, parseInt(season) - 1); localStorage.setItem("episode" + id, 1); setSeason(parseInt(season) - 1); setEpisode(1)}}>{"<<"}</button>}
-                <p className="watch-season-title">{"SEASON " + season}</p>
-                {season == maxSe ? <button className="watch-season-arrow">{" "}</button> : <button className="watch-season-arrow" onClick={() => {localStorage.setItem("season" + id, parseInt(season) + 1); localStorage.setItem("episode" + id, 1); setSeason(parseInt(season) + 1); setEpisode(1)}}>{">>"}</button>}
-            </div>
-        </div>
-        {episode == maxEp ? <button className="watch-episode-arrow" onClick={() => {localStorage.setItem("episode" + id, parseInt(episode) + 1); setEpisode(parseInt(episode) + 1)}}>{" >"}</button> : <button className="watch-episode-arrow" onClick={() => {localStorage.setItem("episode" + id, parseInt(episode) + 1); setEpisode(parseInt(episode) + 1)}}>{">>"}</button>}
-    </div>
-    );
-  }
-
-export function MovieDisplay(data) {
-    console.log(data)
-    return (
-    <div className= "watch-movie">
-        <p className= "watch-movie-title">{data == "" ? "Loading.." : data.data.title}</p>
-    </div>
-    );
-}
-
 
   // <iframe id="player_iframe" src="https://gbf7wrqapjg1js045ye8.com/prorcp/NjFkNzc0YTU0YTBhZDI5OGZjYWQzYWYyNmNjNjk2MDc6Y1RGNVFuaFNia3BUUnpWa2RDdHpZMHQwVTJwaVNWUkNPVk41YlVKcVdGQnFiVTAyZDBGdVRGWnpSbXB5ZFVsMk4weFBZVWc0T0ZkeGNHMTBjMnM1WkhKV1JYZGFNVk5PVlU4MWJGWjVXbk52Y204eGVYUTNjbGR1TlUxYWRVMXBOMmRvTUd4RlpWUllkbkpVU2tGVlRFWkRNV2xuZFhWaE0xQkRWRTV6V21WMUt6bHhlR1UwWlU0M1owSk5aWHBPVURSbWNERlFWMkU1Y21sWU9WbExaVEJKVEd0SVJuWTFZaTl0TWxORmNrMW1RbEUzTjJkMVlsSkRhekZ1Um1sRlNXOW1XalJZZDJkbFdYcDNVWEpCWm1OaWVtUm9hR1o2Y25oMFN6TXlNbkV3Ukd0bFdVcFlVRFZzYUdSdlJWRXdNMjV2UlhCWmMwcE9XV1l5WnpKUVRWQnVibkpxS3pRMFNXUmthV3h1YkRSWFVXWkdiRFl5T1Rjd2RWWkVTbFpwZGxGNFRsTnVSakZLTDBWRVZuUTBLMU5EUmxsRGJEWkxlSEJTTDFsYU1XSmxTM2REVnpsR1lXaHpNRFpOV2paRWJVb3ZablpPV2k4NVZXeERNa1EzTURCS2FHSkVhV3Q0YTFvM1VtbHNSRzQwVFRNMWVqZFlSV3hxU21Kak4weFdWRXBxWjBkeGJqYzRWR05zVFRGdVFVeHRiRXR0WldadFRGVjFhek5LWmtkbVREaEphazVrUWpVMFJrbGlRMFpqYUd3dlQyNVljRUZuUld0SWFYZFhhbTFJTDBsQlZsSlhTVEJNT0dkQ2VYQm1jbVE0VkN0blIwdFljRGRGVkVZck1WVlliR2h2VXpkNk4zVkNMM0pCTDFBMGJFdzJlbWxZVm0xV1QxbEdibXBGWjNWTFJVbEpVR2hKWkZoVVpVdEpWa2wxVlhKTmNXdDRZMEpUYnpoQ2NIaEhNa2xvVkhad1VrdE9jRVpSZGxWUk1scFlUMmd4Y1hkaFRFOU1NV3hZZUU5ak9YaE9jRWhMYldSaFYzUkdkVFpuWkdWRWIyVnVPV0pNY0RWSE1FWmlaMmhDYVdoUlZFSjNjR1kzTjFaMGNXWkpWMGhIUVVFcmJuSmFjaXRvVlU5SFVtdzFjVkpWWTNob1RqQlBkV3BIWW1nM1FVaDJOMjVMYWsweWVXWmlTV2g1UkRKUVZ6UnNXRzVTVkVaQ09XcExjRUpsZDFJdmJVNUZXWEJZVG5sdVIyZHFheTlFU3paU09YRm1ZM0pRWmpoNVEwOUdjM2MwYlRkUE4wSmlaakl3VEc1T1JVSktkV1ZzTlVRMlNrZDVhRGxGYUhCd2FrRndiMEZ2YlVoTVlrVXZXbkZ1VUhWYVNEZFNiVXh4WW1oMFlWaFJibk42UVhsTGNsZEZkV3hsV0daWmVEaERiR1Z2TVhsSWNYVkZPR3B0WmpoT2NtRnBiWHBxYWs1bk5GWTNXRmM1ZDFscGJHOWxTbWx3WTBGUmRXRXZPR2xGYVhaNksxUnhWWGxzUld4eFFuUkpRbVpYVkdzdlJIVnNiMmRWWTFod2VVZFpjMjFoVEhadGMybEdiblZxV2xKVU1XTk5kR1pqY0Uxa2ExaHlPRlF2VlZoc2VWVTVUV05uUjJ3NUsxUjFTamwxYjFVdmR6UjFkbWxNZWt3elVWaFVlalZqWjNCcVNqTm1ZbWhJWVU1T1VYRTFOM1p1WkVVNVRtZG9RbFV5YVc1R2VUUTFMMFppVEVrMVQzSkpXR1JDYTFwSWJXaFZNV1ZFUld4WU5UTXdhMFppWkVOR2FWaGlLM1IwVm5oNGNUQmFkaXQyYUU5cWF6TkRZVnBKZFc1MlQxZFJabWRXUjBjeUsyRlRTMlZPSzNacmFWQmhNVlV2VUhsSFl6ZFRabGhZUkc4M2FFZG1ibXBxTnpsQlptbHhXR3BtSzI5bVVVdFRURWwwVDNvckwzVXJkRVowVDNaV1FWcHVaRTVFYVVKc1pXRjZORTB6UzJ3MFIwSnVTbE5FWmpsYU9Dc3JLMlJ6WTFSVmJFVlBTRnB0YTBKUGFIQkpkVkI0WWxSSldFUlVOSEJLU1UxTk5GSjVZVVp2VFhWWmVXRjBjVzlxVnpadGR6SjRLMEpxYjBGQ09IWnVaRzhyV2s5UE1tcFRZMjlLWVd4S2Rrb3ZhREJDVUdvclVUZ3lPRk16ZFRrcmJtYzBZMmhQVkhSV2FXcFpPV1phTXpOMGNqQmtUMVp0ZFRsWWRFcFRaaTluTVZkVlMxZHdLMlJNWVhGU1RqVmxhVVF2ZGxwVWJuVjNabEppU1ZvMFZUUk1lWFZFWm1WRllXOW5kVUZQY0dwcGRYTlRXbGhTVDJ0d1MwcERWbXhtTTFWclVGTjBUa056WTNFeGNuSnpkbm92UjNaS2FtZHlaejA5" frameborder="0" scrolling="no" allowfullscreen="yes" allow="autoplay"></iframe>

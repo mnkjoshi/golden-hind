@@ -47,21 +47,13 @@
 }
 
 .logo-text {
-    font-size: 1.8rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, #3FA3FF 0%, #6FB7FF 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    letter-spacing: -0.02em;
+    height: 42px;
+    width: auto;
+    display: block;
     transition: all 0.3s ease;
 }
 
 .topbar-logo:hover .logo-text {
-    background: linear-gradient(135deg, #5BB3FF 0%, #8FC7FF 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
     transform: scale(1.05);
 }
 
@@ -710,9 +702,9 @@
     }
     
     .logo-text {
-        font-size: 1.2rem;
+        height: 22px;
     }
-    
+
     .account-dropdown {
         right: -0.5rem;
         min-width: 160px;
@@ -735,18 +727,21 @@
     }
     
     .logo-text {
-        font-size: 1.1rem;
+        height: 20px;
     }
-    
+
     .search-wrapper {
-        width: 120px;
-        max-width: 150px;
+        flex: 1;
+        width: auto;
+        min-width: 90px;
+        max-width: 52vw;
     }
-    
+
     .search-input {
-        font-size: 14px;
+        font-size: 16px;
         height: 32px;
         padding: 0 10px;
+        width: 100%;
     }
     
     .account-dropdown {

@@ -191,6 +191,10 @@
     color: rgba(255,255,255,0.82);
     margin: 0;
     max-width: 520px;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 /* Crew */
@@ -774,22 +778,6 @@
         padding: 0 1.5rem;
     }
 
-    .detail-trailer-panel {
-        width: 100%;
-        height: 50vw;
-        position: relative;
-        top: unset;
-        right: unset;
-    }
-
-    .detail-trailer-panel iframe {
-        width: 100%;
-        height: 100%;
-        top: 0;
-        left: 0;
-        transform: none;
-    }
-
     .detail-lower-section {
         flex-direction: column;
         padding: 0 1.5rem 2rem;
@@ -800,6 +788,10 @@
     .detail-reviews-section {
         flex: unset;
         width: 100%;
+    }
+
+    .detail-episode-list {
+        grid-template-columns: 1fr;
     }
 
     .detail-episode-thumb {
@@ -813,5 +805,127 @@
 
     .detail-title-text {
         font-size: 2rem;
+    }
+}
+
+@media (max-width: 600px) {
+    .detail-hero {
+        min-height: auto;
+    }
+
+    /* Push content down with top padding so backdrop shows, no overflow issues */
+    .detail-hero-body {
+        min-height: auto;
+        padding: 42vh 0 2rem;
+        align-items: stretch;
+    }
+
+    .detail-info {
+        padding: 0 1rem;
+        gap: 0.65rem;
+    }
+
+    .detail-logo {
+        max-width: 180px;
+        max-height: 80px;
+    }
+
+    .detail-title-text {
+        font-size: 1.6rem;
+    }
+
+    .detail-overview {
+        font-size: 0.87rem;
+        -webkit-line-clamp: 3;
+        max-width: 100%;
+    }
+
+    .detail-cast {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 0.25rem;
+        scrollbar-width: none;
+    }
+    .detail-cast::-webkit-scrollbar { display: none; }
+
+    .detail-cast-item { width: 58px; }
+
+    .detail-actions {
+        flex-direction: column;
+    }
+
+    .detail-play-btn,
+    .detail-watchlist-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .detail-lower-section {
+        padding: 0 1rem 2rem;
+        gap: 1.5rem;
+    }
+
+    .detail-section-heading {
+        font-size: 1.15rem;
+    }
+
+    .detail-episode-thumb {
+        width: 96px;
+        height: 54px;
+    }
+
+    .detail-episode-title {
+        font-size: 0.88rem;
+    }
+
+    .detail-similar-card {
+        flex: 0 0 130px;
+        height: 195px;
+    }
+
+    .detail-season-tab {
+        font-size: 0.78rem;
+        padding: 0.28rem 0.75rem;
+    }
+
+    .detail-reviews-list {
+        max-height: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .detail-hero-body {
+        padding-top: 38vh;
+    }
+
+    .detail-title-text {
+        font-size: 1.35rem;
+    }
+
+    .detail-logo {
+        max-width: 150px;
+        max-height: 65px;
+    }
+
+    .detail-overview {
+        -webkit-line-clamp: 2;
+        font-size: 0.83rem;
+    }
+
+    .detail-tag {
+        font-size: 0.72rem;
+        padding: 0.2rem 0.5rem;
+    }
+
+    .detail-score-val {
+        font-size: 1.15rem;
+    }
+
+    .detail-crew-label {
+        font-size: 0.65rem;
+    }
+
+    .detail-crew-value {
+        font-size: 0.82rem;
     }
 }

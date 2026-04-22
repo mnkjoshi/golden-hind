@@ -1,6 +1,14 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import TextLogo from '../assets/TextLogo.png';
+import TextLogoGlitch1 from '../assets/TextLogoGlitch1.png';
+import TextLogoGlitch2 from '../assets/TextLogoGlitch2.png';
+import TextLogoGlitch3 from '../assets/TextLogoGlitch3.png';
+import TextLogoGlitch4 from '../assets/TextLogoGlitch4.png';
+import TextLogoGlitch5 from '../assets/TextLogoGlitch5.png';
+
+const GLITCH_FRAMES = [TextLogoGlitch1, TextLogoGlitch2, TextLogoGlitch3, TextLogoGlitch4, TextLogoGlitch5];
 
 const BASE_URL = 'https://goldenhind.tech';
 
@@ -16,7 +24,6 @@ export default function Topbar() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');
     const [isScrolled, setIsScrolled] = useState(false);
-    const [showChristmas, setShowChristmas] = useState(true);
 
     const [suggestions, setSuggestions] = useState([]);
     const [suggestionsLoading, setSuggestionsLoading] = useState(false);
@@ -42,17 +49,30 @@ export default function Topbar() {
     const [activityData, setActivityData] = useState(null);
     const [activityLoading, setActivityLoading] = useState(false);
 
+    const [logoSrc, setLogoSrc] = useState(TextLogo);
+    const glitchIntervalRef = useRef(null);
+    const lastGlitchIndexRef = useRef(-1);
+
+    const startGlitch = () => {
+        glitchIntervalRef.current = setInterval(() => {
+            let next;
+            do { next = Math.floor(Math.random() * GLITCH_FRAMES.length); } while (next === lastGlitchIndexRef.current);
+            lastGlitchIndexRef.current = next;
+            setLogoSrc(GLITCH_FRAMES[next]);
+        }, 80);
+    };
+
+    const stopGlitch = () => {
+        clearInterval(glitchIntervalRef.current);
+        setLogoSrc(TextLogo);
+    };
+
     const navigate = useNavigate();
     const location = useLocation();
     const dropdownRef = useRef(null);
 
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
-
-    useEffect(() => {
-        const t = setTimeout(() => setShowChristmas(false), 30000);
-        return () => clearTimeout(t);
-    }, []);
 
     useEffect(() => {
         const handleScroll = () => setIsScrolled(window.scrollY > 0);
@@ -212,9 +232,8 @@ export default function Topbar() {
                 <div className="topbar-content">
                     {/* Logo */}
                     <div className="topbar-left">
-                        <button className="topbar-logo" onClick={() => navigate('/app')}>
-                            <span className="logo-text">Golden Hind</span>
-                            <div className={`santa-hat ${!showChristmas ? 'hidden' : ''}`}></div>
+                        <button className="topbar-logo" onClick={() => navigate('/app')} onMouseEnter={startGlitch} onMouseLeave={stopGlitch}>
+                            <img src={logoSrc} alt="Golden Hind" className="logo-text" />
                         </button>
                     </div>
 
