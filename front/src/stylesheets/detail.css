@@ -192,10 +192,29 @@
     margin: 0;
     max-width: 520px;
     display: -webkit-box;
-    -webkit-line-clamp: 4;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
+
+.detail-overview.expanded {
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+}
+
+.detail-overview-toggle {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.45);
+    font-size: 0.82rem;
+    cursor: pointer;
+    padding: 4px 0 0 0;
+    display: block;
+    transition: color 0.15s;
+}
+
+.detail-overview-toggle:hover { color: rgba(255,255,255,0.75); }
 
 /* Crew */
 .detail-crew-row {

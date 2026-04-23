@@ -27,6 +27,7 @@ export default function Detail() {
 
     const [resumeSeason, setResumeSeason] = useState(null);
     const [resumeEpisode, setResumeEpisode] = useState(null);
+    const [overviewExpanded, setOverviewExpanded] = useState(false);
     const [trailerVisible, setTrailerVisible] = useState(false);
     const trailerTimerRef = useRef(null);
 
@@ -61,15 +62,39 @@ export default function Detail() {
             .finally(() => setReviewSubmitting(false));
     };
 
-    // Read resume position from localStorage on mount
+    // Read resume position — try DB first, fall back to localStorage
     useEffect(() => {
-        const s = localStorage.getItem('season' + id);
-        const e = localStorage.getItem('episode' + id);
-        if (s && e) {
-            setResumeSeason(parseInt(s));
-            setResumeEpisode(parseInt(e));
-            setSelectedSeason(parseInt(s));
-        }
+        if (mediaType !== 'tv') return;
+        axios.post(`${API}/progress_retrieve`, { user, token, progID: id })
+            .then(res => {
+                const data = res.data;
+                if (data && data !== 'VNF' && data.season && data.episode) {
+                    const s = parseInt(data.season);
+                    const e = parseInt(data.episode);
+                    localStorage.setItem('season' + id, s);
+                    localStorage.setItem('episode' + id, e);
+                    setResumeSeason(s);
+                    setResumeEpisode(e);
+                    setSelectedSeason(s);
+                } else {
+                    const s = localStorage.getItem('season' + id);
+                    const e = localStorage.getItem('episode' + id);
+                    if (s && e) {
+                        setResumeSeason(parseInt(s));
+                        setResumeEpisode(parseInt(e));
+                        setSelectedSeason(parseInt(s));
+                    }
+                }
+            })
+            .catch(() => {
+                const s = localStorage.getItem('season' + id);
+                const e = localStorage.getItem('episode' + id);
+                if (s && e) {
+                    setResumeSeason(parseInt(s));
+                    setResumeEpisode(parseInt(e));
+                    setSelectedSeason(parseInt(s));
+                }
+            });
     }, [id]);
 
     // Fetch all data in parallel
@@ -277,7 +302,12 @@ export default function Detail() {
                             )}
                         </div>
 
-                        <p className="detail-overview">{overview}</p>
+                        <p className={`detail-overview${overviewExpanded ? ' expanded' : ''}`}>{overview}</p>
+                        {overview.length > 0 && (
+                            <button className="detail-overview-toggle" onClick={() => setOverviewExpanded(v => !v)}>
+                                {overviewExpanded ? 'Show less' : 'Read more'}
+                            </button>
+                        )}
 
                         <div className="detail-crew-row">
                             {director && (
