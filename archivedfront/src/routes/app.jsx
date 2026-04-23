@@ -31,7 +31,8 @@ export default function App() {
             if (bookmarkData == "" && continueData == "" && trendingData == "") {
                 axios({
                     method: 'post',
-                    url: 'https://golden-hind.onrender.com/home',
+                    // url: 'https://golden-hind.onrender.com/home',
+                    url: 'https://goldenhind.tech/home',
                     data: {
                         user: user,
                         token: token,

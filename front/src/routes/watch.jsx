@@ -153,7 +153,7 @@ export default function App() {
             url: 'https://goldenhind.tech/server/lookmovie',
             data: { user, token, id, season, episode }
         }).then(r => {
-            if (r.data.dbg) console.group('[LookMovie Debug]'), r.data.dbg.forEach(l => console.log(l)), console.groupEnd();
+            // if (r.data.dbg) console.group('[LookMovie Debug]'), r.data.dbg.forEach(l => console.log(l)), console.groupEnd();
             if (r.data.success) {
                 setLmSubtitles(r.data.subtitles || []);
                 setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
@@ -658,10 +658,18 @@ export default function App() {
                 }).then((response) => {
                     const ToData = response.data
                     if (ToData !== "VNF") {
-                        localStorage.setItem("episode" + id, response.data.episode)
-                        localStorage.setItem("season" + id, response.data.season)
-                        setEpisode(response.data.episode)
-                        setSeason(response.data.season)
+                        if (location.state !== null) { // If we're redirecting from the details page, use the season/episode from the URL instead of the saved progress so we don't override the user's intended jump with old progress data. This allows users to click on a specific episode from the details page and have it load correctly instead of always loading their last position in that series.
+                            const [season, episode] = location.state.status.split(';');
+                            localStorage.setItem("episode" + id, episode)
+                            localStorage.setItem("season" + id, season)
+                            setSeason(season);
+                            setEpisode(episode);
+                        } else {
+                            localStorage.setItem("episode" + id, response.data.episode)
+                            localStorage.setItem("season" + id, response.data.season)
+                            setSeason(response.data.season)
+                            setEpisode(response.data.episode)
+                        }           
                     }
                     setProgressReady(true);
                 }).catch(() => {

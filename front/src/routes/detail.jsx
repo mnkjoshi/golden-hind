@@ -153,7 +153,8 @@ export default function Detail() {
         axios.post(`${API}/progress_update`, {
             user, token, progID: id, progStatus: `${season};${episode}`
         }).catch(() => {});
-        navigate(`/watch/${id}`);
+        console.log("send arguments here")
+        navigate(`/watch/${id}`, {state: { status: `${season};${episode}`}});
     };
 
     const handleWatchlist = async () => {

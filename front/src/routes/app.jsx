@@ -1181,7 +1181,7 @@ export default function App() {
                         <button className="trailer-close" onClick={() => setTrailerKey(null)}>×</button>
                         <iframe
                             className="trailer-iframe"
-                            src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
+                            src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&controls=0&loop=1&playlist=${trailerKey}`}
                             title="Trailer"
                             allowFullScreen
                             allow="autoplay; encrypted-media"
