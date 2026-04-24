@@ -380,6 +380,7 @@ export default function App() {
     }, [tooltip.visible, tooltip.data]);
 
     const handleCardEnter = (e, result, isWide, rowId) => {
+        if (window.innerWidth <= 768) return;
         const target = e.currentTarget;
         const uid = `${rowId}:${result.id}`;
 
@@ -533,6 +534,7 @@ export default function App() {
 
     // Tooltip functions
     const showTooltip = (event, data) => {
+        if (window.innerWidth <= 768) return;
         const rect = event.currentTarget.getBoundingClientRect();
         const tooltipWidth = 300;
         const tooltipHeight = 280;
@@ -634,7 +636,7 @@ export default function App() {
                     {heroInlineTrailer && heroInlineTrailerKey && (
                         <div className="hero-inline-trailer">
                             <iframe
-                                src={`https://www.youtube.com/embed/${heroInlineTrailerKey}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${heroInlineTrailerKey}`}
+                                src={`https://www.youtube.com/embed/${heroInlineTrailerKey}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${heroInlineTrailerKey}&mute=1&rel=0&iv_load_policy=3&fs=0`}
                                 title="Trailer Preview"
                                 allow="autoplay; encrypted-media"
                                 allowFullScreen={false}
@@ -787,7 +789,7 @@ export default function App() {
                                 >
                                     {expandedCard?.uid === `continue:${result.id}` && (
                                         <div className="card-inline-trailer">
-                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
+                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}&mute=1&rel=0&iv_load_policy=3&fs=0`} allow="autoplay; encrypted-media" title="Preview" />
                                         </div>
                                     )}
                                     <div className="card-image-container">
@@ -931,7 +933,7 @@ export default function App() {
                                 >
                                     {expandedCard?.uid === `trending:${result.id}` && (
                                         <div className="card-inline-trailer">
-                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
+                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}&mute=1&rel=0&iv_load_policy=3&fs=0`} allow="autoplay; encrypted-media" title="Preview" />
                                         </div>
                                     )}
                                     <div className="card-image-container">
@@ -1059,7 +1061,7 @@ export default function App() {
                                 >
                                     {expandedCard?.uid === `bookmark:${result.id}` && (
                                         <div className="card-inline-trailer">
-                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
+                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}&mute=1&rel=0&iv_load_policy=3&fs=0`} allow="autoplay; encrypted-media" title="Preview" />
                                         </div>
                                     )}
                                     <div className="card-image-container">
@@ -1162,7 +1164,7 @@ export default function App() {
                         onMouseLeave={() => { handleCardLeave(); hideTooltip(); }}
                     >
                         <iframe
-                            src={`https://www.youtube.com/embed/${key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${key}`}
+                            src={`https://www.youtube.com/embed/${key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${key}&mute=1&rel=0&iv_load_policy=3&fs=0`}
                             allow="autoplay; encrypted-media"
                             title="Preview"
                         />
@@ -1178,7 +1180,7 @@ export default function App() {
                         <button className="trailer-close" onClick={() => setTrailerKey(null)}>×</button>
                         <iframe
                             className="trailer-iframe"
-                            src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${trailerKey}`}
+                            src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&rel=0`}
                             title="Trailer"
                             allowFullScreen
                             allow="autoplay; encrypted-media"
@@ -1195,6 +1197,8 @@ export default function App() {
                 const ts = localStorage.getItem('lastWatched_' + cid);
                 const ep = localStorage.getItem('episode' + cid);
                 const se = localStorage.getItem('season' + cid);
+                const isInContinue = continueData?.some(item => item.id === r.id);
+                const isInBookmarks = bookmarkData?.some(item => item.id === r.id);
                 return (
                     <div className="mobile-sheet-backdrop" onClick={() => setMobileCardSheet(null)}>
                         <div className="mobile-sheet" onClick={e => e.stopPropagation()}>
@@ -1231,6 +1235,22 @@ export default function App() {
                                 >
                                     ▶ Watch
                                 </button>
+                                {isInContinue && (
+                                    <button
+                                        className="mobile-sheet-remove-btn"
+                                        onClick={() => { removeHandle(isMovie, r.id, false); setMobileCardSheet(null); }}
+                                    >
+                                        Remove from Continue Watching
+                                    </button>
+                                )}
+                                {isInBookmarks && (
+                                    <button
+                                        className="mobile-sheet-remove-btn"
+                                        onClick={() => { removeHandle(isMovie, r.id, true); setMobileCardSheet(null); }}
+                                    >
+                                        Remove from My List
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

@@ -1531,11 +1531,19 @@ app.get('/proxy/subtitle', async (req, res) => {
         });
         // VTT files pass through as-is; SRT files get converted
         const isVtt = url.toLowerCase().includes('.vtt') || data.trimStart().startsWith('WEBVTT');
-        const vtt = isVtt
+        let vtt = isVtt
             ? data
             : 'WEBVTT\n\n' + data
                 .replace(/\r\n/g, '\n')
                 .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+
+        // Inject X-TIMESTAMP-MAP so iOS AVPlayer can sync subtitle cue times
+        // with the video's MPEG-TS clock when served as an HLS subtitle segment.
+        // MPEGTS:0 means PTS=0 maps to WebVTT local time 00:00:00.000.
+        if (!vtt.includes('X-TIMESTAMP-MAP')) {
+            vtt = vtt.replace(/^WEBVTT/, 'WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000');
+        }
+
         res.send(vtt);
     } catch (e) {
         const status = e.response?.status || 'no-response';
@@ -1558,6 +1566,7 @@ app.get('/proxy/subtitle-playlist', (req, res) => {
         '#EXTM3U',
         '#EXT-X-TARGETDURATION:99999',
         '#EXT-X-VERSION:3',
+        '#EXT-X-PLAYLIST-TYPE:VOD',
         '#EXT-X-MEDIA-SEQUENCE:0',
         '#EXTINF:99999,',
         proxied,
@@ -1573,7 +1582,7 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
     if (!raw) return res.status(400).send('Missing url');
     const url = decodeURIComponent(raw);
     let subs = [];
-    try { subs = JSON.parse(decodeURIComponent(rawSubs || '[]')); } catch {}
+    try { subs = JSON.parse(rawSubs || '[]'); } catch {}
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');

@@ -274,7 +274,7 @@ export default function Detail() {
                 {trailerKey && (
                     <div className={`detail-hero-trailer${trailerVisible ? ' visible' : ''}`}>
                         <iframe
-                            src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&controls=0&loop=1&playlist=${trailerKey}&mute=1`}
+                            src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${trailerKey}&mute=1&rel=0&iv_load_policy=3&fs=0`}
                             allow="autoplay; encrypted-media"
                             title="Trailer"
                         />

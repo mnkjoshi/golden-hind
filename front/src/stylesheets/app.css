@@ -1975,19 +1975,21 @@ p {
 }
 
 .card-inline-trailer iframe {
+    position: absolute;
+    top: -40px;
+    left: 0;
     width: 100%;
-    height: 100%;
+    height: calc(100% + 80px);
     border: none;
     pointer-events: none;
-    display: block;
 }
 
 .card-trailer-preview iframe {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 110%;
-    height: 110%;
+    width: 115%;
+    height: calc(100% + 120px);
     transform: translate(-50%, -50%);
     border: none;
     pointer-events: none;
@@ -2069,4 +2071,38 @@ p {
     );
     pointer-events: none;
     z-index: 1;
+}
+
+/* On touch-only devices, disable card hover effects so a single tap goes straight
+   to the sheet rather than first triggering :hover state (which causes double-tap). */
+@media (hover: none) {
+    .content-card:hover {
+        transform: none;
+        box-shadow: none;
+        z-index: auto;
+    }
+    .content-card:hover .card-overlay {
+        opacity: 0;
+    }
+}
+
+.mobile-sheet-remove-btn {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: #e6edf3;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 13px 16px;
+    cursor: pointer;
+    text-align: center;
+    margin-top: 8px;
+    transition: background 0.15s;
+}
+
+.mobile-sheet-remove-btn:hover {
+    background: rgba(248, 81, 73, 0.15);
+    border-color: rgba(248, 81, 73, 0.4);
+    color: #f85149;
 }
