@@ -21,7 +21,7 @@ export default function Admin() {
     const token = localStorage.getItem('token');
 
     useEffect(() => {
-        document.title = 'Admin — The Golden Hind';
+        document.title = 'Admin - The Golden Hind';
         if (user !== 'manav') {
             navigate('/app');
             return;
