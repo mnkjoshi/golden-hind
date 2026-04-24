@@ -1512,8 +1512,11 @@ app.get('/proxy/subtitle', async (req, res) => {
     if (!raw) return res.status(400).send('Missing url');
     const url = decodeURIComponent(raw);
 
+    console.log(`[sub] fetch: ${url}`);
+
     // Reject obviously malformed URLs (metadata entries that slipped through)
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        console.log(`[sub] rejected invalid url`);
         return res.status(400).send('WEBVTT\n\nNOTE invalid subtitle url');
     }
 
@@ -1521,7 +1524,7 @@ app.get('/proxy/subtitle', async (req, res) => {
     res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
 
     try {
-        const { data } = await axios.get(url, {
+        const resp = await axios.get(url, {
             headers: {
                 ...lookmovieHeaders,
                 'Accept': 'text/vtt, text/plain, */*',
@@ -1529,8 +1532,12 @@ app.get('/proxy/subtitle', async (req, res) => {
             responseType: 'text',
             timeout: 15000,
         });
+        const data = resp.data;
+        console.log(`[sub] upstream status=${resp.status} content-type=${resp.headers['content-type']} bytes=${data.length} preview=${JSON.stringify(data.slice(0, 80))}`);
+
         // VTT files pass through as-is; SRT files get converted
         const isVtt = url.toLowerCase().includes('.vtt') || data.trimStart().startsWith('WEBVTT');
+        console.log(`[sub] isVtt=${isVtt}`);
         let vtt = isVtt
             ? data
             : 'WEBVTT\n\n' + data
@@ -1539,16 +1546,16 @@ app.get('/proxy/subtitle', async (req, res) => {
 
         // Inject X-TIMESTAMP-MAP so iOS AVPlayer can sync subtitle cue times
         // with the video's MPEG-TS clock when served as an HLS subtitle segment.
-        // MPEGTS:0 means PTS=0 maps to WebVTT local time 00:00:00.000.
         if (!vtt.includes('X-TIMESTAMP-MAP')) {
             vtt = vtt.replace(/^WEBVTT/, 'WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000');
         }
 
+        console.log(`[sub] sending ${vtt.length} bytes, first line: ${JSON.stringify(vtt.slice(0, 120))}`);
         res.send(vtt);
     } catch (e) {
         const status = e.response?.status || 'no-response';
         const msg = e.message || 'unknown error';
-        console.error(`[proxy/subtitle] failed: ${status} — ${msg} — url: ${url}`);
+        console.error(`[sub] FAILED status=${status} msg=${msg} url=${url}`);
         res.status(502).send(`WEBVTT\n\nNOTE subtitle fetch failed: ${status} ${msg}`);
     }
 });
@@ -1559,10 +1566,11 @@ app.get('/proxy/subtitle-playlist', (req, res) => {
     const raw = req.query.url;
     if (!raw) return res.status(400).send('Missing url');
     const url = decodeURIComponent(raw);
+    console.log(`[sub-playlist] serving playlist for: ${url}`);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     const proxied = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(url)}`;
-    res.send([
+    const playlist = [
         '#EXTM3U',
         '#EXT-X-TARGETDURATION:99999',
         '#EXT-X-VERSION:3',
@@ -1571,7 +1579,9 @@ app.get('/proxy/subtitle-playlist', (req, res) => {
         '#EXTINF:99999,',
         proxied,
         '#EXT-X-ENDLIST',
-    ].join('\n'));
+    ].join('\n');
+    console.log(`[sub-playlist] sending:\n${playlist}`);
+    res.send(playlist);
 });
 
 // Master HLS manifest rewriter that injects subtitle tracks.
@@ -1582,7 +1592,12 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
     if (!raw) return res.status(400).send('Missing url');
     const url = decodeURIComponent(raw);
     let subs = [];
-    try { subs = JSON.parse(rawSubs || '[]'); } catch {}
+    try { subs = JSON.parse(rawSubs || '[]'); } catch (e) {
+        console.error(`[hls-with-subs] failed to parse subs JSON: ${e.message} — raw: ${rawSubs?.slice(0, 200)}`);
+    }
+
+    console.log(`[hls-with-subs] url=${url} subs_count=${subs.length}`);
+    subs.forEach((s, i) => console.log(`[hls-with-subs]   sub[${i}]: file=${s.file} url=${s.url} lang=${s.language || s.lang}`));
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
@@ -1593,6 +1608,7 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
             responseType: 'text',
             timeout: 15000,
         });
+        console.log(`[hls-with-subs] upstream status=${upstream.status} bytes=${upstream.data.length}`);
         const base = url.substring(0, url.lastIndexOf('/') + 1);
 
         // Build #EXT-X-MEDIA lines for each subtitle track
@@ -1603,16 +1619,20 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
                 const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
                 const playlistUri = `https://goldenhind.tech/proxy/subtitle-playlist?url=${encodeURIComponent(absSubUrl)}`;
                 const name = (sub.language || sub.lang || `Track ${i + 1}`).replace(/"/g, "'");
-                return `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 ? 'YES' : 'NO'},AUTOSELECT=${i === 0 ? 'YES' : 'NO'},FORCED=NO,URI="${playlistUri}",LANGUAGE="sub${i}"`;
+                const line = `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 ? 'YES' : 'NO'},AUTOSELECT=${i === 0 ? 'YES' : 'NO'},FORCED=NO,URI="${playlistUri}",LANGUAGE="sub${i}"`;
+                console.log(`[hls-with-subs]   injecting: ${line}`);
+                return line;
             });
 
         // Rewrite segment/variant URLs and add SUBTITLES attr to STREAM-INF lines
         const lines = upstream.data.split('\n');
         const rewritten = [];
+        let streamInfCount = 0;
         for (const line of lines) {
             const t = line.trim();
             if (!t) { rewritten.push(line); continue; }
             if (t.startsWith('#EXT-X-STREAM-INF')) {
+                streamInfCount++;
                 rewritten.push(t.includes('SUBTITLES=') ? t : t + ',SUBTITLES="subs"');
             } else if (!t.startsWith('#')) {
                 const abs = t.startsWith('http') ? t : base + t;
@@ -1621,13 +1641,17 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
                 rewritten.push(line);
             }
         }
+        console.log(`[hls-with-subs] stream variants found=${streamInfCount} subtitle tracks injected=${subMediaLines.length}`);
 
         // Insert #EXT-X-MEDIA lines right after #EXTM3U
         const extm3uIdx = rewritten.findIndex(l => l.trim().startsWith('#EXTM3U'));
         rewritten.splice(extm3uIdx >= 0 ? extm3uIdx + 1 : 0, 0, ...subMediaLines);
 
-        res.send(rewritten.join('\n'));
+        const output = rewritten.join('\n');
+        console.log(`[hls-with-subs] final manifest (first 600 chars):\n${output.slice(0, 600)}`);
+        res.send(output);
     } catch (e) {
+        console.error(`[hls-with-subs] FAILED: ${e.message}`);
         if (!res.headersSent) res.status(502).send(e.message);
     }
 });
