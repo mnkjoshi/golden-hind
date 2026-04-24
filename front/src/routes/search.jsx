@@ -27,6 +27,7 @@ export default function Search() {
     const [filterType, setFilterType] = useState('all');
     const [filterYear, setFilterYear] = useState('');
     const [filterGenre, setFilterGenre] = useState('');
+    const [mobileQuery, setMobileQuery] = useState('');
     const { state } = useLocation();
     const searched = state?.searched || "";
 
@@ -130,6 +131,28 @@ export default function Search() {
             <Topbar/>
             
             <div className="search-content">
+                {/* Mobile search bar */}
+                <div className="mobile-search-bar">
+                    <div className="mobile-search-wrapper">
+                        <svg className="mobile-search-icon" viewBox="0 0 24 24" fill="none">
+                            <path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        <input
+                            className="mobile-search-input"
+                            type="text"
+                            placeholder="Search movies, TV shows..."
+                            value={mobileQuery}
+                            onChange={e => setMobileQuery(e.target.value)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter' && mobileQuery.trim()) {
+                                    navigate('/search', { state: { searched: mobileQuery.trim() } });
+                                }
+                            }}
+                            autoComplete="off"
+                        />
+                    </div>
+                </div>
+
                 {/* Search Header */}
                 <div className="search-header">
                     <div className="search-info">

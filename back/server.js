@@ -888,6 +888,27 @@ app.post('/admin/data', async (request, response) => {
     }
 });
 
+app.post('/admin/user-stats', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, targetUser } = request.body;
+    if (!await AuthenticateAdmin(user, token)) {
+        return response.status(403).send("Forbidden");
+    }
+    try {
+        const db = admin.database();
+        const sessionsSnap = await db.ref(`users/${targetUser}/watch_sessions`).orderByChild('timestamp').limitToLast(50).once('value');
+        const sessions = sessionsSnap.val()
+            ? Object.values(sessionsSnap.val()).sort((a, b) => b.timestamp - a.timestamp)
+            : [];
+        const totalSeconds = sessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+        response.status(200).json({ sessions, totalSeconds });
+    } catch (error) {
+        logError('manav', '/admin/user-stats', error).catch(() => {});
+        response.status(200).json({ sessions: [], totalSeconds: 0 });
+    }
+});
+
 app.post('/watch-time', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -1521,6 +1542,84 @@ app.get('/proxy/subtitle', async (req, res) => {
         const msg = e.message || 'unknown error';
         console.error(`[proxy/subtitle] failed: ${status} — ${msg} — url: ${url}`);
         res.status(502).send(`WEBVTT\n\nNOTE subtitle fetch failed: ${status} ${msg}`);
+    }
+});
+
+// Returns a minimal HLS media playlist for a single subtitle file.
+// iOS AVPlayer can reference this from #EXT-X-MEDIA in the master manifest.
+app.get('/proxy/subtitle-playlist', (req, res) => {
+    const raw = req.query.url;
+    if (!raw) return res.status(400).send('Missing url');
+    const url = decodeURIComponent(raw);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    const proxied = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(url)}`;
+    res.send([
+        '#EXTM3U',
+        '#EXT-X-TARGETDURATION:99999',
+        '#EXT-X-VERSION:3',
+        '#EXT-X-MEDIA-SEQUENCE:0',
+        '#EXTINF:99999,',
+        proxied,
+        '#EXT-X-ENDLIST',
+    ].join('\n'));
+});
+
+// Master HLS manifest rewriter that injects subtitle tracks.
+// Used by iOS Safari so AVPlayer sees subtitles in native fullscreen.
+app.get('/proxy/hls-with-subs', async (req, res) => {
+    const raw = req.query.url;
+    const rawSubs = req.query.subs;
+    if (!raw) return res.status(400).send('Missing url');
+    const url = decodeURIComponent(raw);
+    let subs = [];
+    try { subs = JSON.parse(decodeURIComponent(rawSubs || '[]')); } catch {}
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+
+    try {
+        const upstream = await axios.get(url, {
+            headers: { 'Referer': 'https://www.lookmovie2.to/', 'User-Agent': lookmovieHeaders['User-Agent'] },
+            responseType: 'text',
+            timeout: 15000,
+        });
+        const base = url.substring(0, url.lastIndexOf('/') + 1);
+
+        // Build #EXT-X-MEDIA lines for each subtitle track
+        const subMediaLines = subs
+            .filter(sub => { const u = String(sub.file || sub.url || ''); return u.startsWith('/') || u.startsWith('http'); })
+            .map((sub, i) => {
+                const rawSub = String(sub.file || sub.url || '');
+                const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
+                const playlistUri = `https://goldenhind.tech/proxy/subtitle-playlist?url=${encodeURIComponent(absSubUrl)}`;
+                const name = (sub.language || sub.lang || `Track ${i + 1}`).replace(/"/g, "'");
+                return `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 ? 'YES' : 'NO'},AUTOSELECT=${i === 0 ? 'YES' : 'NO'},FORCED=NO,URI="${playlistUri}",LANGUAGE="sub${i}"`;
+            });
+
+        // Rewrite segment/variant URLs and add SUBTITLES attr to STREAM-INF lines
+        const lines = upstream.data.split('\n');
+        const rewritten = [];
+        for (const line of lines) {
+            const t = line.trim();
+            if (!t) { rewritten.push(line); continue; }
+            if (t.startsWith('#EXT-X-STREAM-INF')) {
+                rewritten.push(t.includes('SUBTITLES=') ? t : t + ',SUBTITLES="subs"');
+            } else if (!t.startsWith('#')) {
+                const abs = t.startsWith('http') ? t : base + t;
+                rewritten.push(`/proxy/hls?url=${encodeURIComponent(abs)}`);
+            } else {
+                rewritten.push(line);
+            }
+        }
+
+        // Insert #EXT-X-MEDIA lines right after #EXTM3U
+        const extm3uIdx = rewritten.findIndex(l => l.trim().startsWith('#EXTM3U'));
+        rewritten.splice(extm3uIdx >= 0 ? extm3uIdx + 1 : 0, 0, ...subMediaLines);
+
+        res.send(rewritten.join('\n'));
+    } catch (e) {
+        if (!res.headersSent) res.status(502).send(e.message);
     }
 });
 

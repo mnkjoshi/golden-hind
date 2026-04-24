@@ -15,6 +15,11 @@
     padding: 2rem 4rem;
 }
 
+/* Mobile search bar (hidden on desktop) */
+.mobile-search-bar {
+    display: none;
+}
+
 /* Search Header */
 .search-header {
     display: flex;
@@ -456,6 +461,49 @@
         padding: 1rem 0.75rem;
     }
 
+    .mobile-search-bar {
+        display: block;
+        margin-bottom: 1.25rem;
+    }
+
+    .mobile-search-wrapper {
+        display: flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        padding: 0 14px;
+        transition: border-color 0.2s;
+    }
+
+    .mobile-search-wrapper:focus-within {
+        border-color: #3FA3FF;
+        background: rgba(63, 163, 255, 0.06);
+    }
+
+    .mobile-search-icon {
+        width: 18px;
+        height: 18px;
+        color: rgba(255, 255, 255, 0.45);
+        flex-shrink: 0;
+        margin-right: 10px;
+    }
+
+    .mobile-search-input {
+        flex: 1;
+        background: none;
+        border: none;
+        outline: none;
+        color: white;
+        font-size: 16px;
+        padding: 12px 0;
+        font-family: inherit;
+    }
+
+    .mobile-search-input::placeholder {
+        color: rgba(255, 255, 255, 0.35);
+    }
+
     .search-header {
         margin-bottom: 1.25rem;
         padding-bottom: 1rem;
@@ -554,6 +602,10 @@
 }
 
 @media (max-width: 480px) {
+    .modern-search-page {
+        padding-top: 50px;
+    }
+
     .search-content {
         padding: 0.5rem;
     }

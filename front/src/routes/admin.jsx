@@ -13,6 +13,9 @@ export default function Admin() {
     const [newUser, setNewUser] = useState({ username: '', password: '', email: '' });
     const [createStatus, setCreateStatus] = useState('');
     const [creating, setCreating] = useState(false);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [userActivity, setUserActivity] = useState(null);
+    const [userActivityLoading, setUserActivityLoading] = useState(false);
 
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
@@ -35,6 +38,19 @@ export default function Admin() {
             navigate('/app');
         }
         setLoading(false);
+    };
+
+    const openUserActivity = async (targetUser) => {
+        setSelectedUser(targetUser);
+        setUserActivity(null);
+        setUserActivityLoading(true);
+        try {
+            const res = await axios.post(`${BASE_URL}/admin/user-stats`, { user, token, targetUser });
+            setUserActivity(res.data);
+        } catch {
+            setUserActivity({ sessions: [], totalSeconds: 0 });
+        }
+        setUserActivityLoading(false);
     };
 
     const createUser = async () => {
@@ -265,18 +281,74 @@ export default function Admin() {
                             )}
                         </div>
 
-                        <h3 className="panel-section-title">All Users ({users.length})</h3>
+                        <h3 className="panel-section-title">All Users ({users.length}) — tap to view activity</h3>
                         <div className="users-grid">
                             {users.map(u => (
-                                <div key={u} className={`user-chip ${u === 'manav' ? 'admin-chip' : ''}`}>
+                                <button key={u} className={`user-chip user-chip-btn ${u === 'manav' ? 'admin-chip' : ''}`} onClick={() => openUserActivity(u)}>
                                     {u === 'manav' && <span className="chip-crown">★</span>}
                                     {u}
-                                </div>
+                                </button>
                             ))}
                         </div>
                     </div>
                 )}
             </div>
         </div>
+
+            {/* User Activity Modal */}
+            {selectedUser && (
+                <div className="admin-modal-backdrop" onClick={() => setSelectedUser(null)}>
+                    <div className="admin-modal-box" onClick={e => e.stopPropagation()}>
+                        <div className="admin-modal-header">
+                            <h2 className="admin-modal-title">Activity — {selectedUser}</h2>
+                            <button className="admin-modal-close" onClick={() => setSelectedUser(null)}>×</button>
+                        </div>
+                        {userActivityLoading ? (
+                            <div className="admin-modal-loading">
+                                <div className="admin-spinner"></div>
+                            </div>
+                        ) : (
+                            <div className="admin-modal-body">
+                                <div className="admin-activity-stats">
+                                    <div className="admin-activity-stat">
+                                        <div className="admin-activity-stat-value">{formatWatchTime(userActivity?.totalSeconds || 0)}</div>
+                                        <div className="admin-activity-stat-label">Total Watch Time</div>
+                                    </div>
+                                    <div className="admin-activity-stat">
+                                        <div className="admin-activity-stat-value">{userActivity?.sessions?.length || 0}</div>
+                                        <div className="admin-activity-stat-label">Sessions</div>
+                                    </div>
+                                </div>
+                                {(!userActivity?.sessions || userActivity.sessions.length === 0) ? (
+                                    <p className="admin-modal-empty">No sessions recorded for this user.</p>
+                                ) : (
+                                    <div className="admin-activity-list">
+                                        {userActivity.sessions.map((s, i) => (
+                                            <div key={i} className="admin-activity-item">
+                                                <div className="admin-activity-name">{s.contentName || 'Unknown Title'}</div>
+                                                <div className="admin-activity-meta">
+                                                    <span className="admin-activity-duration">{formatWatchTime(s.duration)}</span>
+                                                    <span className="admin-activity-date">
+                                                        {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
     );
+}
+
+function formatWatchTime(seconds) {
+    if (!seconds || seconds < 1) return '0m';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }

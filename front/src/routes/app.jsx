@@ -81,6 +81,7 @@ export default function App() {
 
     const [activeCardPreview, setActiveCardPreview] = useState(null)
     const [expandedCard, setExpandedCard] = useState(null)
+    const [mobileCardSheet, setMobileCardSheet] = useState(null)
     const cardHoverTimerRef = useRef(null)
     const cardLeaveTimerRef = useRef(null)
     const cardHoverTargetRef = useRef(null)
@@ -436,6 +437,20 @@ export default function App() {
         }, 300);
     };
 
+    const handleCardClick = (e, result) => {
+        if (window.innerWidth <= 768) {
+            e.preventDefault();
+            e.stopPropagation();
+            setMobileCardSheet(result);
+            return;
+        }
+        if (result.media_type === 'movie' || result.number_of_episodes == null) {
+            navigate('/detail/m' + result.id);
+        } else {
+            navigate('/detail/t' + result.id);
+        }
+    };
+
     const dismissToast = () => {
         setIsToastDismissed(true)
         setTimeout(() => {
@@ -619,7 +634,7 @@ export default function App() {
                     {heroInlineTrailer && heroInlineTrailerKey && (
                         <div className="hero-inline-trailer">
                             <iframe
-                                src={`https://www.youtube.com/embed/${heroInlineTrailerKey}?autoplay=1&controls=0&loop=1&playlist=${heroInlineTrailerKey}`}
+                                src={`https://www.youtube.com/embed/${heroInlineTrailerKey}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${heroInlineTrailerKey}`}
                                 title="Trailer Preview"
                                 allow="autoplay; encrypted-media"
                                 allowFullScreen={false}
@@ -766,19 +781,13 @@ export default function App() {
                                     key={result.id}
                                     className={`content-card${expandedCard?.uid === `continue:${result.id}` ? ' card-expanded' : ''}`}
                                     style={expandedCard?.uid === `continue:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
-                                    onClick={() => {
-                                        if (result.number_of_episodes == null) {
-                                            navigate("/detail/m" + result.id)
-                                        } else {
-                                            navigate("/detail/t" + result.id)
-                                        }
-                                    }}
+                                    onClick={(e) => handleCardClick(e, result)}
                                     onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'continue'); }}
                                     onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                 >
                                     {expandedCard?.uid === `continue:${result.id}` && (
                                         <div className="card-inline-trailer">
-                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
+                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
                                         </div>
                                     )}
                                     <div className="card-image-container">
@@ -846,7 +855,7 @@ export default function App() {
                                     <div
                                         key={result.id}
                                         className="content-card rec-wide-card"
-                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/detail/m' + result.id : '/detail/t' + result.id)}
+                                        onClick={(e) => handleCardClick(e, result)}
                                         onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'recent-recs'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >
@@ -916,19 +925,13 @@ export default function App() {
                                     key={result.id}
                                     className={`content-card${expandedCard?.uid === `trending:${result.id}` ? ' card-expanded' : ''}`}
                                     style={expandedCard?.uid === `trending:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
-                                    onClick={() => {
-                                        if (result.media_type === "movie") {
-                                            navigate("/detail/m" + result.id)
-                                        } else {
-                                            navigate("/detail/t" + result.id)
-                                        }
-                                    }}
+                                    onClick={(e) => handleCardClick(e, result)}
                                     onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'trending'); }}
                                     onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                 >
                                     {expandedCard?.uid === `trending:${result.id}` && (
                                         <div className="card-inline-trailer">
-                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
+                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
                                         </div>
                                     )}
                                     <div className="card-image-container">
@@ -975,7 +978,7 @@ export default function App() {
                                     <div
                                         key={result.id}
                                         className="content-card rec-wide-card"
-                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/detail/m' + result.id : '/detail/t' + result.id)}
+                                        onClick={(e) => handleCardClick(e, result)}
                                         onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'recently-reviewed'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >
@@ -1050,19 +1053,13 @@ export default function App() {
                                     key={result.id}
                                     className={`content-card${expandedCard?.uid === `bookmark:${result.id}` ? ' card-expanded' : ''}`}
                                     style={expandedCard?.uid === `bookmark:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
-                                    onClick={() => {
-                                        if (result.number_of_episodes == null) {
-                                            navigate("/detail/m" + result.id)
-                                        } else {
-                                            navigate("/detail/t" + result.id)
-                                        }
-                                    }}
+                                    onClick={(e) => handleCardClick(e, result)}
                                     onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'bookmark'); }}
                                     onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                 >
                                     {expandedCard?.uid === `bookmark:${result.id}` && (
                                         <div className="card-inline-trailer">
-                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
+                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}`} allow="autoplay; encrypted-media" title="Preview" />
                                         </div>
                                     )}
                                     <div className="card-image-container">
@@ -1119,7 +1116,7 @@ export default function App() {
                                     <div
                                         key={result.id}
                                         className="content-card rec-wide-card"
-                                        onClick={() => navigate(result.media_type === 'movie' || result.number_of_episodes == null ? '/detail/m' + result.id : '/detail/t' + result.id)}
+                                        onClick={(e) => handleCardClick(e, result)}
                                         onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'wide'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >
@@ -1165,7 +1162,7 @@ export default function App() {
                         onMouseLeave={() => { handleCardLeave(); hideTooltip(); }}
                     >
                         <iframe
-                            src={`https://www.youtube.com/embed/${key}?autoplay=1&controls=0&loop=1&playlist=${key}`}
+                            src={`https://www.youtube.com/embed/${key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${key}`}
                             allow="autoplay; encrypted-media"
                             title="Preview"
                         />
@@ -1181,7 +1178,7 @@ export default function App() {
                         <button className="trailer-close" onClick={() => setTrailerKey(null)}>×</button>
                         <iframe
                             className="trailer-iframe"
-                            src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&controls=0&loop=1&playlist=${trailerKey}`}
+                            src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${trailerKey}`}
                             title="Trailer"
                             allowFullScreen
                             allow="autoplay; encrypted-media"
@@ -1189,6 +1186,56 @@ export default function App() {
                     </div>
                 </div>
             )}
+
+            {/* Mobile Card Bottom Sheet */}
+            {mobileCardSheet && (() => {
+                const r = mobileCardSheet;
+                const isMovie = r.media_type === 'movie' || r.number_of_episodes == null;
+                const cid = (isMovie ? 'm' : 't') + r.id;
+                const ts = localStorage.getItem('lastWatched_' + cid);
+                const ep = localStorage.getItem('episode' + cid);
+                const se = localStorage.getItem('season' + cid);
+                return (
+                    <div className="mobile-sheet-backdrop" onClick={() => setMobileCardSheet(null)}>
+                        <div className="mobile-sheet" onClick={e => e.stopPropagation()}>
+                            <div className="mobile-sheet-handle"></div>
+                            <div className="mobile-sheet-content">
+                                <div className="mobile-sheet-header">
+                                    <img
+                                        className="mobile-sheet-poster"
+                                        src={`https://image.tmdb.org/t/p/w185/${r.poster_path}`}
+                                        alt=""
+                                        loading="lazy"
+                                    />
+                                    <div className="mobile-sheet-info">
+                                        <h3 className="mobile-sheet-title">{r.name || r.title || 'Untitled'}</h3>
+                                        <div className="mobile-sheet-meta">
+                                            <span className={`mobile-sheet-badge ${isMovie ? 'movie' : 'tv'}`}>{isMovie ? 'Movie' : 'TV'}</span>
+                                            <span className="mobile-sheet-rating">⭐ {r.vote_average?.toFixed(1)}</span>
+                                            <span className="mobile-sheet-year">
+                                                {r.release_date ? new Date(r.release_date).getFullYear() : r.first_air_date ? new Date(r.first_air_date).getFullYear() : ''}
+                                            </span>
+                                        </div>
+                                        {(ts || (ep && se && !isMovie)) && (
+                                            <div className="mobile-sheet-progress">
+                                                {ep && se && !isMovie && <span>S{se} E{ep}</span>}
+                                                {ts && <span>{formatRelativeTime(ts)}</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                {r.overview && <p className="mobile-sheet-overview">{r.overview}</p>}
+                                <button
+                                    className="mobile-sheet-watch-btn"
+                                    onClick={() => { setMobileCardSheet(null); navigate('/detail/' + (isMovie ? 'm' : 't') + r.id); }}
+                                >
+                                    ▶ Watch
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* External Tooltip Component */}
             {tooltip.visible && tooltip.data && (

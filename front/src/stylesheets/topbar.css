@@ -113,10 +113,26 @@
     font-size: 1rem;
     font-weight: 500;
     cursor: pointer;
-    padding: 0.5rem 1rem;
+    padding: 0.4rem 0.9rem;
     border-radius: 6px;
     transition: all 0.3s ease;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.nav-link svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.nav-link span {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.2px;
 }
 
 .nav-link:hover {
@@ -643,6 +659,32 @@
     margin: 0;
 }
 
+/* Mobile search icon button */
+.topbar-search-icon-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.topbar-search-icon-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.topbar-search-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: white;
+}
+
 /* Responsive Design */
 @media (max-width: 1200px) {
     .topbar-content {
@@ -680,27 +722,23 @@
     .modern-topbar {
         height: 55px;
     }
-    
+
     .topbar-content {
         padding: 0 1rem;
     }
-    
+
     .navigation-links {
-        display: none; /* Hide nav links on mobile */
+        display: none;
     }
-    
-    .search-wrapper {
-        width: 140px;
-        flex: 1;
-        max-width: 200px;
+
+    .search-container {
+        display: none;
     }
-    
-    .search-input {
-        font-size: 16px; /* Prevent iOS zoom */
-        height: 36px;
-        padding: 0 12px;
+
+    .topbar-search-icon-btn {
+        display: flex;
     }
-    
+
     .logo-text {
         height: 22px;
     }
@@ -710,7 +748,7 @@
         min-width: 160px;
         font-size: 0.9rem;
     }
-    
+
     .dropdown-item {
         padding: 0.8rem 1rem;
         font-size: 0.9rem;
@@ -721,29 +759,15 @@
     .modern-topbar {
         height: 50px;
     }
-    
+
     .topbar-content {
         padding: 0 0.5rem;
     }
-    
+
     .logo-text {
         height: 20px;
     }
 
-    .search-wrapper {
-        flex: 1;
-        width: auto;
-        min-width: 90px;
-        max-width: 52vw;
-    }
-
-    .search-input {
-        font-size: 16px;
-        height: 32px;
-        padding: 0 10px;
-        width: 100%;
-    }
-    
     .account-dropdown {
         min-width: 140px;
         font-size: 0.85rem;

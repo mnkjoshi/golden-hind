@@ -239,16 +239,35 @@ export default function Topbar() {
 
                     {/* Navigation Links */}
                     <div className="topbar-nav">
-                        <button className={`nav-link ${location.pathname === '/app' ? 'active' : ''}`} onClick={() => navigate('/app')}>Home</button>
-                        <button className={`nav-link ${location.pathname === '/search' ? 'active' : ''}`} onClick={() => navigate('/search')}>Search</button>
-                        <button className={`nav-link ${location.pathname === '/books' ? 'active' : ''}`} onClick={() => navigate('/books')}>Books</button>
+                        <button className={`nav-link ${location.pathname === '/app' ? 'active' : ''}`} onClick={() => navigate('/app')}>
+                            <svg viewBox="0 0 24 24" fill="none"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/><path d="M9 21V12h6v9" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            <span>Home</span>
+                        </button>
+                        <button className={`nav-link ${location.pathname === '/search' ? 'active' : ''}`} onClick={() => navigate('/search')}>
+                            <svg viewBox="0 0 24 24" fill="none"><path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            <span>Search</span>
+                        </button>
+                        <button className={`nav-link ${location.pathname === '/books' ? 'active' : ''}`} onClick={() => navigate('/books')}>
+                            <svg viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            <span>Books</span>
+                        </button>
                         {user === 'manav' && (
-                            <button className={`nav-link admin-nav-link ${location.pathname === '/admin' ? 'active' : ''}`} onClick={() => navigate('/admin')}>Admin</button>
+                            <button className={`nav-link admin-nav-link ${location.pathname === '/admin' ? 'active' : ''}`} onClick={() => navigate('/admin')}>
+                                <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7l-9-5z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                <span>Admin</span>
+                            </button>
                         )}
                     </div>
 
                     {/* Right Side */}
                     <div className="topbar-right">
+                        {/* Mobile search icon - only visible on small screens */}
+                        <button className="topbar-search-icon-btn" onClick={() => navigate('/search')}>
+                            <svg viewBox="0 0 24 24" fill="none">
+                                <path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                        </button>
+
                         <div className="search-container" ref={searchWrapperRef}>
                             <div className="search-wrapper">
                                 <svg className="search-icon" viewBox="0 0 24 24" fill="none">

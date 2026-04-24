@@ -28,6 +28,8 @@ export default function Detail() {
     const [resumeSeason, setResumeSeason] = useState(null);
     const [resumeEpisode, setResumeEpisode] = useState(null);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
+    const [isOverviewClamped, setIsOverviewClamped] = useState(false);
+    const overviewRef = useRef(null);
     const [trailerVisible, setTrailerVisible] = useState(false);
     const trailerTimerRef = useRef(null);
 
@@ -131,6 +133,12 @@ export default function Detail() {
         }
         return () => clearTimeout(trailerTimerRef.current);
     }, [trailerKey]);
+
+    // Show "Read more" only when the overview is actually line-clamped
+    useEffect(() => {
+        if (overviewExpanded || !overviewRef.current) return;
+        setIsOverviewClamped(overviewRef.current.scrollHeight > overviewRef.current.clientHeight);
+    }, [detail, overviewExpanded]);
 
     // Fetch season episodes whenever selected season changes
     useEffect(() => {
@@ -303,8 +311,8 @@ export default function Detail() {
                             )}
                         </div>
 
-                        <p className={`detail-overview${overviewExpanded ? ' expanded' : ''}`}>{overview}</p>
-                        {overview.length > 0 && (
+                        <p ref={overviewRef} className={`detail-overview${overviewExpanded ? ' expanded' : ''}`}>{overview}</p>
+                        {(isOverviewClamped || overviewExpanded) && (
                             <button className="detail-overview-toggle" onClick={() => setOverviewExpanded(v => !v)}>
                                 {overviewExpanded ? 'Show less' : 'Read more'}
                             </button>
