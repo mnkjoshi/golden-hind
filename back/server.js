@@ -1867,10 +1867,9 @@ app.post('/music/download', async (req, res) => {
             'format': 'bestaudio/best',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'referer': 'https://www.youtube.com/',
-            'extractor-args': 'youtube:player_client=android,web',
+            'extractor-args': 'youtube:player_client=tv_embedded,ios',
             'no-check-certificate': true,
             'prefer-free-formats': true,
-            'youtube-skip-dash-manifest': true,
         });
 
         const files = fs.readdirSync(tempDir).filter(f => f.endsWith('.mp3'));
