@@ -113,6 +113,7 @@ export default function Admin() {
     const uniqueUsers = [...new Set(analytics.map(e => e.user))].length;
 
     return (
+        <>
         <div className="admin-main">
             <Topbar />
             <div className="admin-container">
@@ -341,7 +342,7 @@ export default function Admin() {
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 }
 
