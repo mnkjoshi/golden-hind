@@ -15,12 +15,14 @@ import App from './routes/app.jsx'
 import Watch from './routes/watch.jsx'
 import Search from './routes/search.jsx'
 import Books from './routes/books.jsx'
+import Music from './routes/music.jsx'
 import Admin from './routes/admin.jsx'
 import Test from './routes/test.jsx'
 import Detail from './routes/detail.jsx'
 import ErrorPage from './routes/error.jsx'
 import './stylesheets/admin.css'
 import './stylesheets/detail.css'
+import './stylesheets/music.css'
 
 import {
   createBrowserRouter,
@@ -76,6 +78,11 @@ const router = createBrowserRouter([
   {
     path: "/detail/:id",
     element: <Detail/>,
+    errorElement: <ErrorPage/>
+  },
+  {
+    path: "/music",
+    element: <Music/>,
     errorElement: <ErrorPage/>
   },
   {

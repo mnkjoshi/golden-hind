@@ -251,6 +251,10 @@ export default function Topbar() {
                             <svg viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/></svg>
                             <span>Books</span>
                         </button>
+                        <button className={`nav-link ${location.pathname === '/music' ? 'active' : ''}`} onClick={() => navigate('/music')}>
+                            <svg viewBox="0 0 24 24" fill="none"><path d="M9 18V5l12-2v13" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/><circle cx="6" cy="18" r="3" stroke="currentColor" strokeWidth="1.75"/><circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="1.75"/></svg>
+                            <span>Music</span>
+                        </button>
                         {user === 'manav' && (
                             <button className={`nav-link admin-nav-link ${location.pathname === '/admin' ? 'active' : ''}`} onClick={() => navigate('/admin')}>
                                 <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7l-9-5z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/></svg>

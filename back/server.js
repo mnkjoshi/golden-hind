@@ -7,6 +7,10 @@ import admin from "firebase-admin";
 import Search from "./endpoints/search.js"
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import ytDlpExec from 'yt-dlp-exec';
+import os from 'os';
+import fs from 'fs';
+import path from 'path';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -1511,6 +1515,7 @@ app.get('/proxy/subtitle', async (req, res) => {
     const raw = req.query.url;
     if (!raw) return res.status(400).send('Missing url');
     const url = decodeURIComponent(raw);
+    const pts = parseInt(req.query.pts || '0', 10) || 0;
 
     console.log(`[sub] fetch: ${url}`);
 
@@ -1545,10 +1550,12 @@ app.get('/proxy/subtitle', async (req, res) => {
                 .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
 
         // Inject X-TIMESTAMP-MAP so iOS AVPlayer can sync subtitle cue times
-        // with the video's MPEG-TS clock when served as an HLS subtitle segment.
+        // with the video's MPEG-TS clock. pts is the first video frame PTS
+        // detected from the stream (90kHz clock); subtitle LOCAL times start at 0.
         if (!vtt.includes('X-TIMESTAMP-MAP')) {
-            vtt = vtt.replace(/^WEBVTT/, 'WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000');
+            vtt = vtt.replace(/^WEBVTT/, `WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:${pts},LOCAL:00:00:00.000`);
         }
+        console.log(`[sub] X-TIMESTAMP-MAP pts=${pts}`);
 
         console.log(`[sub] sending ${vtt.length} bytes, first line: ${JSON.stringify(vtt.slice(0, 120))}`);
         res.send(vtt);
@@ -1560,16 +1567,93 @@ app.get('/proxy/subtitle', async (req, res) => {
     }
 });
 
+// Detects the first video frame PTS from an HLS master manifest's first segment.
+// Returns the PTS value (90kHz clock units), or 0 on failure.
+async function detectFirstVideoPTS(masterManifestText, masterUrl) {
+    try {
+        const masterLines = masterManifestText.split('\n');
+        let variantUrl = null;
+        for (let i = 0; i < masterLines.length; i++) {
+            const t = masterLines[i].trim();
+            if (t.startsWith('#EXT-X-STREAM-INF')) {
+                const next = masterLines[i + 1]?.trim();
+                if (next && !next.startsWith('#')) {
+                    const base = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
+                    variantUrl = next.startsWith('http') ? next : base + next;
+                    break;
+                }
+            }
+        }
+        if (!variantUrl) { console.log('[pts-detect] no variant URL found'); return 0; }
+
+        const varResp = await axios.get(variantUrl, {
+            headers: { 'Referer': 'https://www.lookmovie2.to/', 'User-Agent': lookmovieHeaders['User-Agent'] },
+            responseType: 'text', timeout: 8000,
+        });
+        const varBase = variantUrl.substring(0, variantUrl.lastIndexOf('/') + 1);
+        let segmentUrl = null;
+        for (const line of varResp.data.split('\n')) {
+            const t = line.trim();
+            if (t && !t.startsWith('#')) {
+                segmentUrl = t.startsWith('http') ? t : varBase + t;
+                break;
+            }
+        }
+        if (!segmentUrl) { console.log('[pts-detect] no segment URL found'); return 0; }
+
+        console.log(`[pts-detect] fetching first segment: ${segmentUrl}`);
+        const segResp = await axios.get(segmentUrl, {
+            headers: { ...lookmovieHeaders, 'Range': 'bytes=0-32767' },
+            responseType: 'arraybuffer', timeout: 8000,
+        });
+        const buf = Buffer.from(segResp.data);
+        let offset = 0;
+        while (offset + 188 <= buf.length) {
+            if (buf[offset] !== 0x47) { offset++; continue; }
+            const payloadUnitStart = (buf[offset + 1] & 0x40) !== 0;
+            const adaptFieldCtrl = (buf[offset + 3] >> 4) & 0x3;
+            let payloadOff = 4;
+            if (adaptFieldCtrl === 2 || adaptFieldCtrl === 3) payloadOff += 1 + buf[offset + 4];
+            if (payloadUnitStart && (adaptFieldCtrl & 1)) {
+                const p = offset + payloadOff;
+                if (p + 14 < buf.length && buf[p] === 0x00 && buf[p+1] === 0x00 && buf[p+2] === 0x01) {
+                    const streamId = buf[p + 3];
+                    if ((streamId & 0xF0) === 0xE0) {
+                        const ptsDtsFlags = (buf[p + 7] >> 6) & 0x3;
+                        if (ptsDtsFlags & 0x2) {
+                            const pts =
+                                ((buf[p+9]  & 0x0E) >> 1) * 1073741824 +
+                                buf[p+10]              * 4194304 +
+                                ((buf[p+11] & 0xFE) >> 1) * 32768 +
+                                buf[p+12]              * 128 +
+                                ((buf[p+13] & 0xFE) >> 1);
+                            console.log(`[pts-detect] first video PTS = ${pts} (${(pts/90000).toFixed(3)}s)`);
+                            return pts;
+                        }
+                    }
+                }
+            }
+            offset += 188;
+        }
+        console.log('[pts-detect] no video PTS found in first 32KB');
+        return 0;
+    } catch (e) {
+        console.error(`[pts-detect] failed: ${e.message}`);
+        return 0;
+    }
+}
+
 // Returns a minimal HLS media playlist for a single subtitle file.
 // iOS AVPlayer can reference this from #EXT-X-MEDIA in the master manifest.
 app.get('/proxy/subtitle-playlist', (req, res) => {
     const raw = req.query.url;
     if (!raw) return res.status(400).send('Missing url');
     const url = decodeURIComponent(raw);
-    console.log(`[sub-playlist] serving playlist for: ${url}`);
+    const pts = req.query.pts || '0';
+    console.log(`[sub-playlist] serving playlist for: ${url} pts=${pts}`);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-    const proxied = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(url)}`;
+    const proxied = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(url)}&pts=${pts}`;
     const playlist = [
         '#EXTM3U',
         '#EXT-X-TARGETDURATION:99999',
@@ -1611,13 +1695,17 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
         console.log(`[hls-with-subs] upstream status=${upstream.status} bytes=${upstream.data.length}`);
         const base = url.substring(0, url.lastIndexOf('/') + 1);
 
+        // Detect the first video frame PTS so subtitle X-TIMESTAMP-MAP is accurate
+        const videoPts = await detectFirstVideoPTS(upstream.data, url);
+        console.log(`[hls-with-subs] detected videoPts=${videoPts}`);
+
         // Build #EXT-X-MEDIA lines for each subtitle track
         const subMediaLines = subs
             .filter(sub => { const u = String(sub.file || sub.url || ''); return u.startsWith('/') || u.startsWith('http'); })
             .map((sub, i) => {
                 const rawSub = String(sub.file || sub.url || '');
                 const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
-                const playlistUri = `https://goldenhind.tech/proxy/subtitle-playlist?url=${encodeURIComponent(absSubUrl)}`;
+                const playlistUri = `https://goldenhind.tech/proxy/subtitle-playlist?url=${encodeURIComponent(absSubUrl)}&pts=${videoPts}`;
                 const name = (sub.language || sub.lang || `Track ${i + 1}`).replace(/"/g, "'");
                 const line = `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 ? 'YES' : 'NO'},AUTOSELECT=${i === 0 ? 'YES' : 'NO'},FORCED=NO,URI="${playlistUri}",LANGUAGE="sub${i}"`;
                 console.log(`[hls-with-subs]   injecting: ${line}`);
@@ -1755,3 +1843,78 @@ async function getRecommendations(contentList, mode) {
     if (!match) throw new Error('No JSON array found in Gemini response');
     return JSON.parse(match[0]);
 }
+
+// Download a YouTube video's audio as MP3 via yt-dlp
+app.post('/music/download', async (req, res) => {
+    const { user, token, url } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (!url || !/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(url)) {
+        return res.status(400).json({ error: 'Invalid YouTube URL' });
+    }
+
+    const tempDir = path.join(os.tmpdir(), `music-${crypto.randomUUID()}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+    console.log(`[music] download start: ${url} → ${tempDir}`);
+
+    try {
+        await ytDlpExec(url, {
+            'extract-audio': true,
+            'audio-format': 'mp3',
+            'audio-quality': '0',
+            'output': path.join(tempDir, '%(title)s.%(ext)s'),
+            'no-playlist': true,
+            'format': 'bestaudio/best',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'referer': 'https://www.youtube.com/',
+            'extractor-args': 'youtube:player_client=android,web',
+            'no-check-certificate': true,
+            'prefer-free-formats': true,
+            'youtube-skip-dash-manifest': true,
+        });
+
+        const files = fs.readdirSync(tempDir).filter(f => f.endsWith('.mp3'));
+        if (files.length === 0) {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+            return res.status(500).json({ error: 'Download completed but MP3 not found' });
+        }
+
+        const filePath = path.join(tempDir, files[0]);
+        const safeFileName = files[0].replace(/[^\w\s.\-()]/g, '_');
+        console.log(`[music] serving: ${safeFileName} (${fs.statSync(filePath).size} bytes)`);
+
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(safeFileName)}`);
+
+        const stream = fs.createReadStream(filePath);
+        stream.pipe(res);
+        const cleanup = () => fs.rmSync(tempDir, { recursive: true, force: true });
+        res.on('finish', cleanup);
+        res.on('close', cleanup);
+        stream.on('error', (e) => {
+            console.error('[music] stream error:', e.message);
+            cleanup();
+            if (!res.headersSent) res.status(500).json({ error: 'Stream error' });
+        });
+    } catch (e) {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        console.error('[music] yt-dlp failed:', e.message);
+
+        let errorMsg = 'Download failed';
+        if (e.message.includes('403') || e.message.includes('Forbidden')) {
+            errorMsg = 'YouTube blocked the download. Try a different video.';
+        } else if (e.message.includes('404') || e.message.includes('Not Found')) {
+            errorMsg = 'Video not found. It may be private or deleted.';
+        } else if (e.message.includes('age')) {
+            errorMsg = 'Age-restricted content cannot be downloaded.';
+        } else if (e.message.includes('copyright')) {
+            errorMsg = 'This video is copyright-protected and cannot be downloaded.';
+        } else if (e.message.includes('Sign in') || e.message.includes('login')) {
+            errorMsg = 'This video requires login. Try a different video.';
+        } else {
+            errorMsg = `Download failed: ${e.message.split('\n')[0]}`;
+        }
+
+        res.status(500).json({ error: errorMsg });
+    }
+});
