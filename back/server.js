@@ -7,7 +7,8 @@ import admin from "firebase-admin";
 import Search from "./endpoints/search.js"
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import ytDlpExec from 'yt-dlp-exec';
+import { create as createYtDlp } from 'yt-dlp-exec';
+const ytDlpExec = createYtDlp('/usr/local/bin/yt-dlp');
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
@@ -1858,6 +1859,10 @@ app.post('/music/download', async (req, res) => {
     console.log(`[music] download start: ${url} → ${tempDir}`);
 
     try {
+        const cookiesPath = path.join(process.cwd(), 'youtube-cookies.txt');
+        const hasCookies = fs.existsSync(cookiesPath);
+        console.log(`[music] cookies file: ${hasCookies ? cookiesPath : 'not found'}`);
+
         await ytDlpExec(url, {
             'extract-audio': true,
             'audio-format': 'mp3',
@@ -1867,9 +1872,10 @@ app.post('/music/download', async (req, res) => {
             'format': 'bestaudio/best',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'referer': 'https://www.youtube.com/',
-            'extractor-args': 'youtube:player_client=tv_embedded,ios',
+            'extractor-args': 'youtube:player_client=ios,mweb',
             'no-check-certificate': true,
             'prefer-free-formats': true,
+            ...(hasCookies ? { 'cookies': cookiesPath } : {}),
         });
 
         const files = fs.readdirSync(tempDir).filter(f => f.endsWith('.mp3'));
