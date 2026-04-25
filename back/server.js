@@ -1909,20 +1909,28 @@ app.post('/music/url', async (req, res) => {
         if (!videoId) return res.status(400).json({ error: 'Could not extract video ID from URL' });
 
         // Primary: cobalt.tools — purpose-built downloader, handles YouTube bot detection
-        try {
-            const cobalt = await axios.post('https://api.cobalt.tools/',
-                { url: `https://www.youtube.com/watch?v=${videoId}`, downloadMode: 'audio', audioFormat: 'best', filenameStyle: 'basic' },
-                { headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, timeout: 15000 }
-            );
-            const { status, url: streamUrl, filename } = cobalt.data;
-            if ((status === 'stream' || status === 'redirect') && streamUrl) {
-                const title = (filename || videoId).replace(/\.(webm|mp4|m4a|opus)$/i, '').replace(/[/\\?%*:|"<>]/g, '-');
-                console.log(`[music/url] ok via cobalt: "${title}"`);
-                return res.json({ streamUrl, title, ext: 'webm' });
+        const cobaltInstances = [
+            'https://api.cobalt.tools',
+            'https://cobalt.ggtyler.dev',
+            'https://cobalt.drgns.space',
+        ];
+        for (const cobaltBase of cobaltInstances) {
+            try {
+                const cobalt = await axios.post(`${cobaltBase}/`,
+                    { url: `https://www.youtube.com/watch?v=${videoId}`, downloadMode: 'audio', audioFormat: 'opus' },
+                    { headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, timeout: 15000 }
+                );
+                const { status, url: streamUrl, filename } = cobalt.data;
+                console.log(`[music/url] cobalt ${cobaltBase} response: status=${status} url=${!!streamUrl} filename=${filename}`);
+                if ((status === 'stream' || status === 'redirect') && streamUrl) {
+                    const title = (filename || videoId).replace(/\.(webm|mp4|m4a|opus)$/i, '').replace(/[/\\?%*:|"<>]/g, '-');
+                    console.log(`[music/url] ok via cobalt ${cobaltBase}: "${title}"`);
+                    return res.json({ streamUrl, title, ext: 'webm' });
+                }
+                throw new Error(`cobalt status=${status} data=${JSON.stringify(cobalt.data).slice(0, 200)}`);
+            } catch (e) {
+                console.error(`[music/url] cobalt ${cobaltBase} failed: ${e.response?.data ? JSON.stringify(e.response.data).slice(0, 200) : e.message.split('\n')[0]}`);
             }
-            throw new Error(`unexpected cobalt status: ${status}`);
-        } catch (e) {
-            console.error(`[music/url] cobalt failed: ${e.message.split('\n')[0]}`);
         }
 
         // Fallback: dynamically fetch healthiest Invidious instances then try each
