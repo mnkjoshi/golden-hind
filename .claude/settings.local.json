@@ -32,7 +32,8 @@
       "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -i 's/CUSTOM_INNERTUBE_CLIENT=ANDROID/CUSTOM_INNERTUBE_CLIENT=TV_EMBEDDED/' ~/cobalt/api/.env && tail -3 ~/cobalt/api/.env\")",
       "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"curl -s -X POST http://localhost:9000 -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{\\\\\"url\\\\\":\\\\\"https://www.youtube.com/watch?v=1bUUivU8BaA\\\\\",\\\\\"downloadMode\\\\\":\\\\\"audio\\\\\",\\\\\"audioFormat\\\\\":\\\\\"best\\\\\"}'\")",
       "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"grep -n 'video.unavailable\\\\|playability\\\\|switch' ~/cobalt/api/src/processing/services/youtube.js | head -20\")",
-      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '288,325p' ~/cobalt/api/src/processing/services/youtube.js\")"
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '288,325p' ~/cobalt/api/src/processing/services/youtube.js\")",
+      "Bash(ssh -i *)"
     ]
   }
 }

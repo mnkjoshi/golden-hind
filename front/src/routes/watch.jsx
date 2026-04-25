@@ -157,7 +157,12 @@ export default function App() {
             if (r.data.success) {
                 const subs = r.data.subtitles || [];
                 setLmSubtitles(subs);
-                setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
+                if (!Hls.isSupported() && subs.length > 0) {
+                    const subDebug = new URLSearchParams(location.search).has('subdebug');
+                    setLmUrl(`https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}${subDebug ? '&debug=1' : ''}`);
+                } else {
+                    setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
+                }
             } else {
                 setProvider(3);
                 localStorage.setItem("provider" + vidID, 3);
@@ -220,36 +225,38 @@ export default function App() {
             return languageMap.find(([, re]) => re.test(text))?.[0] || (index === 0 ? 'en' : 'und');
         };
 
-        // Keep HTML text tracks present for native iOS fullscreen too. AVPlayer can
-        // drop custom player state on iosNative fullscreen, but it can still discover
-        // <track> children attached to the underlying <video> element.
+        // Hls.js/desktop uses HTML text tracks. Native iOS uses HLS subtitle
+        // renditions injected into the manifest instead; mixing both creates
+        // duplicate menu items and can leave AVPlayer selecting a non-rendering track.
         const uniqueSubs = lmSubtitles;
         let trackIndex = 0;
-        uniqueSubs.forEach(sub => {
-            const rawSub = String(sub.file || sub.url || '');
-            if (!rawSub.startsWith('/') && !rawSub.startsWith('http')) return;
-            const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
-            const trackEl = document.createElement('track');
-            trackEl.kind = 'subtitles';
-            trackEl.label = sub.language || sub.lang || `Track ${trackIndex + 1}`;
-            trackEl.srclang = subtitleLangCode(sub, trackIndex);
-            trackEl.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
-            if (trackIndex === 0) trackEl.default = true;
-            const isDefaultTrack = trackIndex === 0;
-            trackEl.addEventListener('load', () => {
-                const offset = subOffsetRef.current;
-                if (offset !== 0 && trackEl.track?.cues) {
-                    Array.from(trackEl.track.cues).forEach(cue => {
-                        cue.startTime = Math.max(0, cue.startTime + offset);
-                        cue.endTime = Math.max(0, cue.endTime + offset);
-                    });
-                }
+        if (Hls.isSupported()) {
+            uniqueSubs.forEach(sub => {
+                const rawSub = String(sub.file || sub.url || '');
+                if (!rawSub.startsWith('/') && !rawSub.startsWith('http')) return;
+                const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
+                const trackEl = document.createElement('track');
+                trackEl.kind = 'subtitles';
+                trackEl.label = sub.language || sub.lang || `Track ${trackIndex + 1}`;
+                trackEl.srclang = subtitleLangCode(sub, trackIndex);
+                trackEl.src = `https://goldenhind.tech/proxy/subtitle.vtt?url=${encodeURIComponent(absSubUrl)}`;
+                if (trackIndex === 0) trackEl.default = true;
+                const isDefaultTrack = trackIndex === 0;
+                trackEl.addEventListener('load', () => {
+                    const offset = subOffsetRef.current;
+                    if (offset !== 0 && trackEl.track?.cues) {
+                        Array.from(trackEl.track.cues).forEach(cue => {
+                            cue.startTime = Math.max(0, cue.startTime + offset);
+                            cue.endTime = Math.max(0, cue.endTime + offset);
+                        });
+                    }
+                    if (isDefaultTrack && trackEl.track) trackEl.track.mode = 'showing';
+                });
+                video.appendChild(trackEl);
                 if (isDefaultTrack && trackEl.track) trackEl.track.mode = 'showing';
+                trackIndex++;
             });
-            video.appendChild(trackEl);
-            if (isDefaultTrack && trackEl.track) trackEl.track.mode = 'showing';
-            trackIndex++;
-        });
+        }
 
         const posKey = type === 'tv'
             ? `playbackPos_${id}_s${season}_e${episode}`
