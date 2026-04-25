@@ -81,6 +81,46 @@ export default function App() {
 
     let location = useLocation();
     const navigate = useNavigate();
+    const subTraceEnabled = new URLSearchParams(location.search).has('subtrace');
+
+    const describeTextTracks = (video) => Array.from(video?.textTracks || []).map((track, index) => ({
+        index,
+        kind: track.kind,
+        label: track.label,
+        language: track.language,
+        mode: track.mode,
+        cues: track.cues?.length ?? null,
+        activeCues: Array.from(track.activeCues || []).slice(0, 3).map(cue => ({
+            startTime: cue.startTime,
+            endTime: cue.endTime,
+            text: cue.text,
+        })),
+    }));
+
+    const sendSubtitleTrace = (event, detail = {}, video = videoRef.current) => {
+        if (!subTraceEnabled) return;
+        const payload = {
+            event,
+            id,
+            user: localStorage.getItem('user') || null,
+            currentTime: Number.isFinite(video?.currentTime) ? video.currentTime : null,
+            duration: Number.isFinite(video?.duration) ? video.duration : null,
+            presentationMode: video?.webkitPresentationMode || null,
+            tracks: describeTextTracks(video),
+            detail,
+        };
+        console.log('[subtitle-trace]', payload);
+        try {
+            const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+            if (navigator.sendBeacon && navigator.sendBeacon('https://goldenhind.tech/debug/subtitle-trace', blob)) return;
+        } catch {}
+        fetch('https://goldenhind.tech/debug/subtitle-trace', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true,
+        }).catch(() => {});
+    };
 
     // Disable body overflow when watch page is active + log watch time on unmount
     useEffect(() => {
@@ -160,7 +200,8 @@ export default function App() {
                 if (!Hls.isSupported() && subs.length > 0) {
                     const subDebug = new URLSearchParams(location.search).has('subdebug');
                     const subHello = new URLSearchParams(location.search).has('subhello');
-                    setLmUrl(`https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}${subDebug ? '&debug=1' : ''}${subHello ? '&hello=1' : ''}`);
+                    const subTrace = new URLSearchParams(location.search).has('subtrace');
+                    setLmUrl(`https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}${subDebug ? '&debug=1' : ''}${subHello ? '&hello=1' : ''}${subTrace ? '&trace=1' : ''}`);
                 } else {
                     setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
                 }
@@ -182,6 +223,7 @@ export default function App() {
     // removeChild NotFoundError when the episode changes and React re-renders).
     useEffect(() => {
         if (!lmUrl || !lmContainerRef.current) return;
+        const subtitleTraceCleanup = [];
 
         // Tear down any existing instances first
         if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
@@ -198,6 +240,66 @@ export default function App() {
         video.style.height = '100%';
         container.appendChild(video);
         videoRef.current = video;
+
+        if (subTraceEnabled) {
+            const tracedTracks = new WeakSet();
+            sendSubtitleTrace('video-created', {
+                lmUrl,
+                hlsSupported: Hls.isSupported(),
+                canPlayNativeHls: video.canPlayType('application/vnd.apple.mpegurl'),
+                userAgent: navigator.userAgent,
+            }, video);
+
+            let lastSnapshot = 0;
+            const videoEvents = [
+                'loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'play', 'pause',
+                'seeking', 'seeked', 'ratechange', 'durationchange', 'error',
+                'webkitbeginfullscreen', 'webkitendfullscreen', 'webkitpresentationmodechanged',
+            ];
+            const traceVideoEvent = (event) => sendSubtitleTrace(`video-${event.type}`, {
+                readyState: video.readyState,
+                networkState: video.networkState,
+                paused: video.paused,
+                error: video.error ? { code: video.error.code, message: video.error.message } : null,
+            }, video);
+
+            videoEvents.forEach(eventName => {
+                video.addEventListener(eventName, traceVideoEvent);
+                subtitleTraceCleanup.push(() => video.removeEventListener(eventName, traceVideoEvent));
+            });
+
+            const traceTimeupdate = () => {
+                if (Math.abs(video.currentTime - lastSnapshot) < 5) return;
+                lastSnapshot = video.currentTime;
+                sendSubtitleTrace('video-timeupdate', {
+                    readyState: video.readyState,
+                    networkState: video.networkState,
+                    paused: video.paused,
+                }, video);
+            };
+            video.addEventListener('timeupdate', traceTimeupdate);
+            subtitleTraceCleanup.push(() => video.removeEventListener('timeupdate', traceTimeupdate));
+
+            const attachTrackTrace = () => {
+                Array.from(video.textTracks || []).forEach((track, index) => {
+                    if (tracedTracks.has(track)) return;
+                    tracedTracks.add(track);
+                    const onCueChange = () => sendSubtitleTrace('texttrack-cuechange', {
+                        index,
+                        label: track.label,
+                        language: track.language,
+                        mode: track.mode,
+                    }, video);
+                    track.addEventListener('cuechange', onCueChange);
+                    subtitleTraceCleanup.push(() => track.removeEventListener('cuechange', onCueChange));
+                });
+                sendSubtitleTrace('texttrack-snapshot', {}, video);
+            };
+
+            const traceInterval = setInterval(attachTrackTrace, 5000);
+            subtitleTraceCleanup.push(() => clearInterval(traceInterval));
+            setTimeout(attachTrackTrace, 0);
+        }
 
         const subtitleLangCode = (sub, index) => {
             const raw = String(sub.language || sub.lang || sub.label || '').toLowerCase();
@@ -362,6 +464,7 @@ export default function App() {
         return () => {
             if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
             if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+            subtitleTraceCleanup.forEach(cleanup => cleanup());
             container.innerHTML = '';
             videoRef.current = null;
         };

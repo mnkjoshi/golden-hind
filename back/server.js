@@ -56,6 +56,22 @@ app.get('/', (request, response) => {
     response.send("Yarrr! Ahoy there, matey!");
 });
 
+app.post('/debug/subtitle-trace', (request, response) => {
+    const body = request.body || {};
+    console.log('[subtitle-trace]', JSON.stringify({
+        at: new Date().toISOString(),
+        event: body.event,
+        id: body.id,
+        user: body.user,
+        currentTime: body.currentTime,
+        duration: body.duration,
+        presentationMode: body.presentationMode,
+        tracks: body.tracks,
+        detail: body.detail,
+    }));
+    response.status(204).end();
+});
+
 app.get('/book-search', async (request, response) => {
     const query = request.query.q || 'red rising';
     
@@ -1579,17 +1595,23 @@ function normalizeSubtitleToVtt(data, { pts = 0, includeTimestampMap = false } =
     return `${text}\n`;
 }
 
-function buildHelloSubtitleVtt({ duration = 21600, pts = 0, includeTimestampMap = false } = {}) {
-    const safeDuration = Math.max(60, Math.min(Math.ceil(duration), 12 * 60 * 60));
+function buildHelloSubtitleVtt({ duration = 21600, pts = 0, mapMode = 'pts', start = 0, span = null } = {}) {
+    const safeDuration = Math.max(1, Math.min(Math.ceil(duration), 12 * 60 * 60));
+    const cueStart = Math.max(0, start);
+    const cueEnd = Math.min(cueStart + (span || safeDuration), safeDuration);
     const lines = ['WEBVTT'];
-    if (includeTimestampMap) {
+    if (mapMode === 'pts') {
         lines.push(`X-TIMESTAMP-MAP=MPEGTS:${pts},LOCAL:00:00:00.000`);
+    } else if (mapMode === 'zero') {
+        lines.push('X-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000');
+    } else if (mapMode === 'localfirst') {
+        lines.push(`X-TIMESTAMP-MAP=LOCAL:00:00:00.000,MPEGTS:${pts}`);
     }
     lines.push('');
 
-    for (let start = 0; start < safeDuration; start += 5) {
-        const end = Math.min(start + 4.5, safeDuration);
-        lines.push(`${formatVttTime(start)} --> ${formatVttTime(end)}`);
+    for (let cursor = cueStart; cursor < cueEnd; cursor += 5) {
+        const end = Math.min(cursor + 4.5, cueEnd);
+        lines.push(`${formatVttTime(cursor)} --> ${formatVttTime(end)}`);
         lines.push('HELLO!');
         lines.push('');
     }
@@ -1688,6 +1710,19 @@ async function handleSubtitleProxy(req, res) {
     const pts = parseInt(req.query.pts || '0', 10) || 0;
 
     console.log(`[sub] fetch: ${url}`);
+    if (req.query.trace === '1') {
+        console.log('[subtitle-trace]', JSON.stringify({
+            at: new Date().toISOString(),
+            event: 'subtitle-vtt-request',
+            url,
+            pts,
+            hls: req.query.hls === '1',
+            hello: req.query.hello === '1',
+            map: req.query.map,
+            range: req.headers.range || null,
+            userAgent: req.headers['user-agent'] || null,
+        }));
+    }
 
     // Reject obviously malformed URLs (metadata entries that slipped through)
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -1700,9 +1735,9 @@ async function handleSubtitleProxy(req, res) {
 
     if (req.query.hello === '1') {
         const duration = parseFloat(req.query.duration || '0') || 21600;
-        const includeTimestampMap = req.query.hls === '1';
-        const vtt = buildHelloSubtitleVtt({ duration, pts, includeTimestampMap });
-        console.log(`[sub] HELLO test vtt hls=${includeTimestampMap} pts=${pts} duration=${duration}`);
+        const mapMode = req.query.map || (req.query.hls === '1' ? 'pts' : 'none');
+        const vtt = buildHelloSubtitleVtt({ duration, pts, mapMode });
+        console.log(`[sub] HELLO test vtt map=${mapMode} pts=${pts} duration=${duration}`);
         return res.send(vtt);
     }
 
@@ -1824,10 +1859,43 @@ function handleSubtitlePlaylist(req, res) {
     const pts = req.query.pts || '0';
     const duration = Math.max(1, Math.ceil(parseFloat(req.query.duration || '0') || 21600));
     console.log(`[sub-playlist] serving playlist for: ${url} pts=${pts} duration=${duration}`);
+    if (req.query.trace === '1') {
+        console.log('[subtitle-trace]', JSON.stringify({
+            at: new Date().toISOString(),
+            event: 'subtitle-playlist-request',
+            url,
+            pts,
+            duration,
+            hello: req.query.hello === '1',
+            map: req.query.map,
+            userAgent: req.headers['user-agent'] || null,
+        }));
+    }
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     const forceHello = req.query.hello === '1';
-    const proxied = `https://goldenhind.tech/proxy/subtitle.vtt?url=${encodeURIComponent(url)}&pts=${pts}&duration=${duration}&hls=1${forceHello ? '&hello=1' : ''}`;
+    if (forceHello) {
+        const mapMode = req.query.map || 'pts';
+        const segmentDuration = 5;
+        const playlist = [
+            '#EXTM3U',
+            '#EXT-X-VERSION:3',
+            `#EXT-X-TARGETDURATION:${segmentDuration}`,
+            '#EXT-X-PLAYLIST-TYPE:VOD',
+            '#EXT-X-MEDIA-SEQUENCE:0',
+        ];
+        for (let start = 0; start < duration; start += segmentDuration) {
+            const segmentLength = Math.min(segmentDuration, duration - start);
+            playlist.push(`#EXTINF:${segmentLength.toFixed(3)},`);
+            playlist.push(`https://goldenhind.tech/proxy/subtitle-hello.vtt?start=${start}&duration=${duration}&span=${segmentLength}&pts=${pts}&map=${mapMode}${req.query.trace === '1' ? '&trace=1' : ''}`);
+        }
+        playlist.push('#EXT-X-ENDLIST');
+        const output = playlist.join('\n');
+        console.log(`[sub-playlist] sending segmented HELLO map=${mapMode}, segments=${Math.ceil(duration / segmentDuration)}`);
+        return res.send(output);
+    }
+
+    const proxied = `https://goldenhind.tech/proxy/subtitle.vtt?url=${encodeURIComponent(url)}&pts=${pts}&duration=${duration}&hls=1${req.query.trace === '1' ? '&trace=1' : ''}`;
     const playlist = [
         '#EXTM3U',
         '#EXT-X-VERSION:3',
@@ -1852,6 +1920,33 @@ function formatVttTime(seconds) {
     const ms = Math.floor((seconds % 1) * 1000);
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
 }
+
+function handleSubtitleHelloVtt(req, res) {
+    const duration = parseFloat(req.query.duration || '0') || 21600;
+    const start = parseFloat(req.query.start || '0') || 0;
+    const span = parseFloat(req.query.span || '5') || 5;
+    const pts = parseInt(req.query.pts || '0', 10) || 0;
+    const mapMode = req.query.map || 'pts';
+    const vtt = buildHelloSubtitleVtt({ duration, pts, mapMode, start, span });
+    if (req.query.trace === '1') {
+        console.log('[subtitle-trace]', JSON.stringify({
+            at: new Date().toISOString(),
+            event: 'subtitle-hello-vtt-request',
+            start,
+            span,
+            duration,
+            pts,
+            map: mapMode,
+            range: req.headers.range || null,
+            userAgent: req.headers['user-agent'] || null,
+        }));
+    }
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'text/vtt');
+    res.send(vtt);
+}
+
+app.get('/proxy/subtitle-hello.vtt', handleSubtitleHelloVtt);
 
 function handleSubtitleDebugPlaylist(req, res) {
     const duration = Math.max(60, Math.ceil(parseFloat(req.query.duration || '0') || 600));
@@ -1896,6 +1991,7 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
     const url = decodeURIComponent(raw);
     const includeDebugSub = req.query.debug === '1';
     const includeHelloSub = req.query.hello === '1';
+    const includeTrace = req.query.trace === '1';
     let subs = [];
     try { subs = JSON.parse(rawSubs || '[]'); } catch (e) {
         console.error(`[hls-with-subs] failed to parse subs JSON: ${e.message} — raw: ${rawSubs?.slice(0, 200)}`);
@@ -1927,13 +2023,22 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
             .map((sub, i) => {
                 const rawSub = String(sub.file || sub.url || '');
                 const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
-                const playlistUri = `https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent(absSubUrl)}&pts=${videoPts}&duration=${durationInfo.duration}${includeHelloSub ? '&hello=1' : ''}`;
+                const playlistUri = `https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent(absSubUrl)}&pts=${videoPts}&duration=${durationInfo.duration}${includeHelloSub ? '&hello=1' : ''}${includeTrace ? '&trace=1' : ''}`;
                 const name = (sub.language || sub.lang || `Track ${i + 1}`).replace(/"/g, "'");
                 const language = hlsLanguageCode(sub, i);
-                const line = `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 && !includeDebugSub ? 'YES' : 'NO'},AUTOSELECT=YES,FORCED=NO,URI="${playlistUri}",LANGUAGE="${language}"`;
+                const line = `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 && !includeDebugSub && !includeHelloSub ? 'YES' : 'NO'},AUTOSELECT=YES,FORCED=NO,URI="${playlistUri}",LANGUAGE="${language}"`;
                 console.log(`[hls-with-subs]   injecting: ${line}`);
                 return line;
             });
+
+        if (includeHelloSub) {
+            subMediaLines.unshift(
+                `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO PTS Map",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,URI="https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent('https://goldenhind.tech/hello.vtt')}&pts=${videoPts}&duration=${durationInfo.duration}&hello=1&map=pts${includeTrace ? '&trace=1' : ''}",LANGUAGE="en"`,
+                `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO Zero Map",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent('https://goldenhind.tech/hello.vtt')}&pts=${videoPts}&duration=${durationInfo.duration}&hello=1&map=zero${includeTrace ? '&trace=1' : ''}",LANGUAGE="en"`,
+                `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO No Map",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent('https://goldenhind.tech/hello.vtt')}&pts=${videoPts}&duration=${durationInfo.duration}&hello=1&map=none${includeTrace ? '&trace=1' : ''}",LANGUAGE="en"`,
+                `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO Local First",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent('https://goldenhind.tech/hello.vtt')}&pts=${videoPts}&duration=${durationInfo.duration}&hello=1&map=localfirst${includeTrace ? '&trace=1' : ''}",LANGUAGE="en"`
+            );
+        }
 
         if (includeDebugSub) {
             subMediaLines.unshift(
