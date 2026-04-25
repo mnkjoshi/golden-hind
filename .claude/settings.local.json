@@ -4,7 +4,16 @@
       "Bash(npx tsc *)",
       "Bash(npm install *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"python3 -c \\\\\"import json; d=json.load\\(open\\('/root/cobalt/cobalt_cookies.json'\\)\\); print\\(list\\(d.keys\\(\\)\\)\\); print\\(d['youtube'][0][:200]\\)\\\\\"\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '268,275p' ~/cobalt/api/src/processing/services/youtube.js\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -i 's/if \\\\\\(\\\\[\\\\\"INVALID_ARGUMENT\\\\\", \\\\\"UNAUTHENTICATED\\\\\"\\\\].includes\\(errorInfo?.error?.status\\)\\\\\\) {/console.log\\(\\\\\"[yt debug]\\\\\", JSON.stringify\\(errorInfo\\)\\);\\\\n            if \\([\\\\\"INVALID_ARGUMENT\\\\\", \\\\\"UNAUTHENTICATED\\\\\"].includes\\(errorInfo?.error?.status\\)\\) {/' ~/cobalt/api/src/processing/services/youtube.js\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '268,278p' ~/cobalt/api/src/processing/services/youtube.js\")",
+      "Bash(ssh -i '~/.ssh/id_ed25519' root@157.230.136.166 'python3 -c \" *)",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '270,278p' ~/cobalt/api/src/processing/services/youtube.js\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"grep -n 'innertubeClient\\\\|getBasicInfo\\\\|client:' ~/cobalt/api/src/processing/services/youtube.js | head -20\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '190,230p' ~/cobalt/api/src/processing/services/youtube.js\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '230,265p' ~/cobalt/api/src/processing/services/youtube.js\")"
     ]
   }
 }
