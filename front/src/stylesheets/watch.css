@@ -1061,7 +1061,7 @@ p {
 
 /* ── Provider fallback toast ── */
 .provider-toast {
-    position: fixed;
+    position: absolute;
     top: 50%;
     left: 50%;
     transform: translateX(-50%);
@@ -1072,7 +1072,7 @@ p {
     font-family: Viga, sans-serif;
     font-size: 12px;
     padding: 8px 18px;
-    z-index: 100000;
+    z-index: 30;
     pointer-events: none;
     backdrop-filter: blur(8px);
     white-space: nowrap;
