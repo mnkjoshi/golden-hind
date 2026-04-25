@@ -1501,6 +1501,16 @@ function rewriteHlsManifest(manifestText, manifestUrl, { subtitleGroupId = null 
     }).join('\n');
 }
 
+function buildSingleVariantMaster({ originalUrl, rewrittenMediaUrl, subMediaLines }) {
+    return [
+        '#EXTM3U',
+        '#EXT-X-VERSION:3',
+        ...subMediaLines,
+        '#EXT-X-STREAM-INF:BANDWIDTH=5000000,AVERAGE-BANDWIDTH=4500000,CODECS="avc1.640028,mp4a.40.2",RESOLUTION=1920x1080,SUBTITLES="subs"',
+        rewrittenMediaUrl || proxiedHlsUrl(originalUrl),
+    ].join('\n');
+}
+
 function hlsLanguageCode(sub, index) {
     const raw = String(sub.language || sub.lang || sub.label || '').toLowerCase();
     const file = String(sub.file || sub.url || '').toLowerCase();
@@ -1635,30 +1645,34 @@ app.get('/proxy/subtitle', async (req, res) => {
 async function detectFirstVideoPTS(masterManifestText, masterUrl) {
     try {
         const masterLines = masterManifestText.split('\n');
-        let variantUrl = null;
+        let playlistUrl = null;
+        let playlistText = masterManifestText;
         for (let i = 0; i < masterLines.length; i++) {
             const t = masterLines[i].trim();
             if (t.startsWith('#EXT-X-STREAM-INF')) {
                 const next = masterLines[i + 1]?.trim();
                 if (next && !next.startsWith('#')) {
-                    const base = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
-                    variantUrl = next.startsWith('http') ? next : base + next;
+                    playlistUrl = absolutizeManifestUrl(masterUrl, next);
                     break;
                 }
             }
         }
-        if (!variantUrl) { console.log('[pts-detect] no variant URL found'); return 0; }
+        if (playlistUrl) {
+            const varResp = await axios.get(playlistUrl, {
+                headers: { 'Referer': 'https://www.lookmovie2.to/', 'User-Agent': lookmovieHeaders['User-Agent'] },
+                responseType: 'text', timeout: 8000,
+            });
+            playlistText = varResp.data;
+        } else {
+            playlistUrl = masterUrl;
+            console.log('[pts-detect] no variants; treating input as media playlist');
+        }
 
-        const varResp = await axios.get(variantUrl, {
-            headers: { 'Referer': 'https://www.lookmovie2.to/', 'User-Agent': lookmovieHeaders['User-Agent'] },
-            responseType: 'text', timeout: 8000,
-        });
-        const varBase = variantUrl.substring(0, variantUrl.lastIndexOf('/') + 1);
         let segmentUrl = null;
-        for (const line of varResp.data.split('\n')) {
+        for (const line of playlistText.split('\n')) {
             const t = line.trim();
             if (t && !t.startsWith('#')) {
-                segmentUrl = t.startsWith('http') ? t : varBase + t;
+                segmentUrl = absolutizeManifestUrl(playlistUrl, t);
                 break;
             }
         }
@@ -1779,6 +1793,16 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
         const rewritten = rewriteHlsManifest(upstream.data, url, { subtitleGroupId: 'subs' }).split('\n');
         const streamInfCount = upstream.data.split('\n').filter(line => line.trim().startsWith('#EXT-X-STREAM-INF')).length;
         console.log(`[hls-with-subs] stream variants found=${streamInfCount} subtitle tracks injected=${subMediaLines.length}`);
+
+        if (streamInfCount === 0 && subMediaLines.length > 0) {
+            const output = buildSingleVariantMaster({
+                originalUrl: url,
+                rewrittenMediaUrl: proxiedHlsUrl(url),
+                subMediaLines,
+            });
+            console.log(`[hls-with-subs] upstream is media playlist; wrapped in master:\n${output.slice(0, 600)}`);
+            return res.send(output);
+        }
 
         // Insert #EXT-X-MEDIA lines right after #EXTM3U
         const extm3uIdx = rewritten.findIndex(l => l.trim().startsWith('#EXTM3U'));
