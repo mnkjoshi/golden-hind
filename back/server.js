@@ -1910,19 +1910,19 @@ app.post('/music/url', async (req, res) => {
 
         // Primary: cobalt.tools — purpose-built downloader, handles YouTube bot detection
         const cobaltInstances = [
-            'https://api.cobalt.tools',
-            'https://cobalt.ggtyler.dev',
-            'https://cobalt.drgns.space',
+            process.env.COBALT_URL || 'http://localhost:9000',  // self-hosted (no auth)
+            'https://cobalt.api.timelessnesses.me',
+            'https://cobalt.synth.zip',
         ];
         for (const cobaltBase of cobaltInstances) {
             try {
                 const cobalt = await axios.post(`${cobaltBase}/`,
-                    { url: `https://www.youtube.com/watch?v=${videoId}`, downloadMode: 'audio', audioFormat: 'opus' },
+                    { url: `https://www.youtube.com/watch?v=${videoId}`, downloadMode: 'audio', audioFormat: 'best' },
                     { headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, timeout: 15000 }
                 );
                 const { status, url: streamUrl, filename } = cobalt.data;
                 console.log(`[music/url] cobalt ${cobaltBase} response: status=${status} url=${!!streamUrl} filename=${filename}`);
-                if ((status === 'stream' || status === 'redirect') && streamUrl) {
+                if ((status === 'tunnel' || status === 'redirect') && streamUrl) {
                     const title = (filename || videoId).replace(/\.(webm|mp4|m4a|opus)$/i, '').replace(/[/\\?%*:|"<>]/g, '-');
                     console.log(`[music/url] ok via cobalt ${cobaltBase}: "${title}"`);
                     return res.json({ streamUrl, title, ext: 'webm' });
