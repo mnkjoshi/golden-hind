@@ -9,6 +9,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { create as createYtDlp } from 'yt-dlp-exec';
 const ytDlpExec = createYtDlp('/usr/local/bin/yt-dlp');
+import ytdl from '@distube/ytdl-core';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
@@ -1856,45 +1857,40 @@ app.post('/music/url', async (req, res) => {
 
     console.log(`[music/url] extracting: ${url}`);
 
-    const cookiesPath = path.join(process.cwd(), 'youtube-cookies.txt');
-    const hasCookies = fs.existsSync(cookiesPath);
-
-    // Try clients in order. player_skip=js bypasses the n-challenge/signature JS solving —
-    // the browser fetches the CDN URL directly (residential IP) so CDN leniency applies.
-    const attempts = hasCookies
-        ? [
-            { 'extractor-args': 'youtube:player_client=web;player_skip=js', 'cookies': cookiesPath },
-            { 'extractor-args': 'youtube:player_client=web', 'cookies': cookiesPath },
-          ]
-        : [
-            { 'extractor-args': 'youtube:player_client=android_vr;player_skip=js' },
-            { 'extractor-args': 'youtube:player_client=android_vr' },
-            { 'extractor-args': 'youtube:player_client=android;player_skip=js' },
-          ];
-
-    let lastErr = null;
-    for (const extra of attempts) {
-        try {
-            const result = await ytDlpExec(url, {
-                'dump-single-json': true,
-                'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
-                'no-playlist': true,
-                'no-check-certificate': true,
-                ...extra,
-            });
-
-            const info = JSON.parse(result.stdout);
-            if (!info.url) throw new Error('No stream URL in yt-dlp response');
-
-            console.log(`[music/url] ok (${extra['extractor-args']}): "${info.title}" ext=${info.ext}`);
-            return res.json({ streamUrl: info.url, title: info.title, ext: info.ext || 'webm' });
-        } catch (e) {
-            lastErr = e;
-            console.error(`[music/url] attempt failed (${extra['extractor-args']}):`, (e.stderr || e.message || '').split('\n').filter(l => l.includes('ERROR') || l.includes('WARNING')).join(' | ') || e.message.split('\n')[0]);
+    try {
+        // Parse cookies.txt (Netscape format) into a cookie jar for ytdl-core
+        const cookiesPath = path.join(process.cwd(), 'youtube-cookies.txt');
+        let agent;
+        if (fs.existsSync(cookiesPath)) {
+            const cookieLines = fs.readFileSync(cookiesPath, 'utf-8').split('\n')
+                .filter(l => l && !l.startsWith('#'))
+                .map(l => {
+                    const p = l.split('\t');
+                    if (p.length >= 7) return { name: p[5], value: p[6], domain: p[0], path: p[2] };
+                    return null;
+                })
+                .filter(Boolean);
+            agent = ytdl.createAgent(cookieLines);
+            console.log(`[music/url] using ${cookieLines.length} cookies`);
         }
-    }
 
-    res.status(500).json({ error: 'Failed to extract stream URL.' });
+        const info = await ytdl.getInfo(url, agent ? { agent } : {});
+        const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+
+        if (!format?.url) throw new Error('No audio format found');
+
+        const title = info.videoDetails.title.replace(/[/\\?%*:|"<>]/g, '-');
+        const ext = format.container || format.mimeType?.split(';')[0].split('/')[1] || 'webm';
+        console.log(`[music/url] ok: "${title}" ext=${ext} itag=${format.itag}`);
+
+        res.json({ streamUrl: format.url, title, ext });
+    } catch (e) {
+        console.error('[music/url] failed:', e.message.split('\n')[0]);
+        const msg = e.message.includes('410') ? 'Video unavailable or age-restricted.'
+            : e.message.includes('private') ? 'This video is private.'
+            : 'Failed to extract stream URL.';
+        res.status(500).json({ error: msg });
+    }
 });
 
 // Download a YouTube video's audio as MP3 via yt-dlp
