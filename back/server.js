@@ -13,6 +13,9 @@ import ytdl from '@distube/ytdl-core';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+const execAsync = promisify(exec);
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -2251,70 +2254,26 @@ app.post('/music/url', async (req, res) => {
         return res.status(400).json({ error: 'Invalid YouTube URL' });
     }
 
-    console.log(`[music/url] extracting: ${url}`);
+    const videoId = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1];
+    if (!videoId) return res.status(400).json({ error: 'Could not extract video ID from URL' });
+
+    console.log(`[music/url] extracting: ${videoId}`);
 
     try {
-        const videoId = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1];
-        if (!videoId) return res.status(400).json({ error: 'Could not extract video ID from URL' });
-
-        // Primary: cobalt.tools — purpose-built downloader, handles YouTube bot detection
-        const cobaltInstances = [
-            process.env.COBALT_URL || 'http://localhost:9000',  // self-hosted (no auth)
-            'https://cobalt.api.timelessnesses.me',
-            'https://cobalt.synth.zip',
-        ];
-        for (const cobaltBase of cobaltInstances) {
-            try {
-                const cobalt = await axios.post(`${cobaltBase}/`,
-                    { url: `https://www.youtube.com/watch?v=${videoId}`, downloadMode: 'audio', audioFormat: 'best' },
-                    { headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, timeout: 15000 }
-                );
-                const { status, url: streamUrl, filename } = cobalt.data;
-                console.log(`[music/url] cobalt ${cobaltBase} response: status=${status} url=${!!streamUrl} filename=${filename}`);
-                if ((status === 'tunnel' || status === 'redirect') && streamUrl) {
-                    const title = (filename || videoId).replace(/\.(webm|mp4|m4a|opus)$/i, '').replace(/[/\\?%*:|"<>]/g, '-');
-                    console.log(`[music/url] ok via cobalt ${cobaltBase}: "${title}"`);
-                    return res.json({ streamUrl, title, ext: 'webm' });
-                }
-                throw new Error(`cobalt status=${status} data=${JSON.stringify(cobalt.data).slice(0, 200)}`);
-            } catch (e) {
-                console.error(`[music/url] cobalt ${cobaltBase} failed: ${e.response?.data ? JSON.stringify(e.response.data).slice(0, 200) : e.message.split('\n')[0]}`);
-            }
-        }
-
-        // Fallback: dynamically fetch healthiest Invidious instances then try each
-        try {
-            const listResp = await axios.get('https://api.invidious.io/instances.json', { timeout: 6000 });
-            const liveInstances = listResp.data
-                .filter(([, d]) => d.type === 'https' && d.api === true && d.monitor?.statusCode === 200)
-                .map(([name]) => `https://${name}`)
-                .slice(0, 5);
-
-            for (const instance of liveInstances) {
-                try {
-                    const resp = await axios.get(`${instance}/api/v1/videos/${videoId}`, {
-                        timeout: 10000, headers: { 'User-Agent': 'Mozilla/5.0' },
-                    });
-                    const audioFormats = (resp.data.adaptiveFormats || [])
-                        .filter(f => f.type?.startsWith('audio/'))
-                        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-                    if (!audioFormats.length) throw new Error('No audio formats');
-                    const best = audioFormats[0];
-                    const ext = best.type?.includes('mp4') ? 'm4a' : 'webm';
-                    const title = (resp.data.title || videoId).replace(/[/\\?%*:|"<>]/g, '-');
-                    console.log(`[music/url] ok via invidious ${instance}: "${title}"`);
-                    return res.json({ streamUrl: best.url, title, ext });
-                } catch (e) {
-                    console.error(`[music/url] ${instance} failed: ${e.message.split('\n')[0]}`);
-                }
-            }
-        } catch (e) {
-            console.error(`[music/url] invidious fallback failed: ${e.message.split('\n')[0]}`);
-        }
-
-        throw new Error('All stream sources exhausted');
+        const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        const env = { ...process.env, PATH: `/root/.deno/bin:${process.env.PATH}` };
+        const { stdout } = await execAsync(
+            `yt-dlp --cookies /root/yt_cookies.txt --no-playlist -f "bestaudio[ext=webm]/bestaudio" --print "%(title)s" --print "%(url)s" "${ytUrl}"`,
+            { timeout: 30000, env }
+        );
+        const lines = stdout.trim().split('\n');
+        const streamUrl = lines.pop();
+        const title = lines.join(' ').replace(/[/\\?%*:|"<>]/g, '-') || videoId;
+        if (!streamUrl?.startsWith('http')) throw new Error('No stream URL returned');
+        console.log(`[music/url] ok: "${title}"`);
+        return res.json({ streamUrl, title, ext: 'webm' });
     } catch (e) {
-        console.error('[music/url] all attempts failed:', e.message.split('\n')[0]);
+        console.error('[music/url] failed:', e.message.split('\n')[0]);
         res.status(500).json({ error: 'Failed to extract stream URL. Try again in a moment.' });
     }
 });
