@@ -233,7 +233,7 @@ export default function App() {
                 });
 
                 // Load AI recommendations with 4-hour localStorage cache
-                const REC_TTL = 4 * 60 * 60 * 1000;
+                const REC_TTL = 48 * 60 * 60 * 1000;
                 const now = Date.now();
 
                 const cachedLifetime     = localStorage.getItem('ghLifetimeRecs_v2');

@@ -165,14 +165,14 @@ export default function App() {
                     setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
                 }
             } else {
-                setProvider(1);
-                localStorage.setItem("provider" + vidID, 1);
-                showProviderToast('LookMovie unavailable — switched to Server 1');
+                setProvider(3);
+                localStorage.setItem("provider" + vidID, 3);
+                showProviderToast('LookMovie unavailable - switched to Server 3');
             }
         }).catch(() => {
-            setProvider(1);
-            localStorage.setItem("provider" + vidID, 1);
-            showProviderToast('LookMovie unavailable — switched to Server 1');
+            setProvider(3);
+            localStorage.setItem("provider" + vidID, 3);
+            showProviderToast('LookMovie unavailable - switched to Server 3');
         }).finally(() => setLmLoading(false));
     }, [provider, season, episode, progressReady]);
 

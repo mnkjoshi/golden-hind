@@ -1062,7 +1062,7 @@ p {
 /* ── Provider fallback toast ── */
 .provider-toast {
     position: absolute;
-    top: 14px;
+    top: 50%;
     left: 50%;
     transform: translateX(-50%);
     background: rgba(15, 15, 15, 0.92);

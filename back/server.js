@@ -1461,6 +1461,73 @@ async function getLookmovieStreamUrl(internalId, mediaType, dbg) {
     return { streamUrl, subtitles: res.data.subtitles || [] };
 }
 
+function absolutizeManifestUrl(baseUrl, value) {
+    return new URL(value, baseUrl).toString();
+}
+
+function proxiedHlsUrl(url) {
+    return `/proxy/hls?url=${encodeURIComponent(url)}`;
+}
+
+function rewriteManifestUriAttributes(line, baseUrl) {
+    return line.replace(/URI="([^"]+)"/g, (_, uri) => {
+        if (uri.startsWith('data:')) return `URI="${uri}"`;
+        const abs = absolutizeManifestUrl(baseUrl, uri);
+        return `URI="${proxiedHlsUrl(abs)}"`;
+    });
+}
+
+function forceQuotedManifestAttribute(line, attr, value) {
+    const re = new RegExp(`(,${attr}=)("[^"]*"|[^,]*)`);
+    if (re.test(line)) return line.replace(re, `$1"${value}"`);
+    return `${line},${attr}="${value}"`;
+}
+
+function rewriteHlsManifest(manifestText, manifestUrl, { subtitleGroupId = null } = {}) {
+    return manifestText.split('\n').map(line => {
+        const t = line.trim();
+        if (!t) return line;
+
+        if (t.startsWith('#')) {
+            let out = rewriteManifestUriAttributes(line, manifestUrl);
+            if (subtitleGroupId && t.startsWith('#EXT-X-STREAM-INF')) {
+                out = forceQuotedManifestAttribute(out, 'SUBTITLES', subtitleGroupId);
+            }
+            return out;
+        }
+
+        const abs = absolutizeManifestUrl(manifestUrl, t);
+        return proxiedHlsUrl(abs);
+    }).join('\n');
+}
+
+function hlsLanguageCode(sub, index) {
+    const raw = String(sub.language || sub.lang || sub.label || '').toLowerCase();
+    const file = String(sub.file || sub.url || '').toLowerCase();
+    const text = `${raw} ${file}`;
+    const languageMap = [
+        ['en', /\b(en|eng|english)\b/],
+        ['es', /\b(es|spa|spanish|espanol|español)\b/],
+        ['fr', /\b(fr|fre|fra|french)\b/],
+        ['de', /\b(de|ger|deu|german)\b/],
+        ['it', /\b(it|ita|italian)\b/],
+        ['pt', /\b(pt|por|portuguese)\b/],
+        ['nl', /\b(nl|dut|nld|dutch)\b/],
+        ['sv', /\b(sv|swe|swedish)\b/],
+        ['no', /\b(no|nor|norwegian)\b/],
+        ['da', /\b(da|dan|danish)\b/],
+        ['fi', /\b(fi|fin|finnish)\b/],
+        ['pl', /\b(pl|pol|polish)\b/],
+        ['tr', /\b(tr|tur|turkish)\b/],
+        ['ar', /\b(ar|ara|arabic)\b/],
+        ['ja', /\b(ja|jpn|japanese)\b/],
+        ['ko', /\b(ko|kor|korean)\b/],
+        ['zh', /\b(zh|chi|zho|chinese)\b/],
+    ];
+    const found = languageMap.find(([, re]) => re.test(text));
+    return found?.[0] || (index === 0 ? 'en' : 'und');
+}
+
 // HLS proxy — manifests are rewritten, segments are piped (never buffered)
 app.get('/proxy/hls', async (req, res) => {
     const raw = req.query.url;
@@ -1474,19 +1541,13 @@ app.get('/proxy/hls', async (req, res) => {
 
     try {
         if (isManifest) {
-            // Fetch manifest as text, rewrite segment lines, return immediately
+            // Fetch manifest as text, rewrite segment lines/URI attributes, return immediately
             const upstream = await axios.get(url, {
                 headers: { 'Referer': 'https://www.lookmovie2.to/', 'User-Agent': lookmovieHeaders['User-Agent'] },
                 responseType: 'text',
                 timeout: 15000,
             });
-            const base = url.substring(0, url.lastIndexOf('/') + 1);
-            const rewritten = upstream.data.split('\n').map(line => {
-                const t = line.trim();
-                if (!t || t.startsWith('#')) return line;
-                const abs = t.startsWith('http') ? t : base + t;
-                return `/proxy/hls?url=${encodeURIComponent(abs)}`;
-            }).join('\n');
+            const rewritten = rewriteHlsManifest(upstream.data, url);
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
             return res.send(rewritten);
         }
@@ -1695,7 +1756,6 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
             timeout: 15000,
         });
         console.log(`[hls-with-subs] upstream status=${upstream.status} bytes=${upstream.data.length}`);
-        const base = url.substring(0, url.lastIndexOf('/') + 1);
 
         // Detect the first video frame PTS so subtitle X-TIMESTAMP-MAP is accurate
         const videoPts = await detectFirstVideoPTS(upstream.data, url);
@@ -1709,28 +1769,15 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
                 const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
                 const playlistUri = `https://goldenhind.tech/proxy/subtitle-playlist?url=${encodeURIComponent(absSubUrl)}&pts=${videoPts}`;
                 const name = (sub.language || sub.lang || `Track ${i + 1}`).replace(/"/g, "'");
-                const line = `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 ? 'YES' : 'NO'},AUTOSELECT=${i === 0 ? 'YES' : 'NO'},FORCED=NO,URI="${playlistUri}",LANGUAGE="sub${i}"`;
+                const language = hlsLanguageCode(sub, i);
+                const line = `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 ? 'YES' : 'NO'},AUTOSELECT=YES,FORCED=NO,URI="${playlistUri}",LANGUAGE="${language}"`;
                 console.log(`[hls-with-subs]   injecting: ${line}`);
                 return line;
             });
 
-        // Rewrite segment/variant URLs and add SUBTITLES attr to STREAM-INF lines
-        const lines = upstream.data.split('\n');
-        const rewritten = [];
-        let streamInfCount = 0;
-        for (const line of lines) {
-            const t = line.trim();
-            if (!t) { rewritten.push(line); continue; }
-            if (t.startsWith('#EXT-X-STREAM-INF')) {
-                streamInfCount++;
-                rewritten.push(t.includes('SUBTITLES=') ? t : t + ',SUBTITLES="subs"');
-            } else if (!t.startsWith('#')) {
-                const abs = t.startsWith('http') ? t : base + t;
-                rewritten.push(`/proxy/hls?url=${encodeURIComponent(abs)}`);
-            } else {
-                rewritten.push(line);
-            }
-        }
+        // Rewrite URLs and force variants to reference our injected subtitle group.
+        const rewritten = rewriteHlsManifest(upstream.data, url, { subtitleGroupId: 'subs' }).split('\n');
+        const streamInfCount = upstream.data.split('\n').filter(line => line.trim().startsWith('#EXT-X-STREAM-INF')).length;
         console.log(`[hls-with-subs] stream variants found=${streamInfCount} subtitle tracks injected=${subMediaLines.length}`);
 
         // Insert #EXT-X-MEDIA lines right after #EXTM3U
@@ -1861,61 +1908,54 @@ app.post('/music/url', async (req, res) => {
         const videoId = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1];
         if (!videoId) return res.status(400).json({ error: 'Could not extract video ID from URL' });
 
-        // Try Invidious instances (return direct YouTube CDN URLs)
-        const invidiousInstances = [
-            'https://yewtu.be',
-            'https://invidious.lunar.icu',
-            'https://invidious.tiekoetter.com',
-            'https://inv.tux.pizza',
-        ];
-
-        for (const instance of invidiousInstances) {
-            try {
-                const resp = await axios.get(`${instance}/api/v1/videos/${videoId}`, {
-                    timeout: 12000,
-                    headers: { 'User-Agent': 'Mozilla/5.0' },
-                });
-                const audioFormats = (resp.data.adaptiveFormats || [])
-                    .filter(f => f.type?.startsWith('audio/'))
-                    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-                if (!audioFormats.length) throw new Error('No audio formats');
-                const best = audioFormats[0];
-                const ext = best.type?.includes('mp4') ? 'm4a' : 'webm';
-                const title = (resp.data.title || videoId).replace(/[/\\?%*:|"<>]/g, '-');
-                console.log(`[music/url] ok via ${instance}: "${title}" ext=${ext}`);
-                return res.json({ streamUrl: best.url, title, ext });
-            } catch (e) {
-                console.error(`[music/url] ${instance} failed: ${e.message.split('\n')[0]}`);
+        // Primary: cobalt.tools — purpose-built downloader, handles YouTube bot detection
+        try {
+            const cobalt = await axios.post('https://api.cobalt.tools/',
+                { url: `https://www.youtube.com/watch?v=${videoId}`, downloadMode: 'audio', audioFormat: 'best', filenameStyle: 'basic' },
+                { headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, timeout: 15000 }
+            );
+            const { status, url: streamUrl, filename } = cobalt.data;
+            if ((status === 'stream' || status === 'redirect') && streamUrl) {
+                const title = (filename || videoId).replace(/\.(webm|mp4|m4a|opus)$/i, '').replace(/[/\\?%*:|"<>]/g, '-');
+                console.log(`[music/url] ok via cobalt: "${title}"`);
+                return res.json({ streamUrl, title, ext: 'webm' });
             }
+            throw new Error(`unexpected cobalt status: ${status}`);
+        } catch (e) {
+            console.error(`[music/url] cobalt failed: ${e.message.split('\n')[0]}`);
         }
 
-        // Fallback: Piped API (proxied CDN URLs, different format)
-        const pipedInstances = [
-            'https://pipedapi.kavin.rocks',
-            'https://piped-api.garudalinux.org',
-        ];
+        // Fallback: dynamically fetch healthiest Invidious instances then try each
+        try {
+            const listResp = await axios.get('https://api.invidious.io/instances.json', { timeout: 6000 });
+            const liveInstances = listResp.data
+                .filter(([, d]) => d.type === 'https' && d.api === true && d.monitor?.statusCode === 200)
+                .map(([name]) => `https://${name}`)
+                .slice(0, 5);
 
-        for (const instance of pipedInstances) {
-            try {
-                const resp = await axios.get(`${instance}/streams/${videoId}`, {
-                    timeout: 12000,
-                    headers: { 'User-Agent': 'Mozilla/5.0' },
-                });
-                const audioStreams = (resp.data.audioStreams || [])
-                    .filter(s => !s.videoOnly)
-                    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-                if (!audioStreams.length) throw new Error('No audio streams');
-                const best = audioStreams[0];
-                const ext = best.mimeType?.includes('mp4') ? 'm4a' : 'webm';
-                const title = (resp.data.title || videoId).replace(/[/\\?%*:|"<>]/g, '-');
-                console.log(`[music/url] ok via piped ${instance}: "${title}" ext=${ext}`);
-                return res.json({ streamUrl: best.url, title, ext });
-            } catch (e) {
-                console.error(`[music/url] piped ${instance} failed: ${e.message.split('\n')[0]}`);
+            for (const instance of liveInstances) {
+                try {
+                    const resp = await axios.get(`${instance}/api/v1/videos/${videoId}`, {
+                        timeout: 10000, headers: { 'User-Agent': 'Mozilla/5.0' },
+                    });
+                    const audioFormats = (resp.data.adaptiveFormats || [])
+                        .filter(f => f.type?.startsWith('audio/'))
+                        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+                    if (!audioFormats.length) throw new Error('No audio formats');
+                    const best = audioFormats[0];
+                    const ext = best.type?.includes('mp4') ? 'm4a' : 'webm';
+                    const title = (resp.data.title || videoId).replace(/[/\\?%*:|"<>]/g, '-');
+                    console.log(`[music/url] ok via invidious ${instance}: "${title}"`);
+                    return res.json({ streamUrl: best.url, title, ext });
+                } catch (e) {
+                    console.error(`[music/url] ${instance} failed: ${e.message.split('\n')[0]}`);
+                }
             }
+        } catch (e) {
+            console.error(`[music/url] invidious fallback failed: ${e.message.split('\n')[0]}`);
         }
 
-        throw new Error('All stream sources failed');
+        throw new Error('All stream sources exhausted');
     } catch (e) {
         console.error('[music/url] all attempts failed:', e.message.split('\n')[0]);
         res.status(500).json({ error: 'Failed to extract stream URL. Try again in a moment.' });
