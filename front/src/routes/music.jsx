@@ -1,24 +1,45 @@
 import { useNavigate } from "react-router-dom";
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
 import '../stylesheets/music.css';
 
+const FFMPEG_CDN = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
+
 export default function Music() {
     const navigate = useNavigate();
     const [url, setUrl] = useState('');
-    const [status, setStatus] = useState('idle'); // idle | downloading | done | error
+    const [status, setStatus] = useState('idle'); // idle | working | done | error
+    const [statusLabel, setStatusLabel] = useState('');
+    const [progress, setProgress] = useState(0);
     const [error, setError] = useState('');
     const [lastTitle, setLastTitle] = useState('');
     const [queue, setQueue] = useState([]);
     const inputRef = useRef(null);
+    const ffmpegRef = useRef(null);
 
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
 
     if (!user) { navigate('/auth'); return null; }
     Authenticate(user, token, navigate);
+
+    const getFFmpeg = async () => {
+        if (ffmpegRef.current) return ffmpegRef.current;
+        setStatusLabel('Loading audio converter (~25MB, one-time)...');
+        setProgress(0);
+        const ffmpeg = new FFmpeg();
+        ffmpeg.on('progress', ({ progress: p }) => setProgress(Math.round(p * 100)));
+        await ffmpeg.load({
+            coreURL: await toBlobURL(`${FFMPEG_CDN}/ffmpeg-core.js`, 'text/javascript'),
+            wasmURL: await toBlobURL(`${FFMPEG_CDN}/ffmpeg-core.wasm`, 'application/wasm'),
+        });
+        ffmpegRef.current = ffmpeg;
+        return ffmpeg;
+    };
 
     const addToQueue = () => {
         const trimmed = url.trim();
@@ -37,7 +58,7 @@ export default function Music() {
         setQueue(prev => [...prev, { url: trimmed, id: Date.now() }]);
         setUrl('');
         setError('');
-        setStatus('idle');
+        if (status === 'error') setStatus('idle');
         inputRef.current?.focus();
     };
 
@@ -45,47 +66,52 @@ export default function Music() {
 
     const downloadAll = async () => {
         if (queue.length === 0) return;
-        setStatus('downloading');
+        setStatus('working');
         setError('');
         setLastTitle('');
 
         for (const item of queue) {
             try {
-                const response = await axios.post(
-                    'https://goldenhind.tech/music/download',
-                    { user, token, url: item.url },
-                    { responseType: 'blob', timeout: 180000 }
-                );
+                // Step 1: Server extracts signed CDN URL (no download, just metadata)
+                setStatusLabel('Getting stream URL...');
+                setProgress(0);
+                const { data } = await axios.post('https://goldenhind.tech/music/url', { user, token, url: item.url }, { timeout: 30000 });
+                const { streamUrl, title, ext } = data;
 
-                const cd = response.headers['content-disposition'] || '';
-                let filename = 'download.mp3';
-                const match = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';\n]+)/i);
-                if (match) filename = decodeURIComponent(match[1].trim());
+                // Step 2: Load ffmpeg.wasm (cached after first run)
+                const ffmpeg = await getFFmpeg();
 
-                const blob = new Blob([response.data], { type: 'audio/mpeg' });
+                // Step 3: Fetch audio stream directly from YouTube CDN (uses your residential IP)
+                setStatusLabel(`Downloading: ${title}`);
+                setProgress(0);
+                const audioData = await fetchFile(streamUrl);
+
+                // Step 4: Convert to MP3 in-browser
+                setStatusLabel(`Converting: ${title}`);
+                setProgress(0);
+                const inputName = `input.${ext}`;
+                await ffmpeg.writeFile(inputName, audioData);
+                await ffmpeg.exec(['-i', inputName, '-codec:a', 'libmp3lame', '-q:a', '2', 'output.mp3']);
+
+                // Step 5: Trigger browser save dialog
+                const mp3Data = await ffmpeg.readFile('output.mp3');
+                const blob = new Blob([mp3Data.buffer], { type: 'audio/mpeg' });
                 const blobUrl = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = blobUrl;
-                a.download = filename;
+                a.download = `${title}.mp3`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
 
-                setLastTitle(filename.replace(/\.mp3$/i, ''));
+                await ffmpeg.deleteFile(inputName).catch(() => {});
+                await ffmpeg.deleteFile('output.mp3').catch(() => {});
+
+                setLastTitle(title);
             } catch (e) {
-                let msg = 'Download failed.';
-                if (e.response?.data) {
-                    try {
-                        const text = await e.response.data.text();
-                        msg = JSON.parse(text).error || msg;
-                    } catch {}
-                } else if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
-                    msg = 'Request timed out. The video may be too long.';
-                } else {
-                    msg = e.message || msg;
-                }
-                setError(`Failed: ${msg}`);
+                const msg = e.response?.data?.error || e.message || 'Download failed';
+                setError(msg);
                 setStatus('error');
                 return;
             }
@@ -93,7 +119,10 @@ export default function Music() {
 
         setQueue([]);
         setStatus('done');
+        setStatusLabel('');
     };
+
+    const isWorking = status === 'working';
 
     return (
         <div className="music-page">
@@ -123,12 +152,12 @@ export default function Music() {
                             value={url}
                             onChange={e => { setUrl(e.target.value); if (status === 'error') setStatus('idle'); }}
                             onKeyDown={e => e.key === 'Enter' && addToQueue()}
-                            disabled={status === 'downloading'}
+                            disabled={isWorking}
                         />
                         <button
                             className="music-add-btn"
                             onClick={addToQueue}
-                            disabled={status === 'downloading' || !url.trim()}
+                            disabled={isWorking || !url.trim()}
                         >
                             Add
                         </button>
@@ -158,10 +187,11 @@ export default function Music() {
                     <div className="music-queue-card">
                         <div className="music-queue-header">
                             <span className="music-queue-title">Queue ({queue.length})</span>
-                            {status !== 'downloading' && (
+                            {!isWorking && (
                                 <button className="music-clear-btn" onClick={() => setQueue([])}>Clear all</button>
                             )}
                         </div>
+
                         <div className="music-queue-list">
                             {queue.map(item => (
                                 <div key={item.id} className="music-queue-item">
@@ -171,7 +201,7 @@ export default function Music() {
                                         <circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="1.75"/>
                                     </svg>
                                     <span className="music-queue-url">{item.url}</span>
-                                    {status !== 'downloading' && (
+                                    {!isWorking && (
                                         <button className="music-queue-remove" onClick={() => removeFromQueue(item.id)}>
                                             <svg viewBox="0 0 24 24" fill="none">
                                                 <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -181,29 +211,26 @@ export default function Music() {
                                 </div>
                             ))}
                         </div>
-                        <button
-                            className={`music-download-btn ${status === 'downloading' ? 'loading' : ''}`}
-                            onClick={downloadAll}
-                            disabled={status === 'downloading'}
-                        >
-                            {status === 'downloading' ? (
-                                <>
+
+                        {isWorking ? (
+                            <div className="music-progress-section">
+                                <div className="music-progress-label">
                                     <div className="music-spinner" />
-                                    Downloading...
-                                </>
-                            ) : (
-                                <>
-                                    <svg viewBox="0 0 24 24" fill="none">
-                                        <path d="M12 15V3m0 12-4-4m4 4 4-4M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                    </svg>
-                                    Download {queue.length > 1 ? `${queue.length} MP3s` : 'MP3'}
-                                </>
-                            )}
-                        </button>
-                        {status === 'downloading' && (
-                            <p className="music-download-note">
-                                This may take a minute depending on video length. Your browser will prompt you to save each file.
-                            </p>
+                                    <span>{statusLabel}</span>
+                                </div>
+                                {progress > 0 && progress < 100 && (
+                                    <div className="music-progress-bar">
+                                        <div className="music-progress-fill" style={{ width: `${progress}%` }} />
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <button className="music-download-btn" onClick={downloadAll}>
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <path d="M12 15V3m0 12-4-4m4 4 4-4M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                Download {queue.length > 1 ? `${queue.length} MP3s` : 'MP3'}
+                            </button>
                         )}
                     </div>
                 )}

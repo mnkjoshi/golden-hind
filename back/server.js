@@ -1845,6 +1845,37 @@ async function getRecommendations(contentList, mode) {
     return JSON.parse(match[0]);
 }
 
+// Extract YouTube stream URL without downloading — browser fetches + converts client-side
+app.post('/music/url', async (req, res) => {
+    const { user, token, url } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (!url || !/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(url)) {
+        return res.status(400).json({ error: 'Invalid YouTube URL' });
+    }
+
+    console.log(`[music/url] extracting: ${url}`);
+
+    try {
+        const result = await ytDlpExec(url, {
+            'dump-single-json': true,
+            'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
+            'no-playlist': true,
+            'extractor-args': 'youtube:player_client=android_vr,android',
+            'no-check-certificate': true,
+        });
+
+        const info = JSON.parse(result.stdout);
+        if (!info.url) throw new Error('No stream URL in yt-dlp response');
+
+        console.log(`[music/url] ok: "${info.title}" ext=${info.ext} url=${info.url.slice(0, 80)}...`);
+        res.json({ streamUrl: info.url, title: info.title, ext: info.ext || 'webm' });
+    } catch (e) {
+        console.error('[music/url] failed:', e.message.split('\n')[0]);
+        res.status(500).json({ error: 'Failed to extract stream URL.' });
+    }
+});
+
 // Download a YouTube video's audio as MP3 via yt-dlp
 app.post('/music/download', async (req, res) => {
     const { user, token, url } = req.body;
