@@ -1620,13 +1620,13 @@ app.get('/proxy/hls', async (req, res) => {
     }
 });
 
-// Subtitle proxy — fetches SRT, converts to WebVTT, serves to browser
+// Subtitle proxy — fetches SRT/VTT, normalizes to WebVTT, serves to browser and AVPlayer
 app.get('/proxy/subtitle', async (req, res) => {
     const raw = req.query.url;
     if (!raw) return res.status(400).send('Missing url');
     const url = decodeURIComponent(raw);
+    const forHls = req.query.hls === '1';
 
-    // Reject obviously malformed URLs (metadata entries that slipped through)
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
         return res.status(400).send('WEBVTT\n\nNOTE invalid subtitle url');
     }
@@ -1636,21 +1636,34 @@ app.get('/proxy/subtitle', async (req, res) => {
 
     try {
         const { data } = await axios.get(url, {
-            headers: {
-                ...lookmovieHeaders,
-                'Accept': 'text/vtt, text/plain, */*',
-            },
+            headers: { ...lookmovieHeaders, 'Accept': 'text/vtt, text/plain, */*' },
             responseType: 'text',
             timeout: 15000,
         });
-        // VTT files pass through as-is; SRT files get converted
-        const isVtt = url.toLowerCase().includes('.vtt') || data.trimStart().startsWith('WEBVTT');
-        const vtt = isVtt
-            ? data
-            : 'WEBVTT\n\n' + data
-                .replace(/\r\n/g, '\n')
-                .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
-        res.send(vtt);
+
+        const raw2 = data.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        const isVtt = raw2.trimStart().startsWith('WEBVTT');
+
+        let body;
+        if (isVtt) {
+            // Strip any existing X-TIMESTAMP-MAP so we control it
+            body = raw2.replace(/^WEBVTT[^\n]*/i, 'WEBVTT').replace(/^X-TIMESTAMP-MAP=.*\n/im, '').trimEnd();
+        } else {
+            // SRT → VTT: strip sequence numbers and convert timestamp format
+            const converted = raw2
+                .replace(/^\d+\s*$/gm, '')                              // remove lone sequence numbers
+                .replace(/(\d{1,2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')   // comma → dot in timestamps
+                .replace(/^(\d):(\d{2}:\d{2}\.\d{3})/gm, '0$1:$2')    // pad single-digit hours
+                .trim();
+            body = `WEBVTT\n\n${converted}`;
+        }
+
+        // AVPlayer requires X-TIMESTAMP-MAP to sync subtitle times to video PTS.
+        // MPEGTS:0 works when the stream's initial PTS is near zero (typical for CDN HLS).
+        const header = forHls
+            ? 'WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000'
+            : 'WEBVTT';
+        res.send(body.replace(/^WEBVTT/i, header) + '\n');
     } catch (e) {
         const status = e.response?.status || 'no-response';
         const msg = e.message || 'unknown error';
@@ -1660,20 +1673,22 @@ app.get('/proxy/subtitle', async (req, res) => {
 });
 
 // Returns a minimal HLS media playlist for a single subtitle file.
-// iOS AVPlayer can reference this from #EXT-X-MEDIA in the master manifest.
+// iOS AVPlayer references this from #EXT-X-MEDIA in the master manifest.
 app.get('/proxy/subtitle-playlist', (req, res) => {
     const raw = req.query.url;
     if (!raw) return res.status(400).send('Missing url');
     const url = decodeURIComponent(raw);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-    const proxied = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(url)}`;
+    // hls=1 tells /proxy/subtitle to include X-TIMESTAMP-MAP for AVPlayer sync
+    const proxied = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(url)}&hls=1`;
     res.send([
         '#EXTM3U',
-        '#EXT-X-TARGETDURATION:99999',
         '#EXT-X-VERSION:3',
+        '#EXT-X-TARGETDURATION:86400',
+        '#EXT-X-PLAYLIST-TYPE:VOD',
         '#EXT-X-MEDIA-SEQUENCE:0',
-        '#EXTINF:99999,',
+        '#EXTINF:86400.000,',
         proxied,
         '#EXT-X-ENDLIST',
     ].join('\n'));
@@ -1708,7 +1723,8 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
                 const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
                 const playlistUri = `https://goldenhind.tech/proxy/subtitle-playlist?url=${encodeURIComponent(absSubUrl)}`;
                 const name = (sub.language || sub.lang || `Track ${i + 1}`).replace(/"/g, "'");
-                return `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 ? 'YES' : 'NO'},AUTOSELECT=${i === 0 ? 'YES' : 'NO'},FORCED=NO,URI="${playlistUri}",LANGUAGE="sub${i}"`;
+                const lang = hlsLanguageCode(sub, i);
+                return `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 ? 'YES' : 'NO'},AUTOSELECT=${i === 0 ? 'YES' : 'NO'},FORCED=NO,URI="${playlistUri}",LANGUAGE="${lang}"`;
             });
 
         // Rewrite segment/variant URLs and add SUBTITLES attr to STREAM-INF lines
