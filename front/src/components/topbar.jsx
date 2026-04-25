@@ -24,6 +24,7 @@ export default function Topbar() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');
     const [isScrolled, setIsScrolled] = useState(false);
+    const [tvMode, setTvMode] = useState(() => localStorage.getItem('tvMode') === 'on');
 
     const [suggestions, setSuggestions] = useState([]);
     const [suggestionsLoading, setSuggestionsLoading] = useState(false);
@@ -79,6 +80,12 @@ export default function Topbar() {
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    useEffect(() => {
+        localStorage.setItem('tvMode', tvMode ? 'on' : 'off');
+        document.body.classList.toggle('tv-control-active', tvMode);
+        window.dispatchEvent(new CustomEvent('tv-mode-change', { detail: { enabled: tvMode } }));
+    }, [tvMode]);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -265,6 +272,21 @@ export default function Topbar() {
 
                     {/* Right Side */}
                     <div className="topbar-right">
+                        <button
+                            className={`tv-mode-toggle ${tvMode ? 'active' : ''}`}
+                            type="button"
+                            onClick={() => setTvMode(prev => !prev)}
+                            aria-pressed={tvMode}
+                            title="TV remote mode"
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <rect x="6" y="3" width="12" height="18" rx="4" stroke="currentColor" strokeWidth="1.8"/>
+                                <path d="M12 7v4m0 0 2-2m-2 2-2-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                                <circle cx="12" cy="15.5" r="1.6" fill="currentColor"/>
+                            </svg>
+                            <span>TV</span>
+                        </button>
+
                         {/* Mobile search icon - only visible on small screens */}
                         <button className="topbar-search-icon-btn" onClick={() => navigate('/search')}>
                             <svg viewBox="0 0 24 24" fill="none">

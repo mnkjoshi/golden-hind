@@ -1858,38 +1858,48 @@ app.post('/music/url', async (req, res) => {
     console.log(`[music/url] extracting: ${url}`);
 
     try {
-        // Parse cookies.txt (Netscape format) into a cookie jar for ytdl-core
-        const cookiesPath = path.join(process.cwd(), 'youtube-cookies.txt');
-        let agent;
-        if (fs.existsSync(cookiesPath)) {
-            const cookieLines = fs.readFileSync(cookiesPath, 'utf-8').split('\n')
-                .filter(l => l && !l.startsWith('#'))
-                .map(l => {
-                    const p = l.split('\t');
-                    if (p.length >= 7) return { name: p[5], value: p[6], domain: p[0], path: p[2] };
-                    return null;
-                })
-                .filter(Boolean);
-            agent = ytdl.createAgent(cookieLines);
-            console.log(`[music/url] using ${cookieLines.length} cookies`);
+        const videoId = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1];
+        if (!videoId) return res.status(400).json({ error: 'Could not extract video ID from URL' });
+
+        // Invidious public API — handles n-challenge on their infrastructure,
+        // returns working YouTube CDN URLs the browser can fetch directly.
+        const instances = [
+            'https://inv.nadeko.net',
+            'https://invidious.privacydev.net',
+            'https://iv.melmac.space',
+            'https://invidious.nerdvpn.de',
+        ];
+
+        let lastErr = null;
+        for (const instance of instances) {
+            try {
+                const resp = await axios.get(`${instance}/api/v1/videos/${videoId}`, {
+                    timeout: 12000,
+                    headers: { 'User-Agent': 'Mozilla/5.0' },
+                });
+
+                const audioFormats = (resp.data.adaptiveFormats || [])
+                    .filter(f => f.type?.startsWith('audio/'))
+                    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+
+                if (!audioFormats.length) throw new Error('No audio formats in response');
+
+                const best = audioFormats[0];
+                const ext = best.type?.includes('mp4') ? 'm4a' : 'webm';
+                const title = (resp.data.title || videoId).replace(/[/\\?%*:|"<>]/g, '-');
+
+                console.log(`[music/url] ok via ${instance}: "${title}" ext=${ext} bitrate=${best.bitrate}`);
+                return res.json({ streamUrl: best.url, title, ext });
+            } catch (e) {
+                console.error(`[music/url] ${instance} failed: ${e.message.split('\n')[0]}`);
+                lastErr = e;
+            }
         }
 
-        const info = await ytdl.getInfo(url, agent ? { agent } : {});
-        const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
-
-        if (!format?.url) throw new Error('No audio format found');
-
-        const title = info.videoDetails.title.replace(/[/\\?%*:|"<>]/g, '-');
-        const ext = format.container || format.mimeType?.split(';')[0].split('/')[1] || 'webm';
-        console.log(`[music/url] ok: "${title}" ext=${ext} itag=${format.itag}`);
-
-        res.json({ streamUrl: format.url, title, ext });
+        throw lastErr || new Error('All Invidious instances failed');
     } catch (e) {
-        console.error('[music/url] failed:', e.message.split('\n')[0]);
-        const msg = e.message.includes('410') ? 'Video unavailable or age-restricted.'
-            : e.message.includes('private') ? 'This video is private.'
-            : 'Failed to extract stream URL.';
-        res.status(500).json({ error: msg });
+        console.error('[music/url] all attempts failed:', e.message.split('\n')[0]);
+        res.status(500).json({ error: 'Failed to extract stream URL. Try again in a moment.' });
     }
 });
 

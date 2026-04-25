@@ -82,6 +82,8 @@ export default function App() {
     const [activeCardPreview, setActiveCardPreview] = useState(null)
     const [expandedCard, setExpandedCard] = useState(null)
     const [mobileCardSheet, setMobileCardSheet] = useState(null)
+    const [tvMode, setTvMode] = useState(() => localStorage.getItem('tvMode') === 'on' && window.innerWidth >= 1024)
+    const [tvSelection, setTvSelection] = useState(null)
     const cardHoverTimerRef = useRef(null)
     const cardLeaveTimerRef = useRef(null)
     const cardHoverTargetRef = useRef(null)
@@ -439,9 +441,11 @@ export default function App() {
     };
 
     const handleCardClick = (e, result) => {
-        if (window.innerWidth <= 768) {
+        if (tvMode || window.innerWidth <= 768) {
             e.preventDefault();
             e.stopPropagation();
+            hideTooltip();
+            handleCardLeave();
             setMobileCardSheet(result);
             return;
         }
@@ -557,6 +561,124 @@ export default function App() {
         setTooltip({ visible: false, data: null, x: 0, y: 0 });
     };
 
+    const getTvRows = () => Array.from(document.querySelectorAll('.content-row'))
+        .map(row => ({
+            id: row.id,
+            cards: Array.from(row.querySelectorAll('.content-card[data-tv-id]'))
+        }))
+        .filter(row => row.id && row.cards.length > 0);
+
+    const selectTvCard = (card) => {
+        if (!card) return;
+        setTvSelection({
+            rowId: card.dataset.tvRow,
+            itemId: card.dataset.tvId
+        });
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    };
+
+    const isTvSelected = (rowId, result) => (
+        tvMode && tvSelection?.rowId === rowId && tvSelection?.itemId === String(result.id)
+    );
+
+    useEffect(() => {
+        const updateTvMode = (event) => {
+            const requested = event?.detail?.enabled ?? localStorage.getItem('tvMode') === 'on';
+            const enabled = requested && window.innerWidth >= 1024;
+            setTvMode(enabled);
+            document.body.classList.toggle('tv-control-active', enabled);
+            if (!enabled) setTvSelection(null);
+        };
+
+        updateTvMode();
+        window.addEventListener('tv-mode-change', updateTvMode);
+        window.addEventListener('resize', updateTvMode);
+        return () => {
+            window.removeEventListener('tv-mode-change', updateTvMode);
+            window.removeEventListener('resize', updateTvMode);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!tvMode || isLoading) return;
+        const timer = setTimeout(() => {
+            const rows = getTvRows();
+            const stillExists = rows.some(row => row.id === tvSelection?.rowId && row.cards.some(card => card.dataset.tvId === tvSelection?.itemId));
+            if (!stillExists) selectTvCard(rows[0]?.cards[0]);
+        }, 0);
+        return () => clearTimeout(timer);
+    }, [tvMode, isLoading, continueData, bookmarkData, trendingData, recentRecs, lifetimeRecs, recentlyReviewed, activeGenre]);
+
+    useEffect(() => {
+        if (!tvMode) return;
+
+        const handleRemoteKey = (event) => {
+            const tag = event.target?.tagName?.toLowerCase();
+            if (['input', 'textarea', 'select'].includes(tag)) return;
+
+            if (mobileCardSheet) {
+                if (event.key === 'Escape' || event.key === 'Backspace') {
+                    event.preventDefault();
+                    setMobileCardSheet(null);
+                }
+                return;
+            }
+
+            const remoteKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
+            if (!remoteKeys.includes(event.key)) return;
+
+            const rows = getTvRows();
+            if (rows.length === 0) return;
+
+            event.preventDefault();
+            clearTimeout(cardHoverTimerRef.current);
+            clearTimeout(cardLeaveTimerRef.current);
+            setActiveCardPreview(null);
+            setExpandedCard(null);
+            hideTooltip();
+
+            let rowIndex = rows.findIndex(row => row.id === tvSelection?.rowId);
+            if (rowIndex < 0) rowIndex = 0;
+            let cardIndex = rows[rowIndex].cards.findIndex(card => card.dataset.tvId === tvSelection?.itemId);
+            if (cardIndex < 0) cardIndex = 0;
+
+            const currentCard = rows[rowIndex].cards[cardIndex];
+
+            if (event.key === 'Enter' || event.key === ' ') {
+                currentCard?.click();
+                return;
+            }
+
+            if (event.key === 'ArrowLeft') {
+                selectTvCard(rows[rowIndex].cards[Math.max(0, cardIndex - 1)]);
+                return;
+            }
+
+            if (event.key === 'ArrowRight') {
+                selectTvCard(rows[rowIndex].cards[Math.min(rows[rowIndex].cards.length - 1, cardIndex + 1)]);
+                return;
+            }
+
+            const nextRowIndex = event.key === 'ArrowUp' ? rowIndex - 1 : rowIndex + 1;
+            const nextRow = rows[nextRowIndex];
+            if (!nextRow) return;
+
+            const currentCenter = currentCard
+                ? currentCard.getBoundingClientRect().left + currentCard.getBoundingClientRect().width / 2
+                : 0;
+            const closestCard = nextRow.cards.reduce((closest, card) => {
+                const rect = card.getBoundingClientRect();
+                const distance = Math.abs((rect.left + rect.width / 2) - currentCenter);
+                return distance < closest.distance ? { card, distance } : closest;
+            }, { card: nextRow.cards[0], distance: Infinity }).card;
+
+            selectTvCard(closestCard);
+        };
+
+        window.addEventListener('keydown', handleRemoteKey);
+        return () => window.removeEventListener('keydown', handleRemoteKey);
+    }, [tvMode, tvSelection, mobileCardSheet]);
+
     function removeHandle(isMovie, ID, isBookmark) {
         // Send request to backend but don't wait for response
         axios({
@@ -583,6 +705,12 @@ export default function App() {
     return (
         <div className={`app-main ${showChristmas ? 'christmas-active' : ''}`} id="app-main">
             <Topbar/>
+            {tvMode && !isLoading && (
+                <div className="tv-mode-status" aria-live="polite">
+                    <span className="tv-mode-dot"></span>
+                    Remote mode
+                </div>
+            )}
             
             {/* Christmas Snowflakes */}
             {showChristmas && (
@@ -778,10 +906,13 @@ export default function App() {
                             </div>
                         </div>
                         <div className="content-row" id="continue-row">
-                            {continueData && continueData.filter(result => result && result.id).map(result => (
+                            {continueData && continueData.filter(result => result && result.id).map((result, index) => (
                                 <div
                                     key={result.id}
-                                    className={`content-card${expandedCard?.uid === `continue:${result.id}` ? ' card-expanded' : ''}`}
+                                    className={`content-card${expandedCard?.uid === `continue:${result.id}` ? ' card-expanded' : ''}${isTvSelected('continue-row', result) ? ' tv-selected' : ''}`}
+                                    data-tv-row="continue-row"
+                                    data-tv-id={String(result.id)}
+                                    data-tv-index={index}
                                     style={expandedCard?.uid === `continue:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
                                     onClick={(e) => handleCardClick(e, result)}
                                     onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'continue'); }}
@@ -853,10 +984,13 @@ export default function App() {
                                         <div className="card-image-container rec-skeleton-img"></div>
                                     </div>
                                 ))
-                                : recentRecs.filter(r => r && r.id).map(result => (
+                                : recentRecs.filter(r => r && r.id).map((result, index) => (
                                     <div
                                         key={result.id}
-                                        className="content-card rec-wide-card"
+                                        className={`content-card rec-wide-card${isTvSelected('recent-recs-row', result) ? ' tv-selected' : ''}`}
+                                        data-tv-row="recent-recs-row"
+                                        data-tv-id={String(result.id)}
+                                        data-tv-index={index}
                                         onClick={(e) => handleCardClick(e, result)}
                                         onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'recent-recs'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
@@ -922,10 +1056,13 @@ export default function App() {
                             {trendingData && trendingData.results && trendingData.results
                                 .filter(result => result && result.id)
                                 .filter(result => activeGenre === null || (result.genre_ids && result.genre_ids.includes(activeGenre)))
-                                .map(result => (
+                                .map((result, index) => (
                                 <div
                                     key={result.id}
-                                    className={`content-card${expandedCard?.uid === `trending:${result.id}` ? ' card-expanded' : ''}`}
+                                    className={`content-card${expandedCard?.uid === `trending:${result.id}` ? ' card-expanded' : ''}${isTvSelected('trending-row', result) ? ' tv-selected' : ''}`}
+                                    data-tv-row="trending-row"
+                                    data-tv-id={String(result.id)}
+                                    data-tv-index={index}
                                     style={expandedCard?.uid === `trending:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
                                     onClick={(e) => handleCardClick(e, result)}
                                     onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'trending'); }}
@@ -976,10 +1113,13 @@ export default function App() {
                                         <div className="card-image-container rec-skeleton-img"></div>
                                     </div>
                                 ))
-                                : recentlyReviewed.filter(r => r && r.id).map(result => (
+                                : recentlyReviewed.filter(r => r && r.id).map((result, index) => (
                                     <div
                                         key={result.id}
-                                        className="content-card rec-wide-card"
+                                        className={`content-card rec-wide-card${isTvSelected('recently-reviewed-row', result) ? ' tv-selected' : ''}`}
+                                        data-tv-row="recently-reviewed-row"
+                                        data-tv-id={String(result.id)}
+                                        data-tv-index={index}
                                         onClick={(e) => handleCardClick(e, result)}
                                         onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'recently-reviewed'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
@@ -1050,10 +1190,13 @@ export default function App() {
                             </div>
                         </div>
                         <div className="content-row" id="bookmark-row">
-                            {bookmarkData && bookmarkData.filter(result => result && result.id).map(result => (
+                            {bookmarkData && bookmarkData.filter(result => result && result.id).map((result, index) => (
                                 <div
                                     key={result.id}
-                                    className={`content-card${expandedCard?.uid === `bookmark:${result.id}` ? ' card-expanded' : ''}`}
+                                    className={`content-card${expandedCard?.uid === `bookmark:${result.id}` ? ' card-expanded' : ''}${isTvSelected('bookmark-row', result) ? ' tv-selected' : ''}`}
+                                    data-tv-row="bookmark-row"
+                                    data-tv-id={String(result.id)}
+                                    data-tv-index={index}
                                     style={expandedCard?.uid === `bookmark:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
                                     onClick={(e) => handleCardClick(e, result)}
                                     onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'bookmark'); }}
@@ -1114,10 +1257,13 @@ export default function App() {
                                         <div className="card-image-container rec-skeleton-img"></div>
                                     </div>
                                 ))
-                                : lifetimeRecs.filter(r => r && r.id).map(result => (
+                                : lifetimeRecs.filter(r => r && r.id).map((result, index) => (
                                     <div
                                         key={result.id}
-                                        className="content-card rec-wide-card"
+                                        className={`content-card rec-wide-card${isTvSelected('lifetime-recs-row', result) ? ' tv-selected' : ''}`}
+                                        data-tv-row="lifetime-recs-row"
+                                        data-tv-id={String(result.id)}
+                                        data-tv-index={index}
                                         onClick={(e) => handleCardClick(e, result)}
                                         onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'wide'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
