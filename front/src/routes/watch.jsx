@@ -199,35 +199,52 @@ export default function App() {
         container.appendChild(video);
         videoRef.current = video;
 
-        // Inject subtitle <track> elements only when HLS.js handles playback (desktop).
-        // On iOS, subtitles are embedded in the HLS master manifest via hls-with-subs,
-        // so AVPlayer renders them natively in fullscreen without needing <track> elements.
+        const subtitleLangCode = (sub, index) => {
+            const raw = String(sub.language || sub.lang || sub.label || '').toLowerCase();
+            const file = String(sub.file || sub.url || '').toLowerCase();
+            const text = `${raw} ${file}`;
+            const languageMap = [
+                ['en', /\b(en|eng|english)\b/],
+                ['es', /\b(es|spa|spanish|espanol|español)\b/],
+                ['fr', /\b(fr|fre|fra|french)\b/],
+                ['de', /\b(de|ger|deu|german)\b/],
+                ['it', /\b(it|ita|italian)\b/],
+                ['pt', /\b(pt|por|portuguese)\b/],
+                ['nl', /\b(nl|dut|nld|dutch)\b/],
+                ['ja', /\b(ja|jpn|japanese)\b/],
+                ['ko', /\b(ko|kor|korean)\b/],
+                ['zh', /\b(zh|chi|zho|chinese)\b/],
+            ];
+            return languageMap.find(([, re]) => re.test(text))?.[0] || (index === 0 ? 'en' : `und-${index}`);
+        };
+
+        // Keep HTML text tracks present for native iOS fullscreen too. AVPlayer can
+        // drop custom player state on iosNative fullscreen, but it can still discover
+        // <track> children attached to the underlying <video> element.
         const uniqueSubs = lmSubtitles;
-        if (Hls.isSupported()) {
-            let trackIndex = 0;
-            uniqueSubs.forEach(sub => {
-                const rawSub = String(sub.file || sub.url || '');
-                if (!rawSub.startsWith('/') && !rawSub.startsWith('http')) return;
-                const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
-                const trackEl = document.createElement('track');
-                trackEl.kind = 'subtitles';
-                trackEl.label = sub.language || sub.lang || `Track ${trackIndex + 1}`;
-                trackEl.srclang = `sub${trackIndex}`;
-                trackEl.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
-                if (trackIndex === 0) trackEl.default = true;
-                trackEl.addEventListener('load', () => {
-                    const offset = subOffsetRef.current;
-                    if (offset !== 0 && trackEl.track?.cues) {
-                        Array.from(trackEl.track.cues).forEach(cue => {
-                            cue.startTime = Math.max(0, cue.startTime + offset);
-                            cue.endTime = Math.max(0, cue.endTime + offset);
-                        });
-                    }
-                });
-                video.appendChild(trackEl);
-                trackIndex++;
+        let trackIndex = 0;
+        uniqueSubs.forEach(sub => {
+            const rawSub = String(sub.file || sub.url || '');
+            if (!rawSub.startsWith('/') && !rawSub.startsWith('http')) return;
+            const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
+            const trackEl = document.createElement('track');
+            trackEl.kind = 'subtitles';
+            trackEl.label = sub.language || sub.lang || `Track ${trackIndex + 1}`;
+            trackEl.srclang = subtitleLangCode(sub, trackIndex);
+            trackEl.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
+            if (trackIndex === 0) trackEl.default = true;
+            trackEl.addEventListener('load', () => {
+                const offset = subOffsetRef.current;
+                if (offset !== 0 && trackEl.track?.cues) {
+                    Array.from(trackEl.track.cues).forEach(cue => {
+                        cue.startTime = Math.max(0, cue.startTime + offset);
+                        cue.endTime = Math.max(0, cue.endTime + offset);
+                    });
+                }
             });
-        }
+            video.appendChild(trackEl);
+            trackIndex++;
+        });
 
         const posKey = type === 'tv'
             ? `playbackPos_${id}_s${season}_e${episode}`

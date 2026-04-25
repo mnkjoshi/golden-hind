@@ -13,7 +13,15 @@
       "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '270,278p' ~/cobalt/api/src/processing/services/youtube.js\")",
       "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"grep -n 'innertubeClient\\\\|getBasicInfo\\\\|client:' ~/cobalt/api/src/processing/services/youtube.js | head -20\")",
       "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '190,230p' ~/cobalt/api/src/processing/services/youtube.js\")",
-      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '230,265p' ~/cobalt/api/src/processing/services/youtube.js\")"
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '230,265p' ~/cobalt/api/src/processing/services/youtube.js\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"echo 'CUSTOM_INNERTUBE_CLIENT=ANDROID' >> ~/cobalt/api/.env && cat ~/cobalt/api/.env\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"pkill -f 'node src/cobalt.js'; sleep 1; cd ~/cobalt/api && nohup node src/cobalt.js > /tmp/cobalt.log 2>&1 & echo 'started pid '$!\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"curl -s -X POST http://localhost:9000 -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{\\\\\"url\\\\\":\\\\\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\\\\\",\\\\\"downloadMode\\\\\":\\\\\"audio\\\\\",\\\\\"audioFormat\\\\\":\\\\\"best\\\\\"}'\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"cat /tmp/cobalt.log 2>/dev/null | grep 'yt debug' | tail -5\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"cd ~/cobalt/api && cat node_modules/youtubei.js/package.json | python3 -c \\\\\"import json,sys; d=json.load\\(sys.stdin\\); print\\('youtubei.js:', d['version']\\)\\\\\"\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"cd ~/cobalt && git log --oneline -5 && git fetch origin && git log --oneline origin/main -5\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"ls ~/cookies.txt 2>/dev/null || find /root -name 'cookies.txt' 2>/dev/null | head -3\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"find /root -name '*.txt' 2>/dev/null | head -10\")"
     ]
   }
 }
