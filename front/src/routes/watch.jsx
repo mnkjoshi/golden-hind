@@ -83,6 +83,14 @@ export default function App() {
     let location = useLocation();
     const navigate = useNavigate();
     const subTraceEnabled = new URLSearchParams(location.search).has('subtrace');
+    const subtitleDebugParams = new URLSearchParams(location.search);
+    const subtitleDebugFlags = {
+        subnative: subtitleDebugParams.has('subnative'),
+        subhello: subtitleDebugParams.has('subhello'),
+        subdebug: subtitleDebugParams.has('subdebug'),
+        subtrace: subtitleDebugParams.has('subtrace'),
+    };
+    const subtitleDebugActive = Object.values(subtitleDebugFlags).some(Boolean);
 
     const addSubtitleDebugLine = (line) => {
         if (!subTraceEnabled) return;
@@ -105,7 +113,7 @@ export default function App() {
     }));
 
     const sendSubtitleTrace = (event, detail = {}, video = videoRef.current) => {
-        if (!subTraceEnabled) return;
+        if (!subtitleDebugActive) return;
         const payload = {
             event,
             id,
@@ -129,6 +137,21 @@ export default function App() {
             keepalive: true,
         }).catch(() => {});
     };
+
+    useEffect(() => {
+        if (!subtitleDebugActive) return;
+        const probeVideo = document.createElement('video');
+        addSubtitleDebugLine(`trace mounted provider=${provider} search=${location.search || '(none)'}`);
+        addSubtitleDebugLine(`hls.js=${Hls.isSupported()} nativeHls=${probeVideo.canPlayType('application/vnd.apple.mpegurl') || 'no'}`);
+        sendSubtitleTrace('watch-trace-mounted', {
+            provider,
+            subtitleDebugFlags,
+            search: location.search,
+            hlsSupported: Hls.isSupported(),
+            nativeHls: probeVideo.canPlayType('application/vnd.apple.mpegurl') || '',
+            userAgent: navigator.userAgent,
+        });
+    }, [subTraceEnabled, location.search]);
 
     // Disable body overflow when watch page is active + log watch time on unmount
     useEffect(() => {
@@ -191,8 +214,35 @@ export default function App() {
     // progressReady is false for TV shows until progress_retrieve returns so we
     // don't fire with the default season=1/episode=1 before saved progress loads.
     useEffect(() => {
-        if (parseInt(provider) !== 1) return;
-        if (!progressReady) return;
+        const subParams = new URLSearchParams(location.search);
+        const subDebug = subParams.has('subdebug');
+        const subHello = subParams.has('subhello');
+        const subNative = subParams.has('subnative');
+        const subTrace = subParams.has('subtrace');
+        const hasSubtitleDebugFlag = subDebug || subHello || subNative || subTrace;
+
+        if (parseInt(provider) !== 1) {
+            if (hasSubtitleDebugFlag) {
+                showProviderToast(`Subtitle debug needs Server 1 (now Server ${provider})`);
+                sendSubtitleTrace('lookmovie-skipped-provider', { provider, reason: 'provider-not-1' });
+            }
+            return;
+        }
+        if (!progressReady) {
+            if (hasSubtitleDebugFlag) {
+                sendSubtitleTrace('lookmovie-waiting-progress', { provider, season, episode });
+            }
+            return;
+        }
+        if (hasSubtitleDebugFlag) {
+            showProviderToast('Subtitle debug: fetching Server 1');
+            sendSubtitleTrace('lookmovie-fetch-start', {
+                provider,
+                season,
+                episode,
+                hlsSupported: Hls.isSupported(),
+            });
+        }
         setLmUrl(null);
         setLmError(null);
         setLmLoading(true);
@@ -205,35 +255,45 @@ export default function App() {
             if (r.data.success) {
                 const subs = r.data.subtitles || [];
                 setLmSubtitles(subs);
-                const subParams = new URLSearchParams(location.search);
-                const subDebug = subParams.has('subdebug');
-                const subHello = subParams.has('subhello');
-                const subNative = subParams.has('subnative');
-                const subTrace = subParams.has('subtrace');
+                sendSubtitleTrace('lookmovie-fetch-success', {
+                    provider,
+                    subtitleCount: subs.length,
+                    hlsSupported: Hls.isSupported(),
+                    subNative,
+                    subHello,
+                    subDebug,
+                });
                 if (subNative) {
                     const nextUrl = `https://goldenhind.tech/debug/native-subtitles.m3u8?url=${encodeURIComponent(r.data.url)}${subTrace ? '&trace=1' : ''}`;
                     addSubtitleDebugLine(`subnative url=${nextUrl.slice(0, 180)}`);
+                    showProviderToast('Subtitles injected');
                     setLmUrl(nextUrl);
                 } else if (!Hls.isSupported() && subs.length > 0) {
                     const nextUrl = `https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}${subDebug ? '&debug=1' : ''}${subHello ? '&hello=1' : ''}${subTrace ? '&trace=1' : ''}`;
                     addSubtitleDebugLine(`native subs url=${nextUrl.slice(0, 180)}`);
+                    showProviderToast('Subtitles injected');
                     setLmUrl(nextUrl);
                 } else {
+                    if (hasSubtitleDebugFlag) {
+                        showProviderToast(Hls.isSupported() ? 'Subtitle debug: hls.js path' : 'Subtitle debug: no subtitles to inject');
+                    }
                     const nextUrl = `https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`;
                     addSubtitleDebugLine(`plain hls url=${nextUrl.slice(0, 180)}`);
                     setLmUrl(nextUrl);
                 }
             } else {
+                sendSubtitleTrace('lookmovie-fetch-failed', { provider, error: r.data.error || 'unknown' });
                 setProvider(3);
                 localStorage.setItem("provider" + vidID, 3);
                 showProviderToast('LookMovie unavailable - switched to Server 3');
             }
         }).catch(() => {
+            sendSubtitleTrace('lookmovie-fetch-error', { provider });
             setProvider(3);
             localStorage.setItem("provider" + vidID, 3);
             showProviderToast('LookMovie unavailable - switched to Server 3');
         }).finally(() => setLmLoading(false));
-    }, [provider, season, episode, progressReady]);
+    }, [provider, season, episode, progressReady, location.search]);
 
     // Attach HLS.js + Plyr when a stream URL arrives.
     // We manage the <video> element entirely imperatively inside lmContainerRef so

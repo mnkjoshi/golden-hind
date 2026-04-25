@@ -2150,6 +2150,7 @@ app.post('/server/lookmovie', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, id, season, episode } = request.body;
+    console.log(`[server/lookmovie] request id=${id} season=${season || ''} episode=${episode || ''} user=${user || ''}`);
     if (!await Authenticate(user, token)) return response.status(202).send("UNV");
 
     const dbg = [];
@@ -2175,8 +2176,10 @@ app.post('/server/lookmovie', async (request, response) => {
         }
 
         const { streamUrl, subtitles } = await getLookmovieStreamUrl(targetId, mediaType, dbg);
+        console.log(`[server/lookmovie] success id=${id} subtitles=${subtitles?.length || 0} url=${streamUrl ? 'yes' : 'no'}`);
         response.json({ success: true, url: streamUrl, subtitles, dbg });
     } catch (error) {
+        console.error(`[server/lookmovie] failed id=${id}: ${error.message}`);
         logError(user, '/server/lookmovie', error).catch(() => {});
         dbg.push(`ERROR: ${error.message}`);
         response.status(200).json({ success: false, error: error.message, dbg });
