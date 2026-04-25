@@ -54,6 +54,7 @@ export default function App() {
 
     const [providerToast, setProviderToast] = useState(null);
     const providerToastTimerRef = useRef(null);
+    const [subtitleDebugOverlay, setSubtitleDebugOverlay] = useState([]);
 
     const[bookmarked, setBookmark] = useState(-1);
 
@@ -83,6 +84,12 @@ export default function App() {
     const navigate = useNavigate();
     const subTraceEnabled = new URLSearchParams(location.search).has('subtrace');
 
+    const addSubtitleDebugLine = (line) => {
+        if (!subTraceEnabled) return;
+        const stamp = new Date().toLocaleTimeString();
+        setSubtitleDebugOverlay(prev => [`${stamp} ${line}`, ...prev].slice(0, 12));
+    };
+
     const describeTextTracks = (video) => Array.from(video?.textTracks || []).map((track, index) => ({
         index,
         kind: track.kind,
@@ -110,6 +117,7 @@ export default function App() {
             detail,
         };
         console.log('[subtitle-trace]', payload);
+        addSubtitleDebugLine(`${event} t=${payload.currentTime ?? 'n/a'} mode=${payload.presentationMode || 'n/a'}`);
         try {
             const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
             if (navigator.sendBeacon && navigator.sendBeacon('https://goldenhind.tech/debug/subtitle-trace', blob)) return;
@@ -203,11 +211,17 @@ export default function App() {
                 const subNative = subParams.has('subnative');
                 const subTrace = subParams.has('subtrace');
                 if (subNative) {
-                    setLmUrl(`https://goldenhind.tech/debug/native-subtitles.m3u8?url=${encodeURIComponent(r.data.url)}${subTrace ? '&trace=1' : ''}`);
+                    const nextUrl = `https://goldenhind.tech/debug/native-subtitles.m3u8?url=${encodeURIComponent(r.data.url)}${subTrace ? '&trace=1' : ''}`;
+                    addSubtitleDebugLine(`subnative url=${nextUrl.slice(0, 180)}`);
+                    setLmUrl(nextUrl);
                 } else if (!Hls.isSupported() && subs.length > 0) {
-                        setLmUrl(`https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}${subDebug ? '&debug=1' : ''}${subHello ? '&hello=1' : ''}${subTrace ? '&trace=1' : ''}`);
+                    const nextUrl = `https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}${subDebug ? '&debug=1' : ''}${subHello ? '&hello=1' : ''}${subTrace ? '&trace=1' : ''}`;
+                    addSubtitleDebugLine(`native subs url=${nextUrl.slice(0, 180)}`);
+                    setLmUrl(nextUrl);
                 } else {
-                    setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
+                    const nextUrl = `https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`;
+                    addSubtitleDebugLine(`plain hls url=${nextUrl.slice(0, 180)}`);
+                    setLmUrl(nextUrl);
                 }
             } else {
                 setProvider(3);
@@ -1219,6 +1233,30 @@ export default function App() {
         </div>
             {providerToast && (
                 <div className="provider-toast">{providerToast}</div>
+            )}
+            {subTraceEnabled && subtitleDebugOverlay.length > 0 && (
+                <div style={{
+                    position: 'fixed',
+                    left: 8,
+                    right: 8,
+                    bottom: 8,
+                    zIndex: 99999,
+                    maxHeight: '34vh',
+                    overflow: 'auto',
+                    background: 'rgba(0,0,0,0.86)',
+                    color: '#8fffa0',
+                    border: '1px solid rgba(143,255,160,0.45)',
+                    borderRadius: 8,
+                    padding: 8,
+                    fontSize: 11,
+                    lineHeight: 1.35,
+                    fontFamily: 'monospace',
+                    pointerEvents: 'none',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
+                }}>
+                    {subtitleDebugOverlay.join('\n')}
+                </div>
             )}
         </>
     );
