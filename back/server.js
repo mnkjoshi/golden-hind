@@ -1872,10 +1872,9 @@ app.post('/music/download', async (req, res) => {
             'format': 'bestaudio/best',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'referer': 'https://www.youtube.com/',
-            'extractor-args': 'youtube:player_client=web,ios',
+            'extractor-args': 'youtube:player_client=android_vr,web',
             'no-check-certificate': true,
             'prefer-free-formats': true,
-            'jinterpreter': '/usr/bin/node',
             ...(hasCookies ? { 'cookies': cookiesPath } : {}),
         });
 
