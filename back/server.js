@@ -40,6 +40,7 @@ app.use(cors({
     "http://www.goldenhind.tech",
   ],
   credentials: true,
+  exposedHeaders: ['X-Title'],
 }));
 
 app.options("*", cors());
@@ -2313,10 +2314,12 @@ app.post('/music/download', async (req, res) => {
         res.setHeader('Content-Type', 'audio/mpeg');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(title)}.mp3`);
         res.setHeader('X-Title', encodeURIComponent(title));
+        res.setHeader('Access-Control-Expose-Headers', 'X-Title');
 
         const ffmpeg = spawn('ffmpeg', [
             '-i', streamUrl,
             '-codec:a', 'libmp3lame', '-q:a', '2',
+            '-id3v2_version', '3',
             '-metadata', `title=${title}`,
             '-metadata', `artist=${artist}`,
             '-metadata', `album=YouTube`,
