@@ -2297,16 +2297,19 @@ app.post('/music/download', async (req, res) => {
 
     try {
         const { stdout } = await execAsync(
-            `yt-dlp --cookies /root/yt_cookies.txt --no-playlist -f "bestaudio[ext=webm]/bestaudio" --print "%(title)s" --print "%(url)s" "${ytUrl}"`,
+            `yt-dlp --cookies /root/yt_cookies.txt --no-playlist -f "bestaudio[ext=webm]/bestaudio" --print "%(title)s" --print "%(uploader)s" --print "%(upload_date)s" --print "%(url)s" "${ytUrl}"`,
             { timeout: 30000, env }
         );
         const lines = stdout.trim().split('\n');
         const streamUrl = lines.pop();
+        const uploadDate = lines.pop() || '';
+        const artist = lines.pop() || '';
         const title = (lines.join(' ') || videoId).replace(/[/\\?%*:|"<>]/g, '-');
+        const year = uploadDate.slice(0, 4);
 
         if (!streamUrl?.startsWith('http')) throw new Error('No stream URL returned');
 
-        console.log(`[music/download] streaming: "${title}"`);
+        console.log(`[music/download] streaming: "${title}" by ${artist}`);
         res.setHeader('Content-Type', 'audio/mpeg');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(title)}.mp3`);
         res.setHeader('X-Title', encodeURIComponent(title));
@@ -2314,6 +2317,10 @@ app.post('/music/download', async (req, res) => {
         const ffmpeg = spawn('ffmpeg', [
             '-i', streamUrl,
             '-codec:a', 'libmp3lame', '-q:a', '2',
+            '-metadata', `title=${title}`,
+            '-metadata', `artist=${artist}`,
+            '-metadata', `album=YouTube`,
+            ...(year ? ['-metadata', `date=${year}`] : []),
             '-f', 'mp3', '-'
         ], { env });
 
