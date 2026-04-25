@@ -1875,7 +1875,7 @@ app.post('/music/download', async (req, res) => {
             'extractor-args': 'youtube:player_client=web,ios',
             'no-check-certificate': true,
             'prefer-free-formats': true,
-            'jinterpreter': 'node',
+            'jinterpreter': '/usr/bin/node',
             ...(hasCookies ? { 'cookies': cookiesPath } : {}),
         });
 
