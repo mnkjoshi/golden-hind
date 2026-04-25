@@ -1861,42 +1861,61 @@ app.post('/music/url', async (req, res) => {
         const videoId = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1];
         if (!videoId) return res.status(400).json({ error: 'Could not extract video ID from URL' });
 
-        // Invidious public API — handles n-challenge on their infrastructure,
-        // returns working YouTube CDN URLs the browser can fetch directly.
-        const instances = [
-            'https://inv.nadeko.net',
-            'https://invidious.privacydev.net',
-            'https://iv.melmac.space',
-            'https://invidious.nerdvpn.de',
+        // Try Invidious instances (return direct YouTube CDN URLs)
+        const invidiousInstances = [
+            'https://yewtu.be',
+            'https://invidious.lunar.icu',
+            'https://invidious.tiekoetter.com',
+            'https://inv.tux.pizza',
         ];
 
-        let lastErr = null;
-        for (const instance of instances) {
+        for (const instance of invidiousInstances) {
             try {
                 const resp = await axios.get(`${instance}/api/v1/videos/${videoId}`, {
                     timeout: 12000,
                     headers: { 'User-Agent': 'Mozilla/5.0' },
                 });
-
                 const audioFormats = (resp.data.adaptiveFormats || [])
                     .filter(f => f.type?.startsWith('audio/'))
                     .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-
-                if (!audioFormats.length) throw new Error('No audio formats in response');
-
+                if (!audioFormats.length) throw new Error('No audio formats');
                 const best = audioFormats[0];
                 const ext = best.type?.includes('mp4') ? 'm4a' : 'webm';
                 const title = (resp.data.title || videoId).replace(/[/\\?%*:|"<>]/g, '-');
-
-                console.log(`[music/url] ok via ${instance}: "${title}" ext=${ext} bitrate=${best.bitrate}`);
+                console.log(`[music/url] ok via ${instance}: "${title}" ext=${ext}`);
                 return res.json({ streamUrl: best.url, title, ext });
             } catch (e) {
                 console.error(`[music/url] ${instance} failed: ${e.message.split('\n')[0]}`);
-                lastErr = e;
             }
         }
 
-        throw lastErr || new Error('All Invidious instances failed');
+        // Fallback: Piped API (proxied CDN URLs, different format)
+        const pipedInstances = [
+            'https://pipedapi.kavin.rocks',
+            'https://piped-api.garudalinux.org',
+        ];
+
+        for (const instance of pipedInstances) {
+            try {
+                const resp = await axios.get(`${instance}/streams/${videoId}`, {
+                    timeout: 12000,
+                    headers: { 'User-Agent': 'Mozilla/5.0' },
+                });
+                const audioStreams = (resp.data.audioStreams || [])
+                    .filter(s => !s.videoOnly)
+                    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+                if (!audioStreams.length) throw new Error('No audio streams');
+                const best = audioStreams[0];
+                const ext = best.mimeType?.includes('mp4') ? 'm4a' : 'webm';
+                const title = (resp.data.title || videoId).replace(/[/\\?%*:|"<>]/g, '-');
+                console.log(`[music/url] ok via piped ${instance}: "${title}" ext=${ext}`);
+                return res.json({ streamUrl: best.url, title, ext });
+            } catch (e) {
+                console.error(`[music/url] piped ${instance} failed: ${e.message.split('\n')[0]}`);
+            }
+        }
+
+        throw new Error('All stream sources failed');
     } catch (e) {
         console.error('[music/url] all attempts failed:', e.message.split('\n')[0]);
         res.status(500).json({ error: 'Failed to extract stream URL. Try again in a moment.' });
