@@ -1859,11 +1859,18 @@ app.post('/music/url', async (req, res) => {
     const cookiesPath = path.join(process.cwd(), 'youtube-cookies.txt');
     const hasCookies = fs.existsSync(cookiesPath);
 
-    // Try clients in order: web (with cookies for auth), then android_vr/android (no cookies)
+    // Try clients in order. player_skip=js bypasses the n-challenge/signature JS solving —
+    // the browser fetches the CDN URL directly (residential IP) so CDN leniency applies.
     const attempts = hasCookies
-        ? [{ 'extractor-args': 'youtube:player_client=web', 'cookies': cookiesPath }]
-        : [{ 'extractor-args': 'youtube:player_client=android_vr' },
-           { 'extractor-args': 'youtube:player_client=android' }];
+        ? [
+            { 'extractor-args': 'youtube:player_client=web;player_skip=js', 'cookies': cookiesPath },
+            { 'extractor-args': 'youtube:player_client=web', 'cookies': cookiesPath },
+          ]
+        : [
+            { 'extractor-args': 'youtube:player_client=android_vr;player_skip=js' },
+            { 'extractor-args': 'youtube:player_client=android_vr' },
+            { 'extractor-args': 'youtube:player_client=android;player_skip=js' },
+          ];
 
     let lastErr = null;
     for (const extra of attempts) {
