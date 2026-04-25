@@ -197,11 +197,15 @@ export default function App() {
             if (r.data.success) {
                 const subs = r.data.subtitles || [];
                 setLmSubtitles(subs);
-                if (!Hls.isSupported() && subs.length > 0) {
-                    const subDebug = new URLSearchParams(location.search).has('subdebug');
-                    const subHello = new URLSearchParams(location.search).has('subhello');
-                    const subTrace = new URLSearchParams(location.search).has('subtrace');
-                    setLmUrl(`https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}${subDebug ? '&debug=1' : ''}${subHello ? '&hello=1' : ''}${subTrace ? '&trace=1' : ''}`);
+                const subParams = new URLSearchParams(location.search);
+                const subDebug = subParams.has('subdebug');
+                const subHello = subParams.has('subhello');
+                const subNative = subParams.has('subnative');
+                const subTrace = subParams.has('subtrace');
+                if (subNative) {
+                    setLmUrl(`https://goldenhind.tech/debug/native-subtitles.m3u8?url=${encodeURIComponent(r.data.url)}${subTrace ? '&trace=1' : ''}`);
+                } else if (!Hls.isSupported() && subs.length > 0) {
+                        setLmUrl(`https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}${subDebug ? '&debug=1' : ''}${subHello ? '&hello=1' : ''}${subTrace ? '&trace=1' : ''}`);
                 } else {
                     setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
                 }
@@ -224,6 +228,7 @@ export default function App() {
     useEffect(() => {
         if (!lmUrl || !lmContainerRef.current) return;
         const subtitleTraceCleanup = [];
+        const forceNativeHls = new URLSearchParams(location.search).has('subnative');
 
         // Tear down any existing instances first
         if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
@@ -333,7 +338,7 @@ export default function App() {
         // duplicate menu items and can leave AVPlayer selecting a non-rendering track.
         const uniqueSubs = lmSubtitles;
         let trackIndex = 0;
-        if (Hls.isSupported()) {
+        if (Hls.isSupported() && !forceNativeHls) {
             uniqueSubs.forEach(sub => {
                 const rawSub = String(sub.file || sub.url || '');
                 if (!rawSub.startsWith('/') && !rawSub.startsWith('http')) return;
@@ -431,7 +436,7 @@ export default function App() {
             });
         };
 
-        if (Hls.isSupported()) {
+        if (Hls.isSupported() && !forceNativeHls) {
             const hls = new Hls({ xhrSetup: xhr => { xhr.withCredentials = false; } });
             hlsRef.current = hls;
             hls.loadSource(lmUrl);

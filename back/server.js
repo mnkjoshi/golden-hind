@@ -26,7 +26,16 @@ app.use(express.urlencoded({ extended: true}));
 
 
 app.use(cors({
-  origin: ["https://the-golden-hind.web.app", "http://localhost:5173", "https://ghind.tech", "http://ghind.tech"],
+  origin: [
+    "https://the-golden-hind.web.app",
+    "http://localhost:5173",
+    "https://ghind.tech",
+    "http://ghind.tech",
+    "https://goldenhind.tech",
+    "http://goldenhind.tech",
+    "https://www.goldenhind.tech",
+    "http://www.goldenhind.tech",
+  ],
   credentials: true,
 }));
 
@@ -1597,15 +1606,17 @@ function normalizeSubtitleToVtt(data, { pts = 0, includeTimestampMap = false } =
 
 function buildHelloSubtitleVtt({ duration = 21600, pts = 0, mapMode = 'pts', start = 0, span = null } = {}) {
     const safeDuration = Math.max(1, Math.min(Math.ceil(duration), 12 * 60 * 60));
-    const cueStart = Math.max(0, start);
-    const cueEnd = Math.min(cueStart + (span || safeDuration), safeDuration);
+    const isSegmentMapped = mapMode === 'segmentpts';
+    const cueStart = isSegmentMapped ? 0 : Math.max(0, start);
+    const cueEnd = isSegmentMapped ? Math.max(1, span || 5) : Math.min(cueStart + (span || safeDuration), safeDuration);
+    const mappedPts = isSegmentMapped ? pts + Math.round(Math.max(0, start) * 90000) : pts;
     const lines = ['WEBVTT'];
-    if (mapMode === 'pts') {
-        lines.push(`X-TIMESTAMP-MAP=MPEGTS:${pts},LOCAL:00:00:00.000`);
+    if (mapMode === 'pts' || mapMode === 'segmentpts') {
+        lines.push(`X-TIMESTAMP-MAP=MPEGTS:${mappedPts},LOCAL:00:00:00.000`);
     } else if (mapMode === 'zero') {
         lines.push('X-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000');
     } else if (mapMode === 'localfirst') {
-        lines.push(`X-TIMESTAMP-MAP=LOCAL:00:00:00.000,MPEGTS:${pts}`);
+        lines.push(`X-TIMESTAMP-MAP=LOCAL:00:00:00.000,MPEGTS:${mappedPts}`);
     }
     lines.push('');
 
@@ -1655,6 +1666,17 @@ async function getHlsDurationInfo(manifestText, manifestUrl) {
         }
     }
     return parseHlsDurationInfo(manifestText);
+}
+
+function firstMediaPlaylistUrl(manifestText, manifestUrl) {
+    const lines = String(manifestText || '').split('\n');
+    for (let i = 0; i < lines.length; i++) {
+        const t = lines[i].trim();
+        if (!t.startsWith('#EXT-X-STREAM-INF')) continue;
+        const next = lines[i + 1]?.trim();
+        if (next && !next.startsWith('#')) return absolutizeManifestUrl(manifestUrl, next);
+    }
+    return manifestUrl;
 }
 
 // HLS proxy — manifests are rewritten, segments are piped (never buffered)
@@ -1982,6 +2004,51 @@ function handleSubtitleDebugVtt(req, res) {
 app.get('/proxy/subtitle-debug-playlist.m3u8', handleSubtitleDebugPlaylist);
 app.get('/proxy/subtitle-debug.vtt', handleSubtitleDebugVtt);
 
+app.get('/debug/native-subtitles.m3u8', async (req, res) => {
+    const raw = req.query.url;
+    if (!raw) return res.status(400).send('Missing url');
+    const url = decodeURIComponent(raw);
+    const trace = req.query.trace === '1';
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+
+    try {
+        console.log(`[native-sub-debug] source=${url}`);
+        const upstream = await axios.get(url, {
+            headers: { 'Referer': 'https://www.lookmovie2.to/', 'User-Agent': lookmovieHeaders['User-Agent'] },
+            responseType: 'text',
+            timeout: 15000,
+        });
+        const mediaUrl = firstMediaPlaylistUrl(upstream.data, url);
+        const videoPts = await detectFirstVideoPTS(upstream.data, url);
+        const durationInfo = await getHlsDurationInfo(upstream.data, url);
+        const traceSuffix = trace ? '&trace=1' : '';
+        const helloBase = `https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent('https://goldenhind.tech/hello.vtt')}&pts=${videoPts}&duration=${durationInfo.duration}&hello=1`;
+        const output = [
+            '#EXTM3U',
+            '#EXT-X-VERSION:3',
+            `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO Segment Map",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,URI="${helloBase}&map=segmentpts${traceSuffix}",LANGUAGE="en"`,
+            `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO No Map",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="${helloBase}&map=none${traceSuffix}",LANGUAGE="en"`,
+            `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO PTS Map",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="${helloBase}&map=pts${traceSuffix}",LANGUAGE="en"`,
+            '#EXT-X-STREAM-INF:BANDWIDTH=5000000,SUBTITLES="subs"',
+            proxiedHlsUrl(mediaUrl),
+        ].join('\n');
+
+        console.log('[native-sub-debug]', JSON.stringify({
+            event: 'native-debug-master',
+            mediaUrl,
+            videoPts,
+            duration: durationInfo.duration,
+            trace,
+        }));
+        res.send(output);
+    } catch (e) {
+        console.error(`[native-sub-debug] FAILED: ${e.message}`);
+        res.status(502).send(e.message);
+    }
+});
+
 // Master HLS manifest rewriter that injects subtitle tracks.
 // Used by iOS Safari so AVPlayer sees subtitles in native fullscreen.
 app.get('/proxy/hls-with-subs', async (req, res) => {
@@ -2033,7 +2100,8 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
 
         if (includeHelloSub) {
             subMediaLines.unshift(
-                `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO PTS Map",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,URI="https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent('https://goldenhind.tech/hello.vtt')}&pts=${videoPts}&duration=${durationInfo.duration}&hello=1&map=pts${includeTrace ? '&trace=1' : ''}",LANGUAGE="en"`,
+                `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO Segment Map",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,URI="https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent('https://goldenhind.tech/hello.vtt')}&pts=${videoPts}&duration=${durationInfo.duration}&hello=1&map=segmentpts${includeTrace ? '&trace=1' : ''}",LANGUAGE="en"`,
+                `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO PTS Map",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent('https://goldenhind.tech/hello.vtt')}&pts=${videoPts}&duration=${durationInfo.duration}&hello=1&map=pts${includeTrace ? '&trace=1' : ''}",LANGUAGE="en"`,
                 `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO Zero Map",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent('https://goldenhind.tech/hello.vtt')}&pts=${videoPts}&duration=${durationInfo.duration}&hello=1&map=zero${includeTrace ? '&trace=1' : ''}",LANGUAGE="en"`,
                 `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO No Map",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent('https://goldenhind.tech/hello.vtt')}&pts=${videoPts}&duration=${durationInfo.duration}&hello=1&map=none${includeTrace ? '&trace=1' : ''}",LANGUAGE="en"`,
                 `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="HELLO Local First",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="https://goldenhind.tech/proxy/subtitle-playlist.m3u8?url=${encodeURIComponent('https://goldenhind.tech/hello.vtt')}&pts=${videoPts}&duration=${durationInfo.duration}&hello=1&map=localfirst${includeTrace ? '&trace=1' : ''}",LANGUAGE="en"`
