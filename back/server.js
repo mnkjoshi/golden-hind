@@ -1856,24 +1856,38 @@ app.post('/music/url', async (req, res) => {
 
     console.log(`[music/url] extracting: ${url}`);
 
-    try {
-        const result = await ytDlpExec(url, {
-            'dump-single-json': true,
-            'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
-            'no-playlist': true,
-            'extractor-args': 'youtube:player_client=android_vr,android',
-            'no-check-certificate': true,
-        });
+    const cookiesPath = path.join(process.cwd(), 'youtube-cookies.txt');
+    const hasCookies = fs.existsSync(cookiesPath);
 
-        const info = JSON.parse(result.stdout);
-        if (!info.url) throw new Error('No stream URL in yt-dlp response');
+    // Try clients in order: web (with cookies for auth), then android_vr/android (no cookies)
+    const attempts = hasCookies
+        ? [{ 'extractor-args': 'youtube:player_client=web', 'cookies': cookiesPath }]
+        : [{ 'extractor-args': 'youtube:player_client=android_vr' },
+           { 'extractor-args': 'youtube:player_client=android' }];
 
-        console.log(`[music/url] ok: "${info.title}" ext=${info.ext} url=${info.url.slice(0, 80)}...`);
-        res.json({ streamUrl: info.url, title: info.title, ext: info.ext || 'webm' });
-    } catch (e) {
-        console.error('[music/url] failed:', e.message.split('\n')[0]);
-        res.status(500).json({ error: 'Failed to extract stream URL.' });
+    let lastErr = null;
+    for (const extra of attempts) {
+        try {
+            const result = await ytDlpExec(url, {
+                'dump-single-json': true,
+                'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
+                'no-playlist': true,
+                'no-check-certificate': true,
+                ...extra,
+            });
+
+            const info = JSON.parse(result.stdout);
+            if (!info.url) throw new Error('No stream URL in yt-dlp response');
+
+            console.log(`[music/url] ok (${extra['extractor-args']}): "${info.title}" ext=${info.ext}`);
+            return res.json({ streamUrl: info.url, title: info.title, ext: info.ext || 'webm' });
+        } catch (e) {
+            lastErr = e;
+            console.error(`[music/url] attempt failed (${extra['extractor-args']}):`, (e.stderr || e.message || '').split('\n').filter(l => l.includes('ERROR') || l.includes('WARNING')).join(' | ') || e.message.split('\n')[0]);
+        }
     }
+
+    res.status(500).json({ error: 'Failed to extract stream URL.' });
 });
 
 // Download a YouTube video's audio as MP3 via yt-dlp
