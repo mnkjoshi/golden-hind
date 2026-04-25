@@ -13,7 +13,7 @@ import ytdl from '@distube/ytdl-core';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
 
@@ -2278,7 +2278,7 @@ app.post('/music/url', async (req, res) => {
     }
 });
 
-// Download a YouTube video's audio as MP3 via yt-dlp
+// Download a YouTube video's audio as MP3: yt-dlp extracts CDN URL, ffmpeg downloads+converts, streams to browser
 app.post('/music/download', async (req, res) => {
     const { user, token, url } = req.body;
     if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
@@ -2287,72 +2287,45 @@ app.post('/music/download', async (req, res) => {
         return res.status(400).json({ error: 'Invalid YouTube URL' });
     }
 
-    const tempDir = path.join(os.tmpdir(), `music-${crypto.randomUUID()}`);
-    fs.mkdirSync(tempDir, { recursive: true });
-    console.log(`[music] download start: ${url} → ${tempDir}`);
+    const videoId = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1];
+    if (!videoId) return res.status(400).json({ error: 'Could not extract video ID' });
+
+    console.log(`[music/download] ${videoId}`);
+
+    const env = { ...process.env, PATH: `/root/.deno/bin:${process.env.PATH}` };
+    const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
     try {
-        const cookiesPath = path.join(process.cwd(), 'youtube-cookies.txt');
-        const hasCookies = fs.existsSync(cookiesPath);
-        console.log(`[music] cookies file: ${hasCookies ? cookiesPath : 'not found'}`);
+        const { stdout } = await execAsync(
+            `yt-dlp --cookies /root/yt_cookies.txt --no-playlist -f "bestaudio[ext=webm]/bestaudio" --print "%(title)s" --print "%(url)s" "${ytUrl}"`,
+            { timeout: 30000, env }
+        );
+        const lines = stdout.trim().split('\n');
+        const streamUrl = lines.pop();
+        const title = (lines.join(' ') || videoId).replace(/[/\\?%*:|"<>]/g, '-');
 
-        await ytDlpExec(url, {
-            'extract-audio': true,
-            'audio-format': 'mp3',
-            'audio-quality': '0',
-            'output': path.join(tempDir, '%(title)s.%(ext)s'),
-            'no-playlist': true,
-            'format': 'bestaudio/best',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'referer': 'https://www.youtube.com/',
-            'extractor-args': 'youtube:player_client=android_vr,web',
-            'no-check-certificate': true,
-            'prefer-free-formats': true,
-            ...(hasCookies ? { 'cookies': cookiesPath } : {}),
-        });
+        if (!streamUrl?.startsWith('http')) throw new Error('No stream URL returned');
 
-        const files = fs.readdirSync(tempDir).filter(f => f.endsWith('.mp3'));
-        if (files.length === 0) {
-            fs.rmSync(tempDir, { recursive: true, force: true });
-            return res.status(500).json({ error: 'Download completed but MP3 not found' });
-        }
-
-        const filePath = path.join(tempDir, files[0]);
-        const safeFileName = files[0].replace(/[^\w\s.\-()]/g, '_');
-        console.log(`[music] serving: ${safeFileName} (${fs.statSync(filePath).size} bytes)`);
-
+        console.log(`[music/download] streaming: "${title}"`);
         res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(safeFileName)}`);
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(title)}.mp3`);
+        res.setHeader('X-Title', encodeURIComponent(title));
 
-        const stream = fs.createReadStream(filePath);
-        stream.pipe(res);
-        const cleanup = () => fs.rmSync(tempDir, { recursive: true, force: true });
-        res.on('finish', cleanup);
-        res.on('close', cleanup);
-        stream.on('error', (e) => {
-            console.error('[music] stream error:', e.message);
-            cleanup();
-            if (!res.headersSent) res.status(500).json({ error: 'Stream error' });
+        const ffmpeg = spawn('ffmpeg', [
+            '-i', streamUrl,
+            '-codec:a', 'libmp3lame', '-q:a', '2',
+            '-f', 'mp3', '-'
+        ], { env });
+
+        ffmpeg.stdout.pipe(res);
+        ffmpeg.stderr.on('data', () => {});
+        ffmpeg.on('error', e => {
+            console.error('[music/download] ffmpeg error:', e.message);
+            if (!res.headersSent) res.status(500).json({ error: 'Conversion failed' });
         });
+        ffmpeg.on('close', code => console.log(`[music/download] done: "${title}" code=${code}`));
     } catch (e) {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-        console.error('[music] yt-dlp failed:', e.message);
-
-        let errorMsg = 'Download failed';
-        if (e.message.includes('403') || e.message.includes('Forbidden')) {
-            errorMsg = 'YouTube blocked the download. Try a different video.';
-        } else if (e.message.includes('404') || e.message.includes('Not Found')) {
-            errorMsg = 'Video not found. It may be private or deleted.';
-        } else if (e.message.includes('age')) {
-            errorMsg = 'Age-restricted content cannot be downloaded.';
-        } else if (e.message.includes('copyright')) {
-            errorMsg = 'This video is copyright-protected and cannot be downloaded.';
-        } else if (e.message.includes('Sign in') || e.message.includes('login')) {
-            errorMsg = 'This video requires login. Try a different video.';
-        } else {
-            errorMsg = `Download failed: ${e.message.split('\n')[0]}`;
-        }
-
-        res.status(500).json({ error: errorMsg });
+        console.error('[music/download] failed:', e.message.split('\n')[0]);
+        if (!res.headersSent) res.status(500).json({ error: 'Download failed. Try again in a moment.' });
     }
 });

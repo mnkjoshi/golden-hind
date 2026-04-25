@@ -1,45 +1,25 @@
 import { useNavigate } from "react-router-dom";
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
 import '../stylesheets/music.css';
-
-const FFMPEG_CDN = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
 
 export default function Music() {
     const navigate = useNavigate();
     const [url, setUrl] = useState('');
     const [status, setStatus] = useState('idle'); // idle | working | done | error
     const [statusLabel, setStatusLabel] = useState('');
-    const [progress, setProgress] = useState(0);
     const [error, setError] = useState('');
     const [lastTitle, setLastTitle] = useState('');
     const [queue, setQueue] = useState([]);
     const inputRef = useRef(null);
-    const ffmpegRef = useRef(null);
 
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
 
     if (!user) { navigate('/auth'); return null; }
     Authenticate(user, token, navigate);
-
-    const getFFmpeg = async () => {
-        if (ffmpegRef.current) return ffmpegRef.current;
-        setStatusLabel('Loading audio converter (~25MB, one-time)...');
-        setProgress(0);
-        const ffmpeg = new FFmpeg();
-        ffmpeg.on('progress', ({ progress: p }) => setProgress(Math.round(p * 100)));
-        await ffmpeg.load({
-            coreURL: await toBlobURL(`${FFMPEG_CDN}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${FFMPEG_CDN}/ffmpeg-core.wasm`, 'application/wasm'),
-        });
-        ffmpegRef.current = ffmpeg;
-        return ffmpeg;
-    };
 
     const addToQueue = () => {
         const trimmed = url.trim();
@@ -72,30 +52,20 @@ export default function Music() {
 
         for (const item of queue) {
             try {
-                // Step 1: Server extracts signed CDN URL (no download, just metadata)
-                setStatusLabel('Getting stream URL...');
-                setProgress(0);
-                const { data } = await axios.post('https://goldenhind.tech/music/url', { user, token, url: item.url }, { timeout: 30000 });
-                const { streamUrl, title, ext } = data;
+                setStatusLabel(`Downloading: ${item.url}`);
 
-                // Step 2: Load ffmpeg.wasm (cached after first run)
-                const ffmpeg = await getFFmpeg();
+                const response = await axios.post(
+                    'https://goldenhind.tech/music/download',
+                    { user, token, url: item.url },
+                    { responseType: 'blob', timeout: 180000 }
+                );
 
-                // Step 3: Fetch audio stream directly from YouTube CDN (uses your residential IP)
-                setStatusLabel(`Downloading: ${title}`);
-                setProgress(0);
-                const audioData = await fetchFile(streamUrl);
+                const titleHeader = response.headers['x-title'];
+                const title = titleHeader ? decodeURIComponent(titleHeader) : 'download';
 
-                // Step 4: Convert to MP3 in-browser
-                setStatusLabel(`Converting: ${title}`);
-                setProgress(0);
-                const inputName = `input.${ext}`;
-                await ffmpeg.writeFile(inputName, audioData);
-                await ffmpeg.exec(['-i', inputName, '-codec:a', 'libmp3lame', '-q:a', '2', 'output.mp3']);
+                setStatusLabel(`Saving: ${title}`);
 
-                // Step 5: Trigger browser save dialog
-                const mp3Data = await ffmpeg.readFile('output.mp3');
-                const blob = new Blob([mp3Data.buffer], { type: 'audio/mpeg' });
+                const blob = new Blob([response.data], { type: 'audio/mpeg' });
                 const blobUrl = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = blobUrl;
@@ -105,13 +75,12 @@ export default function Music() {
                 document.body.removeChild(a);
                 setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
 
-                await ffmpeg.deleteFile(inputName).catch(() => {});
-                await ffmpeg.deleteFile('output.mp3').catch(() => {});
-
                 setLastTitle(title);
             } catch (e) {
-                const msg = e.response?.data?.error || e.message || 'Download failed';
-                setError(msg);
+                const msg = e.response?.data
+                    ? (typeof e.response.data === 'string' ? e.response.data : await e.response.data.text?.() || 'Download failed')
+                    : e.message || 'Download failed';
+                setError(typeof msg === 'string' ? msg : 'Download failed');
                 setStatus('error');
                 return;
             }
@@ -218,11 +187,6 @@ export default function Music() {
                                     <div className="music-spinner" />
                                     <span>{statusLabel}</span>
                                 </div>
-                                {progress > 0 && progress < 100 && (
-                                    <div className="music-progress-bar">
-                                        <div className="music-progress-fill" style={{ width: `${progress}%` }} />
-                                    </div>
-                                )}
                             </div>
                         ) : (
                             <button className="music-download-btn" onClick={downloadAll}>
