@@ -159,7 +159,8 @@ export default function App() {
                 setLmSubtitles(subs);
                 if (!Hls.isSupported() && subs.length > 0) {
                     const subDebug = new URLSearchParams(location.search).has('subdebug');
-                    setLmUrl(`https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}${subDebug ? '&debug=1' : ''}`);
+                    const subHello = new URLSearchParams(location.search).has('subhello');
+                    setLmUrl(`https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}${subDebug ? '&debug=1' : ''}${subHello ? '&hello=1' : ''}`);
                 } else {
                     setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
                 }
