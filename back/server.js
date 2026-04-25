@@ -1523,6 +1523,12 @@ function hlsLanguageCode(sub, index) {
         ['it', /\b(it|ita|italian)\b/],
         ['pt', /\b(pt|por|portuguese)\b/],
         ['nl', /\b(nl|dut|nld|dutch)\b/],
+        ['ru', /\b(ru|rus|russian)\b/],
+        ['uk', /\b(uk|ukr|ukrainian)\b/],
+        ['cs', /\b(cs|cze|ces|czech)\b/],
+        ['el', /\b(el|gre|ell|greek)\b/],
+        ['hi', /\b(hi|hin|hindi)\b/],
+        ['id', /\b(id|ind|indonesian)\b/],
         ['sv', /\b(sv|swe|swedish)\b/],
         ['no', /\b(no|nor|norwegian)\b/],
         ['da', /\b(da|dan|danish)\b/],
@@ -1534,8 +1540,43 @@ function hlsLanguageCode(sub, index) {
         ['ko', /\b(ko|kor|korean)\b/],
         ['zh', /\b(zh|chi|zho|chinese)\b/],
     ];
+    const directTag = raw.match(/\b([a-z]{2})(?:[-_][a-z]{2})?\b/)?.[1];
+    if (directTag && languageMap.some(([tag]) => tag === directTag)) return directTag;
     const found = languageMap.find(([, re]) => re.test(text));
     return found?.[0] || (index === 0 ? 'en' : 'und');
+}
+
+function normalizeSubtitleToVtt(data, { pts = 0, includeTimestampMap = false } = {}) {
+    let text = String(data || '')
+        .replace(/^\uFEFF/, '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .trimStart();
+
+    const startsAsVtt = /^WEBVTT(?:\s|$)/i.test(text);
+    if (startsAsVtt) {
+        text = text.replace(/^WEBVTT[^\n]*/i, 'WEBVTT');
+    } else {
+        text = text
+            .replace(/^\d+\s*\n(?=\d{1,2}:\d{2}:\d{2}[,.]\d{3}\s*-->\s*)/gm, '')
+            .replace(/(\d{1,2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+        text = `WEBVTT\n\n${text}`;
+    }
+
+    text = text
+        .replace(/\nX-TIMESTAMP-MAP=.*(?=\n)/gi, '')
+        .replace(/(\d{1,2}:\d{2}:\d{2})\.(\d{1,2})(?!\d)/g, (_, t, ms) => `${t}.${ms.padEnd(3, '0')}`)
+        .replace(/(\d{1,2}):(\d{2}:\d{2}\.\d{3})/g, (_, h, rest) => `${h.padStart(2, '0')}:${rest}`)
+        .trimEnd();
+
+    if (includeTimestampMap) {
+        text = text.replace(
+            /^WEBVTT/,
+            `WEBVTT\nX-TIMESTAMP-MAP=LOCAL:00:00:00.000,MPEGTS:${pts}`
+        );
+    }
+
+    return `${text}\n`;
 }
 
 // HLS proxy — manifests are rewritten, segments are piped (never buffered)
@@ -1599,7 +1640,7 @@ app.get('/proxy/subtitle', async (req, res) => {
     }
 
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+    res.setHeader('Content-Type', 'text/vtt');
 
     try {
         const resp = await axios.get(url, {
@@ -1613,22 +1654,9 @@ app.get('/proxy/subtitle', async (req, res) => {
         const data = resp.data;
         console.log(`[sub] upstream status=${resp.status} content-type=${resp.headers['content-type']} bytes=${data.length} preview=${JSON.stringify(data.slice(0, 80))}`);
 
-        // VTT files pass through as-is; SRT files get converted
-        const isVtt = url.toLowerCase().includes('.vtt') || data.trimStart().startsWith('WEBVTT');
-        console.log(`[sub] isVtt=${isVtt}`);
-        let vtt = isVtt
-            ? data
-            : 'WEBVTT\n\n' + data
-                .replace(/\r\n/g, '\n')
-                .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
-
-        // Inject X-TIMESTAMP-MAP so iOS AVPlayer can sync subtitle cue times
-        // with the video's MPEG-TS clock. pts is the first video frame PTS
-        // detected from the stream (90kHz clock); subtitle LOCAL times start at 0.
-        if (!vtt.includes('X-TIMESTAMP-MAP')) {
-            vtt = vtt.replace(/^WEBVTT/, `WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:${pts},LOCAL:00:00:00.000`);
-        }
-        console.log(`[sub] X-TIMESTAMP-MAP pts=${pts}`);
+        const includeTimestampMap = req.query.hls === '1';
+        const vtt = normalizeSubtitleToVtt(data, { pts, includeTimestampMap });
+        console.log(`[sub] normalized vtt hls=${includeTimestampMap} pts=${pts}`);
 
         console.log(`[sub] sending ${vtt.length} bytes, first line: ${JSON.stringify(vtt.slice(0, 120))}`);
         res.send(vtt);
@@ -1730,7 +1758,7 @@ app.get('/proxy/subtitle-playlist', (req, res) => {
     console.log(`[sub-playlist] serving playlist for: ${url} pts=${pts}`);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-    const proxied = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(url)}&pts=${pts}`;
+    const proxied = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(url)}&pts=${pts}&hls=1`;
     const playlist = [
         '#EXTM3U',
         '#EXT-X-TARGETDURATION:99999',

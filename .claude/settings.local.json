@@ -21,7 +21,18 @@
       "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"cd ~/cobalt/api && cat node_modules/youtubei.js/package.json | python3 -c \\\\\"import json,sys; d=json.load\\(sys.stdin\\); print\\('youtubei.js:', d['version']\\)\\\\\"\")",
       "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"cd ~/cobalt && git log --oneline -5 && git fetch origin && git log --oneline origin/main -5\")",
       "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"ls ~/cookies.txt 2>/dev/null || find /root -name 'cookies.txt' 2>/dev/null | head -3\")",
-      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"find /root -name '*.txt' 2>/dev/null | head -10\")"
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"find /root -name '*.txt' 2>/dev/null | head -10\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"yt-dlp --cookies /root/yt_cookies.txt --get-url -f 'bestaudio' 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' 2>&1 | tail -5\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"cd ~/cobalt/api && npm show youtubei.js version\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"grep -n 'customInnertubeClient\\\\|CUSTOM_INNERTUBE' ~/cobalt/api/src/config.js 2>/dev/null || grep -rn 'customInnertubeClient\\\\|CUSTOM_INNERTUBE' ~/cobalt/api/src/ | grep -v 'youtube.js'\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"grep -n 'SUPPORTED_CLIENTS' ~/cobalt/api/src/core/env.js ~/cobalt/api/src/processing/services/youtube.js 2>/dev/null | head -10\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"grep -rn 'SUPPORTED_CLIENTS' ~/cobalt/api/src/ | head -5\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"grep -rn 'SUPPORTED_CLIENTS\\\\|clientsWithNoCipher' ~/cobalt/api/src/processing/services/youtube.js | head -10\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"grep -rn 'Constants\\\\|SUPPORTED_CLIENTS' ~/cobalt/api/src/core/ | head -10\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -i 's/CUSTOM_INNERTUBE_CLIENT=ANDROID/CUSTOM_INNERTUBE_CLIENT=TV_EMBEDDED/' ~/cobalt/api/.env && tail -3 ~/cobalt/api/.env\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"curl -s -X POST http://localhost:9000 -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{\\\\\"url\\\\\":\\\\\"https://www.youtube.com/watch?v=1bUUivU8BaA\\\\\",\\\\\"downloadMode\\\\\":\\\\\"audio\\\\\",\\\\\"audioFormat\\\\\":\\\\\"best\\\\\"}'\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"grep -n 'video.unavailable\\\\|playability\\\\|switch' ~/cobalt/api/src/processing/services/youtube.js | head -20\")",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@157.230.136.166 \"sed -n '288,325p' ~/cobalt/api/src/processing/services/youtube.js\")"
     ]
   }
 }

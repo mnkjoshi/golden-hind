@@ -157,13 +157,7 @@ export default function App() {
             if (r.data.success) {
                 const subs = r.data.subtitles || [];
                 setLmSubtitles(subs);
-                // On iOS (no HLS.js) with subtitles, use the manifest-injected variant
-                // so AVPlayer can render subtitles in native fullscreen
-                if (!Hls.isSupported() && subs.length > 0) {
-                    setLmUrl(`https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}`);
-                } else {
-                    setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
-                }
+                setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
             } else {
                 setProvider(3);
                 localStorage.setItem("provider" + vidID, 3);
@@ -211,11 +205,19 @@ export default function App() {
                 ['it', /\b(it|ita|italian)\b/],
                 ['pt', /\b(pt|por|portuguese)\b/],
                 ['nl', /\b(nl|dut|nld|dutch)\b/],
+                ['ru', /\b(ru|rus|russian)\b/],
+                ['uk', /\b(uk|ukr|ukrainian)\b/],
+                ['cs', /\b(cs|cze|ces|czech)\b/],
+                ['el', /\b(el|gre|ell|greek)\b/],
+                ['hi', /\b(hi|hin|hindi)\b/],
+                ['id', /\b(id|ind|indonesian)\b/],
                 ['ja', /\b(ja|jpn|japanese)\b/],
                 ['ko', /\b(ko|kor|korean)\b/],
                 ['zh', /\b(zh|chi|zho|chinese)\b/],
             ];
-            return languageMap.find(([, re]) => re.test(text))?.[0] || (index === 0 ? 'en' : `und-${index}`);
+            const directTag = raw.match(/\b([a-z]{2})(?:[-_][a-z]{2})?\b/)?.[1];
+            if (directTag && languageMap.some(([tag]) => tag === directTag)) return directTag;
+            return languageMap.find(([, re]) => re.test(text))?.[0] || (index === 0 ? 'en' : 'und');
         };
 
         // Keep HTML text tracks present for native iOS fullscreen too. AVPlayer can
@@ -233,6 +235,7 @@ export default function App() {
             trackEl.srclang = subtitleLangCode(sub, trackIndex);
             trackEl.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
             if (trackIndex === 0) trackEl.default = true;
+            const isDefaultTrack = trackIndex === 0;
             trackEl.addEventListener('load', () => {
                 const offset = subOffsetRef.current;
                 if (offset !== 0 && trackEl.track?.cues) {
@@ -241,8 +244,10 @@ export default function App() {
                         cue.endTime = Math.max(0, cue.endTime + offset);
                     });
                 }
+                if (isDefaultTrack && trackEl.track) trackEl.track.mode = 'showing';
             });
             video.appendChild(trackEl);
+            if (isDefaultTrack && trackEl.track) trackEl.track.mode = 'showing';
             trackIndex++;
         });
 
