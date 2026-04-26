@@ -20,6 +20,8 @@ export default function Detail() {
     const [similarData, setSimilarData] = useState([]);
     const [isWatchlisted, setIsWatchlisted] = useState(false);
     const [watchlistLoading, setWatchlistLoading] = useState(false);
+    const [isMyListed, setIsMyListed] = useState(false);
+    const [myListLoading, setMyListLoading] = useState(false);
 
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [seasonEpisodes, setSeasonEpisodes] = useState(null);
@@ -120,6 +122,10 @@ export default function Detail() {
                 const favs = JSON.parse(miniRes.data?.favourites || '[]');
                 setIsWatchlisted(Array.isArray(favs) && favs.includes(id));
             } catch {}
+            try {
+                const wl = JSON.parse(miniRes.data?.watchlist || localStorage.getItem('mylist') || '[]');
+                setIsMyListed(Array.isArray(wl) && wl.includes(id));
+            } catch {}
             setLoading(false);
         }).catch(() => setLoading(false));
     }, [id]);
@@ -174,6 +180,27 @@ export default function Detail() {
             setIsWatchlisted(!isWatchlisted);
         } catch {}
         setWatchlistLoading(false);
+    };
+
+    const handleMyList = async () => {
+        if (myListLoading) return;
+        setMyListLoading(true);
+        try {
+            const endpoint = isMyListed ? '/mylist/remove' : '/mylist/add';
+            await axios.post(`${API}${endpoint}`, { user, token, itemId: id });
+            setIsMyListed(!isMyListed);
+            try {
+                const raw = localStorage.getItem('mylist');
+                const arr = raw ? JSON.parse(raw) : [];
+                if (isMyListed) {
+                    localStorage.setItem('mylist', JSON.stringify(arr.filter(x => x !== id)));
+                } else {
+                    arr.push(id);
+                    localStorage.setItem('mylist', JSON.stringify(arr));
+                }
+            } catch {}
+        } catch {}
+        setMyListLoading(false);
     };
 
     const getPlayLabel = () => {
@@ -363,6 +390,23 @@ export default function Detail() {
                                 disabled={watchlistLoading}
                             >
                                 {isWatchlisted ? (
+                                    <>
+                                        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                                        Favourited
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15-5-2.18L7 18V5h10v13z"/></svg>
+                                        Favourite
+                                    </>
+                                )}
+                            </button>
+                            <button
+                                className={`detail-mylist-btn${isMyListed ? ' active' : ''}`}
+                                onClick={handleMyList}
+                                disabled={myListLoading}
+                            >
+                                {isMyListed ? (
                                     <>
                                         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                                         In My List

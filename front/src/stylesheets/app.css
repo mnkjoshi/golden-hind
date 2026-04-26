@@ -427,7 +427,8 @@ p {
     gap: 1rem;
     overflow-x: auto;
     overflow-y: visible;
-    padding: 0 0.5rem 1rem;
+    padding: 16px 0.5rem 24px;
+    margin-top: -16px;
     scrollbar-width: none;
     -ms-overflow-style: none;
     cursor: grab;
@@ -493,15 +494,17 @@ p {
 .content-card.tv-selected:hover {
     transform: scale(1.045);
     z-index: 1000;
+    border-radius: 0px;
     box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55), 0 0 0 4px #3FA3FF, 0 0 34px rgba(63, 163, 255, 0.6);
 }
 
 .content-card.tv-selected .card-overlay {
     opacity: 1;
+    border-radius: 0px;
 }
 
 .content-card.tv-selected .card-image-container {
-    border-radius: 8px;
+    border-radius: 0px;
 }
 
 .tv-mode-status {
@@ -542,10 +545,17 @@ p {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-.card-image-container img {
+.card-image-container {
     border-radius: 8px;
     overflow: hidden;
+    transition: 0.5s;
 }
+
+
+.card-image-container.tv-selected{
+    border-radius: 0px !important;
+}
+
 
 .card-image {
     width: 100%;

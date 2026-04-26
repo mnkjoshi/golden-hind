@@ -283,9 +283,10 @@ app.post('/home-mini', async (request, response) => {
     const db = admin.database();
 
     if (await Authenticate(user, token)) {
-        const [favourites, continues] = await Promise.all([
+        const [favourites, continues, watchlist] = await Promise.all([
             db.ref(`users/${user}/favourites`).once('value'),
-            db.ref(`users/${user}/continues`).once('value')
+            db.ref(`users/${user}/continues`).once('value'),
+            db.ref(`users/${user}/watchlist`).once('value'),
         ]);
         let favArray = JSON.parse(favourites.val())
         let conArray = JSON.parse(continues.val())
@@ -297,11 +298,12 @@ app.post('/home-mini', async (request, response) => {
         const favData = await Promise.all(favMini.map(item => GetInfo(item)));
         const conData = await Promise.all(conMini.map(item => GetInfo(item)));
         response.status(200);
-        response.json({ 
-            favourites: favourites.val(), 
-            continues: continues.val(), 
-            favouritesData: favData, 
-            continuesData: conData 
+        response.json({
+            favourites: favourites.val(),
+            continues: continues.val(),
+            watchlist: watchlist.val() || '[]',
+            favouritesData: favData,
+            continuesData: conData
         });
     } else {
         response.status(202);
@@ -702,6 +704,73 @@ app.post('/unfavourite', async (request, response) => {
         response.send("UNV")
     }
 })
+
+app.post('/mylist/add', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const {user, token, itemId} = request.body;
+    const db = admin.database();
+
+    if (await Authenticate(user, token)) {
+        const snapshot = await db.ref(`users/${user}/watchlist`).once('value');
+        const raw = snapshot.val();
+        if (!raw || raw === "nil") {
+            db.ref(`users/${user}`).update({ watchlist: JSON.stringify([itemId]) });
+        } else {
+            let watchlist = JSON.parse(raw);
+            if (!watchlist.includes(itemId)) {
+                watchlist.push(itemId);
+                db.ref(`users/${user}`).update({ watchlist: JSON.stringify(watchlist) });
+            }
+        }
+        response.status(200).send("Success");
+    } else {
+        response.status(202).send("UNV");
+    }
+});
+
+app.post('/mylist/remove', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const {user, token, itemId} = request.body;
+    const db = admin.database();
+
+    if (await Authenticate(user, token)) {
+        const snapshot = await db.ref(`users/${user}/watchlist`).once('value');
+        const raw = snapshot.val();
+        if (!raw || raw === "nil") {
+            response.status(202).send("UFE");
+            return;
+        }
+        let watchlist = JSON.parse(raw);
+        watchlist = watchlist.filter(id => id !== itemId);
+        db.ref(`users/${user}`).update({ watchlist: JSON.stringify(watchlist) });
+        response.status(200).send("Success");
+    } else {
+        response.status(202).send("UNV");
+    }
+});
+
+app.post('/home-mylist', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    const db = admin.database();
+
+    if (await Authenticate(user, token)) {
+        const snap = await db.ref(`users/${user}/watchlist`).once('value');
+        const raw = snap.val();
+        let watchlistArr = [];
+        try { if (raw && raw !== "nil") watchlistArr = JSON.parse(raw); } catch {}
+        const watchlistData = await Promise.all(watchlistArr.map(id => GetInfo(id)));
+        response.status(200).json({
+            watchlist: raw || '[]',
+            watchlistData: watchlistData.filter(Boolean).reverse(),
+        });
+    } else {
+        response.status(202).send("UDE");
+    }
+});
 
 app.post('/continue', async (request, response) => {
 

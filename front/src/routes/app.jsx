@@ -48,6 +48,7 @@ export default function App() {
     
     const [bookmarkData, setBookmarkData] = useState(null)
     const [continueData, setContinueData] = useState(null)
+    const [myListData, setMyListData] = useState(null)
     const [trendingData, setTrendingData] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
     const [heroIndex, setHeroIndex] = useState(0)
@@ -185,6 +186,7 @@ export default function App() {
                 }).then((response) => {
                     localStorage.setItem("bookmarks", response.data.favourites)
                     localStorage.setItem("continues", response.data.continues)
+                    localStorage.setItem("mylist", response.data.watchlist || '[]')
                     console.timeEnd('fetchData');
                     const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
                     const validContinues = (response.data.continuesData || []).filter(item => item && item.id)
@@ -214,6 +216,19 @@ export default function App() {
                         setContinueData(validContinues.reverse())
                     }).catch((error) => {
                         console.error('Failed to load full continues:', error)
+                    });
+
+                    // Load My List (watchlist) data in background
+                    axios({
+                        method: 'post',
+                        url: 'https://goldenhind.tech/home-mylist',
+                        data: { user: user, token: token }
+                    }).then((response) => {
+                        const validMyList = (response.data.watchlistData || []).filter(item => item && item.id)
+                        setMyListData(validMyList)
+                        localStorage.setItem("mylist", response.data.watchlist || '[]')
+                    }).catch(() => {
+                        setMyListData([])
                     });
                         
                     }).catch((error) => {
@@ -534,7 +549,7 @@ export default function App() {
                 row.removeEventListener('mousemove', handleMouseMove);
             };
         });
-    }, [continueData, bookmarkData, trendingData, recentlyReviewed])
+    }, [continueData, bookmarkData, myListData, trendingData, recentlyReviewed])
 
     // Tooltip functions
     const showTooltip = (event, data) => {
@@ -607,7 +622,7 @@ export default function App() {
             if (!stillExists) selectTvCard(rows[0]?.cards[0]);
         }, 0);
         return () => clearTimeout(timer);
-    }, [tvMode, isLoading, continueData, bookmarkData, trendingData, recentRecs, lifetimeRecs, recentlyReviewed, activeGenre]);
+    }, [tvMode, isLoading, continueData, bookmarkData, myListData, trendingData, recentRecs, lifetimeRecs, recentlyReviewed, activeGenre]);
 
     useEffect(() => {
         if (!tvMode) return;
@@ -691,15 +706,26 @@ export default function App() {
             }
         }).catch((error) => {
             console.error('Failed to remove item from backend:', error);
-            // Optionally show a toast notification here
         });
 
-        // Remove item locally without forcing re-render
         if (isBookmark) {
             setBookmarkData(prevData => prevData.filter(item => item.id !== ID));
         } else {
             setContinueData(prevData => prevData.filter(item => item.id !== ID));
         }
+    }
+
+    function removeFromMyList(isMovie, ID) {
+        const itemId = (isMovie ? "m" : "t") + ID;
+        axios.post('https://goldenhind.tech/mylist/remove', { user, token, itemId }).catch(() => {});
+        setMyListData(prevData => prevData.filter(item => item.id !== ID));
+        try {
+            const raw = localStorage.getItem("mylist");
+            if (raw) {
+                const arr = JSON.parse(raw).filter(id => id !== itemId);
+                localStorage.setItem("mylist", JSON.stringify(arr));
+            }
+        } catch {}
     }
 
     return (
@@ -923,7 +949,7 @@ export default function App() {
                                             <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}&mute=1&rel=0&iv_load_policy=3&fs=0`} allow="autoplay; encrypted-media" title="Preview" />
                                         </div>
                                     )}
-                                    <div className="card-image-container">
+                                    <div className={`card-image-container${isTvSelected('continue-row', result) ? ' tv-selected' : ''}`}>
                                         <img
                                             className="card-image"
                                             src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`}
@@ -995,7 +1021,7 @@ export default function App() {
                                         onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'recent-recs'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >
-                                        <div className="card-image-container">
+                                        <div className={`card-image-container${isTvSelected('recent-recs-row', result) ? ' tv-selected' : ''}`}>
                                             <img className="rec-backdrop" src={`https://image.tmdb.org/t/p/w780/${result.backdrop_path || result.poster_path}`} loading="lazy" decoding="async" alt=""/>
                                             <div className="rec-scrim"/>
                                             <div className="rec-title-area">
@@ -1073,7 +1099,7 @@ export default function App() {
                                             <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}&mute=1&rel=0&iv_load_policy=3&fs=0`} allow="autoplay; encrypted-media" title="Preview" />
                                         </div>
                                     )}
-                                    <div className="card-image-container">
+                                    <div className={`card-image-container${isTvSelected('trending-row', result) ? ' tv-selected' : ''}`}>
                                         <img
                                             className="card-image"
                                             src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`}
@@ -1149,25 +1175,25 @@ export default function App() {
                     </div>
                 )}
 
-                {/* My List — empty state */}
+                {/* Favourites — empty state */}
                 {bookmarkData !== null && bookmarkData.length === 0 && (
                     <div className="content-section">
                         <div className="section-header">
-                            <h2 className="section-title">My List</h2>
+                            <h2 className="section-title">Favourites</h2>
                         </div>
                         <div className="empty-state">
                             <span className="empty-state-icon">🔖</span>
-                            <p className="empty-state-text">Your list is empty.</p>
+                            <p className="empty-state-text">No favourites yet.</p>
                             <button className="empty-state-cta" onClick={() => navigate('/search')}>Browse and add titles</button>
                         </div>
                     </div>
                 )}
 
-                {/* Bookmarked Section */}
+                {/* Favourites Section */}
                 {bookmarkData && bookmarkData.length > 0 && (
                     <div className="content-section">
                         <div className="section-header">
-                            <h2 className="section-title">My List</h2>
+                            <h2 className="section-title">Favourites</h2>
                             <div className="section-controls">
                                 <button 
                                     className="section-arrow" 
@@ -1239,6 +1265,80 @@ export default function App() {
                     </div>
                 )}
 
+
+                {/* My List (watchlist) — empty state */}
+                {myListData !== null && myListData.length === 0 && (
+                    <div className="content-section">
+                        <div className="section-header">
+                            <h2 className="section-title">My List</h2>
+                        </div>
+                        <div className="empty-state">
+                            <span className="empty-state-icon">+</span>
+                            <p className="empty-state-text">Your watchlist is empty.</p>
+                            <button className="empty-state-cta" onClick={() => navigate('/search')}>Browse and add titles</button>
+                        </div>
+                    </div>
+                )}
+
+                {/* My List (watchlist) Section */}
+                {myListData && myListData.length > 0 && (
+                    <div className="content-section">
+                        <div className="section-header">
+                            <h2 className="section-title">My List</h2>
+                            <div className="section-controls">
+                                <button className="section-arrow" onClick={() => { document.getElementById('mylist-row').scrollBy({ left: -300, behavior: 'smooth' }); }}>‹</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('mylist-row').scrollBy({ left: 300, behavior: 'smooth' }); }}>›</button>
+                            </div>
+                        </div>
+                        <div className="content-row" id="mylist-row">
+                            {myListData.filter(result => result && result.id).map((result, index) => (
+                                <div
+                                    key={result.id}
+                                    className={`content-card${expandedCard?.uid === `mylist:${result.id}` ? ' card-expanded' : ''}${isTvSelected('mylist-row', result) ? ' tv-selected' : ''}`}
+                                    data-tv-row="mylist-row"
+                                    data-tv-id={String(result.id)}
+                                    data-tv-index={index}
+                                    style={expandedCard?.uid === `mylist:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
+                                    onClick={(e) => handleCardClick(e, result)}
+                                    onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'mylist'); }}
+                                    onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
+                                >
+                                    {expandedCard?.uid === `mylist:${result.id}` && (
+                                        <div className="card-inline-trailer">
+                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}&mute=1&rel=0&iv_load_policy=3&fs=0`} allow="autoplay; encrypted-media" title="Preview" />
+                                        </div>
+                                    )}
+                                    <div className="card-image-container">
+                                        <img
+                                            className="card-image"
+                                            src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`}
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                        <div className="card-overlay">
+                                            <div className="card-info">
+                                                <h3 className="card-title">{result.name || result.title || "Untitled"}</h3>
+                                                <div className="card-meta">
+                                                    <span className="card-rating">⭐ {result.vote_average}</span>
+                                                    <span className="card-type">{result.number_of_episodes ? "TV" : "Movie"}</span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                className="card-remove-btn"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    removeFromMyList(result.number_of_episodes == null, result.id);
+                                                }}
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Recommendations */}
                 {(lifetimeRecsLoading || (lifetimeRecs && lifetimeRecs.length > 0)) && (
@@ -1345,6 +1445,7 @@ export default function App() {
                 const se = localStorage.getItem('season' + cid);
                 const isInContinue = continueData?.some(item => item.id === r.id);
                 const isInBookmarks = bookmarkData?.some(item => item.id === r.id);
+                const isInMyList = myListData?.some(item => item.id === r.id);
                 return (
                     <div className="mobile-sheet-backdrop" onClick={() => setMobileCardSheet(null)}>
                         <div className="mobile-sheet" onClick={e => e.stopPropagation()}>
@@ -1393,6 +1494,14 @@ export default function App() {
                                     <button
                                         className="mobile-sheet-remove-btn"
                                         onClick={() => { removeHandle(isMovie, r.id, true); setMobileCardSheet(null); }}
+                                    >
+                                        Remove from Favourites
+                                    </button>
+                                )}
+                                {isInMyList && (
+                                    <button
+                                        className="mobile-sheet-remove-btn"
+                                        onClick={() => { removeFromMyList(isMovie, r.id); setMobileCardSheet(null); }}
                                     >
                                         Remove from My List
                                     </button>

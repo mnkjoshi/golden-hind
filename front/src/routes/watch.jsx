@@ -56,7 +56,8 @@ export default function App() {
     const providerToastTimerRef = useRef(null);
     const [subtitleDebugOverlay, setSubtitleDebugOverlay] = useState([]);
 
-    const[bookmarked, setBookmark] = useState(-1);
+    const[bookmarked, setBookmark] = useState(-1)
+    const[myListed, setMyListed] = useState(-1);
 
     const [episodeID, setEpisodeID] = useState("")
     
@@ -800,6 +801,14 @@ export default function App() {
             setBookmark(1)
         }
 
+        try {
+            const mylistRaw = localStorage.getItem("mylist");
+            const mylistArr = mylistRaw ? JSON.parse(mylistRaw) : [];
+            if (mylistArr.includes(id) && myListed == -1) {
+                setMyListed(1);
+            }
+        } catch {}
+
 
     })
 
@@ -809,7 +818,7 @@ export default function App() {
     function Bookmark() {
         let bookmarks = localStorage.getItem("bookmarks")
         bookmarks = JSON.parse(bookmarks)
-        
+
         if (bookmarks.indexOf(id) == -1) {
             bookmarks.push(id)
             bookmarks = JSON.stringify(bookmarks)
@@ -841,6 +850,24 @@ export default function App() {
             });
             setBookmark(-1)
         }
+    }
+
+    function MyList() {
+        try {
+            const raw = localStorage.getItem("mylist");
+            const arr = raw ? JSON.parse(raw) : [];
+            if (!arr.includes(id)) {
+                arr.push(id);
+                localStorage.setItem("mylist", JSON.stringify(arr));
+                axios.post('https://goldenhind.tech/mylist/add', { user, token, itemId: id });
+                setMyListed(1);
+            } else {
+                const filtered = arr.filter(x => x !== id);
+                localStorage.setItem("mylist", JSON.stringify(filtered));
+                axios.post('https://goldenhind.tech/mylist/remove', { user, token, itemId: id });
+                setMyListed(-1);
+            }
+        } catch {}
     }
 
 
@@ -1071,7 +1098,16 @@ export default function App() {
                                     : <path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15-5-2.18L7 18V5h10v13z"/>
                                 }
                             </svg>
-                            <span>Watchlist</span>
+                            <span>Favourite</span>
+                        </button>
+                        <button className={`wbar-btn${myListed === 1 ? ' on' : ''}`} onClick={MyList}>
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                {myListed === 1
+                                    ? <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                    : <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                }
+                            </svg>
+                            <span>My List</span>
                         </button>
                         <button className="wbar-btn" onClick={() => { reloadVideo(relData + 1); window.location.reload(); }}>
                             <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
