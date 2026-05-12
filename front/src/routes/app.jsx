@@ -464,11 +464,12 @@ export default function App() {
             setMobileCardSheet(result);
             return;
         }
-        if (result.media_type === 'movie' || result.number_of_episodes == null) {
-            navigate('/detail/m' + result.id);
-        } else {
-            navigate('/detail/t' + result.id);
-        }
+        // media_type comes from TMDB trending + our GetInfo enrichment; trust it when set.
+        // number_of_episodes is only the fallback for old payloads that omit media_type.
+        const isTv = result.media_type
+            ? result.media_type === 'tv'
+            : result.number_of_episodes != null;
+        navigate('/detail/' + (isTv ? 't' : 'm') + result.id);
     };
 
     const dismissToast = () => {

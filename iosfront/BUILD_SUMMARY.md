@@ -172,7 +172,7 @@ npm start
 
 ## API Integration
 
-The app connects to: `https://golden-hind.duckdns.org`
+The app connects to: `https://goldenhind.tech`
 
 ### Endpoints Used
 - `/login` - User authentication

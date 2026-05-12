@@ -56,6 +56,10 @@ export default function App() {
     const providerToastTimerRef = useRef(null);
     const [subtitleDebugOverlay, setSubtitleDebugOverlay] = useState([]);
 
+    // Cast / AirPlay state — only relevant for provider 1 (HTML5 <video> w/ HLS)
+    const [castSupported, setCastSupported] = useState(false);
+    const [castConnected, setCastConnected] = useState(false);
+
     const[bookmarked, setBookmark] = useState(-1)
     const[myListed, setMyListed] = useState(-1);
 
@@ -242,8 +246,44 @@ export default function App() {
         video.crossOrigin = 'anonymous';
         video.style.width = '100%';
         video.style.height = '100%';
+        // AirPlay-friendly attributes; ignored by non-Safari browsers
+        video.setAttribute('x-webkit-airplay', 'allow');
+        video.setAttribute('airplay', 'allow');
         container.appendChild(video);
         videoRef.current = video;
+
+        // ── Cast / AirPlay wiring ─────────────────────────────────────────────
+        // Two browser APIs: Safari's webkitShowPlaybackTargetPicker (AirPlay)
+        // and the standard Remote Playback API (Chromecast + AirPlay on newer Safari).
+        // Reset state on each fresh video; the button stays hidden until something is supported.
+        setCastSupported(false);
+        setCastConnected(false);
+
+        const hasAirplayPicker = typeof video.webkitShowPlaybackTargetPicker === 'function';
+        if (hasAirplayPicker) setCastSupported(true);
+
+        let availabilityCallbackId = null;
+        if (video.remote && typeof video.remote.watchAvailability === 'function') {
+            video.remote.watchAvailability(avail => { if (avail) setCastSupported(true); })
+                .then(id => { availabilityCallbackId = id; })
+                .catch(() => {});
+        }
+
+        const handleRemoteConnect = () => setCastConnected(true);
+        const handleRemoteDisconnect = () => setCastConnected(false);
+        const handleAirplayChange = (e) => {
+            // 'current' = casting, 'none' = local
+            setCastConnected(video.webkitCurrentPlaybackTargetIsWireless === true);
+        };
+        if (video.remote) {
+            video.remote.addEventListener('connecting', handleRemoteConnect);
+            video.remote.addEventListener('connect', handleRemoteConnect);
+            video.remote.addEventListener('disconnect', handleRemoteDisconnect);
+        }
+        video.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => {
+            if (e.availability === 'available') setCastSupported(true);
+        });
+        video.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', handleAirplayChange);
 
         const subtitleLangCode = (sub, index) => {
             const raw = String(sub.language || sub.lang || sub.label || '').toLowerCase();
@@ -406,12 +446,35 @@ export default function App() {
         }
 
         return () => {
+            if (video.remote) {
+                video.remote.removeEventListener('connecting', handleRemoteConnect);
+                video.remote.removeEventListener('connect', handleRemoteConnect);
+                video.remote.removeEventListener('disconnect', handleRemoteDisconnect);
+                if (availabilityCallbackId !== null && typeof video.remote.cancelWatchAvailability === 'function') {
+                    video.remote.cancelWatchAvailability(availabilityCallbackId).catch(() => {});
+                }
+            }
+            video.removeEventListener('webkitcurrentplaybacktargetiswirelesschanged', handleAirplayChange);
+            setCastSupported(false);
+            setCastConnected(false);
             if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
             if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
             container.innerHTML = '';
             videoRef.current = null;
         };
     }, [lmUrl]);
+
+    const handleCast = () => {
+        const v = videoRef.current;
+        if (!v) return;
+        // Prefer AirPlay picker on Safari (more reliable than remote.prompt there)
+        if (typeof v.webkitShowPlaybackTargetPicker === 'function') {
+            try { v.webkitShowPlaybackTargetPicker(); return; } catch {}
+        }
+        if (v.remote && typeof v.remote.prompt === 'function') {
+            v.remote.prompt().catch(() => {});
+        }
+    };
 
     // Skip helpers
     const triggerFlash = (dir) => {
@@ -1124,6 +1187,18 @@ export default function App() {
                                     <path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z"/>
                                 </svg>
                                 <span>Auto Next</span>
+                            </button>
+                        )}
+                        {parseInt(provider) === 1 && castSupported && (
+                            <button
+                                className={`wbar-btn${castConnected ? ' on' : ''}`}
+                                onClick={handleCast}
+                                aria-label={castConnected ? 'Stop casting' : 'Cast to a nearby device'}
+                            >
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                    <path d="M21 3H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11z"/>
+                                </svg>
+                                <span>{castConnected ? 'Casting' : 'Cast'}</span>
                             </button>
                         )}
                         <button className="wbar-btn wbar-btn-server" onClick={() => {
