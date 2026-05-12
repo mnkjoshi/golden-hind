@@ -39,10 +39,12 @@ export default function App() {
     const [lmLoading, setLmLoading] = useState(false);
     const [lmError, setLmError] = useState(null);
     const [skipFlash, setSkipFlash] = useState(null); // 'forward' | 'back' | null
+    const [controlsVisible, setControlsVisible] = useState(true);
     const lmContainerRef = useRef(null);
     const hlsRef = useRef(null);
     const plyrRef = useRef(null);
     const flashTimeoutRef = useRef(null);
+    const inPlayerCastBtnRef = useRef(null);
 
     const [upNextInfo, setUpNextInfo] = useState(null); // { targetEpisode, targetSeason }
     const [upNextSeconds, setUpNextSeconds] = useState(5);
@@ -424,6 +426,31 @@ export default function App() {
             });
             plyrRef.current = player;
 
+            // Skip-overlay visibility tracks Plyr's auto-hide so the back/forward
+            // buttons fade in/out together with the bottom control bar.
+            setControlsVisible(true);
+            player.on('controlshidden', () => setControlsVisible(false));
+            player.on('controlsshown', () => setControlsVisible(true));
+
+            // Inject a cast button into Plyr's bottom control bar so users can
+            // start/stop casting from inside the player itself (alongside
+            // captions/settings/pip/fullscreen). Visibility is updated by the
+            // useEffect on [castSupported, castConnected] below.
+            const controlsEl = container.querySelector('.plyr__controls');
+            const fullscreenBtn = controlsEl?.querySelector('[data-plyr="fullscreen"]');
+            if (controlsEl) {
+                const castBtn = document.createElement('button');
+                castBtn.type = 'button';
+                castBtn.className = 'plyr__control plyr__control--cast';
+                castBtn.setAttribute('aria-label', 'Cast');
+                castBtn.style.display = 'none';
+                castBtn.innerHTML = '<svg viewBox="0 0 24 24" role="presentation" focusable="false" aria-hidden="true"><path fill="currentColor" d="M21 3H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11z"/></svg>';
+                castBtn.addEventListener('click', (e) => { e.preventDefault(); handleCast(); });
+                if (fullscreenBtn) controlsEl.insertBefore(castBtn, fullscreenBtn);
+                else controlsEl.appendChild(castBtn);
+                inPlayerCastBtnRef.current = castBtn;
+            }
+
             // Restore playback position (skip if < 5s to avoid replaying a fresh start)
             if (savedPos > 5) {
                 video.addEventListener('canplay', () => { video.currentTime = savedPos; }, { once: true });
@@ -521,8 +548,19 @@ export default function App() {
             if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
             container.innerHTML = '';
             videoRef.current = null;
+            inPlayerCastBtnRef.current = null;
         };
     }, [lmUrl]);
+
+    // Keep the in-player cast button (injected into Plyr's control bar) in
+    // sync with React-side cast availability and connection state.
+    useEffect(() => {
+        const btn = inPlayerCastBtnRef.current;
+        if (!btn) return;
+        btn.style.display = castSupported ? '' : 'none';
+        btn.dataset.casting = castConnected ? 'true' : 'false';
+        btn.setAttribute('aria-label', castConnected ? 'Stop casting' : 'Cast to a nearby device');
+    }, [castSupported, castConnected]);
 
     const handleCast = () => {
         const v = videoRef.current;
@@ -1193,7 +1231,7 @@ export default function App() {
                                     <p>⚠ {lmError}</p>
                                 </div>
                             )}
-                            <div className="lm-skip-overlay">
+                            <div className={`lm-skip-overlay${controlsVisible ? ' visible' : ''}`}>
                                 <button className="lm-skip-btn lm-skip-back" onClick={handleSkipBack} aria-label="Back 10 seconds">
                                     <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                                         <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>

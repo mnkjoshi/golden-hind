@@ -107,7 +107,7 @@ p {
 
 @keyframes lm-spin { to { transform: rotate(360deg); } }
 
-/* ── Skip overlay — appears on hover, back/forward buttons ── */
+/* ── Skip overlay — visible only while Plyr's controls are visible ── */
 .lm-skip-overlay {
     position: absolute;
     top: 0;
@@ -120,15 +120,19 @@ p {
     transition: opacity 0.18s;
 }
 
-.watch-player:hover .lm-skip-overlay {
+.lm-skip-overlay.visible {
     opacity: 1;
+}
+
+.lm-skip-overlay.visible .lm-skip-btn {
+    pointer-events: auto;
 }
 
 /* Each button is absolutely positioned within the overlay */
 .lm-skip-btn {
     position: absolute;
     top: 50%;
-    pointer-events: all;
+    pointer-events: none;
     background: transparent;
     border: none;
     cursor: pointer;
@@ -226,6 +230,11 @@ p {
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+
+/* In-player cast button (injected into .plyr__controls) — tint while casting */
+.watch-player .plyr__control--cast[data-casting="true"] {
+    color: var(--plyr-color-main, #3FA3FF);
 }
 
 .watch-options {
