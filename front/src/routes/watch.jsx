@@ -59,6 +59,12 @@ export default function App() {
     // Cast / AirPlay state — only relevant for provider 1 (HTML5 <video> w/ HLS)
     const [castSupported, setCastSupported] = useState(false);
     const [castConnected, setCastConnected] = useState(false);
+    // Cast SDK plumbing (Chromium browsers: Chrome/Brave/Edge). Safari uses
+    // webkitShowPlaybackTargetPicker on the <video> element directly.
+    const castContextRef = useRef(null);
+    const castDeviceAvailableRef = useRef(false);
+    const lmUrlRef = useRef(null);
+    const lmSubtitlesRef = useRef([]);
 
     const[bookmarked, setBookmark] = useState(-1)
     const[myListed, setMyListed] = useState(-1);
@@ -192,6 +198,52 @@ export default function App() {
         }
     }, [data]);
 
+    useEffect(() => { lmUrlRef.current = lmUrl; }, [lmUrl]);
+    useEffect(() => { lmSubtitlesRef.current = lmSubtitles; }, [lmSubtitles]);
+
+    // Load Google Cast SDK once. Enables Chromecast on Chromium browsers
+    // (Brave/Chrome/Edge); Safari uses webkitShowPlaybackTargetPicker instead.
+    useEffect(() => {
+        const SCRIPT_SRC = 'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
+        if (document.querySelector(`script[src="${SCRIPT_SRC}"]`)) {
+            // Script already present from a prior mount — try to attach to the existing context.
+            if (window.cast?.framework && !castContextRef.current) initCastContext();
+            return;
+        }
+
+        function initCastContext() {
+            if (!window.cast?.framework || !window.chrome?.cast) return;
+            const ctx = window.cast.framework.CastContext.getInstance();
+            ctx.setOptions({
+                receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+            });
+            castContextRef.current = ctx;
+
+            const CastState = window.cast.framework.CastState;
+            const applyState = (state) => {
+                const available = state !== CastState.NO_DEVICES_AVAILABLE;
+                castDeviceAvailableRef.current = available;
+                if (available) setCastSupported(true);
+                setCastConnected(state === CastState.CONNECTED);
+            };
+            applyState(ctx.getCastState());
+            ctx.addEventListener(
+                window.cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+                (e) => applyState(e.castState),
+            );
+        }
+
+        window.__onGCastApiAvailable = (isAvailable) => {
+            if (isAvailable) initCastContext();
+        };
+
+        const script = document.createElement('script');
+        script.src = SCRIPT_SRC;
+        script.async = true;
+        document.head.appendChild(script);
+    }, []);
+
     // Fetch LookMovie stream when provider 4 is selected or episode changes.
     // progressReady is false for TV shows until progress_retrieve returns so we
     // don't fire with the default season=1/episode=1 before saved progress loads.
@@ -253,11 +305,17 @@ export default function App() {
         videoRef.current = video;
 
         // ── Cast / AirPlay wiring ─────────────────────────────────────────────
-        // Two browser APIs: Safari's webkitShowPlaybackTargetPicker (AirPlay)
-        // and the standard Remote Playback API (Chromecast + AirPlay on newer Safari).
-        // Reset state on each fresh video; the button stays hidden until something is supported.
-        setCastSupported(false);
-        setCastConnected(false);
+        // Safari: webkitShowPlaybackTargetPicker on the <video> element drives AirPlay.
+        // Chromium (Brave/Chrome): Google Cast SDK runs independently of the video
+        // element — its state lives on castContextRef and survives episode changes.
+        // Re-seed from the SDK so the button doesn't flicker off when the video reloads.
+        const CastState = window.cast?.framework?.CastState;
+        const ctx = castContextRef.current;
+        const sdkState = ctx && CastState ? ctx.getCastState() : null;
+        const sdkAvailable = !!(sdkState && sdkState !== CastState.NO_DEVICES_AVAILABLE);
+        const sdkConnected = !!(CastState && sdkState === CastState.CONNECTED);
+        setCastSupported(sdkAvailable);
+        setCastConnected(sdkConnected);
 
         const hasAirplayPicker = typeof video.webkitShowPlaybackTargetPicker === 'function';
         if (hasAirplayPicker) setCastSupported(true);
@@ -455,8 +513,10 @@ export default function App() {
                 }
             }
             video.removeEventListener('webkitcurrentplaybacktargetiswirelesschanged', handleAirplayChange);
-            setCastSupported(false);
-            setCastConnected(false);
+            // Don't reset cast state to false — Cast SDK session may still be active
+            // independently of this <video> element. The CAST_STATE_CHANGED listener
+            // and the next mount's re-seed handle correctness.
+            setCastSupported(castDeviceAvailableRef.current);
             if (plyrRef.current) { plyrRef.current.destroy(); plyrRef.current = null; }
             if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
             container.innerHTML = '';
@@ -466,12 +526,68 @@ export default function App() {
 
     const handleCast = () => {
         const v = videoRef.current;
-        if (!v) return;
         // Prefer AirPlay picker on Safari (more reliable than remote.prompt there)
-        if (typeof v.webkitShowPlaybackTargetPicker === 'function') {
+        if (v && typeof v.webkitShowPlaybackTargetPicker === 'function') {
             try { v.webkitShowPlaybackTargetPicker(); return; } catch {}
         }
-        if (v.remote && typeof v.remote.prompt === 'function') {
+        // Google Cast SDK path (Brave/Chrome/Edge)
+        const ctx = castContextRef.current;
+        if (ctx && window.cast?.framework && window.chrome?.cast) {
+            const existing = ctx.getCurrentSession();
+            if (existing) {
+                ctx.endCurrentSession(true);
+                setCastConnected(false);
+                return;
+            }
+            ctx.requestSession().then(() => {
+                const session = ctx.getCurrentSession();
+                const url = lmUrlRef.current;
+                if (!session || !url) return;
+                const cm = window.chrome.cast.media;
+                const mediaInfo = new cm.MediaInfo(url, 'application/x-mpegURL');
+                mediaInfo.streamType = cm.StreamType.BUFFERED;
+
+                // Attach subtitle tracks. The receiver fetches these URLs directly,
+                // so they must serve WebVTT with permissive CORS (the existing
+                // /proxy/subtitle endpoint handles both).
+                const subs = lmSubtitlesRef.current || [];
+                const tracks = [];
+                subs.forEach((sub, idx) => {
+                    const raw = String(sub.file || sub.url || '');
+                    if (!raw.startsWith('/') && !raw.startsWith('http')) return;
+                    const abs = raw.startsWith('http') ? raw : `https://www.lookmovie2.to${raw}`;
+                    const proxied = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(abs)}`;
+                    const t = new cm.Track(idx + 1, cm.TrackType.TEXT);
+                    t.trackContentId = proxied;
+                    t.trackContentType = 'text/vtt';
+                    t.subtype = cm.TextTrackType.SUBTITLES;
+                    t.name = sub.language || sub.lang || `Track ${idx + 1}`;
+                    t.language = String(sub.language || sub.lang || 'en').toLowerCase().slice(0, 2);
+                    tracks.push(t);
+                });
+                if (tracks.length > 0) {
+                    mediaInfo.tracks = tracks;
+                    const style = new cm.TextTrackStyle();
+                    style.backgroundColor = '#00000080';
+                    style.foregroundColor = '#FFFFFFFF';
+                    style.edgeType = cm.TextTrackEdgeType.OUTLINE;
+                    style.fontScale = 1.0;
+                    mediaInfo.textTrackStyle = style;
+                }
+
+                const req = new cm.LoadRequest(mediaInfo);
+                const v2 = videoRef.current;
+                if (v2 && v2.currentTime > 5) req.currentTime = v2.currentTime;
+                if (tracks.length > 0) req.activeTrackIds = [1]; // default first track on
+                session.loadMedia(req).then(() => {
+                    setCastConnected(true);
+                    try { v2?.pause(); } catch {}
+                }).catch(() => {});
+            }).catch(() => {});
+            return;
+        }
+        // Final fallback: standard Remote Playback API
+        if (v && v.remote && typeof v.remote.prompt === 'function') {
             v.remote.prompt().catch(() => {});
         }
     };
