@@ -1,0 +1,35 @@
+name: Deploy back
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'back/**'
+      - '.github/workflows/deploy-back.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-back
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, golden-hind-back]
+    steps:
+      - name: Pull latest main
+        working-directory: /root/golden-hind
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Install dependencies
+        working-directory: /root/golden-hind/back
+        run: npm install --omit=dev
+
+      - name: Restart service
+        run: sudo /bin/systemctl restart golden-hind-back.service
+
+      - name: Verify service is active
+        run: |
+          sleep 2
+          sudo /bin/systemctl is-active golden-hind-back.service
