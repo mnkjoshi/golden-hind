@@ -1,0 +1,55 @@
+[debug] [2026-05-12T06:46:49.441Z] ----------------------------------------------------------------------
+[debug] [2026-05-12T06:46:49.442Z] Command:       /opt/homebrew/Cellar/node/25.9.0_3/bin/node /opt/homebrew/bin/firebase init
+[debug] [2026-05-12T06:46:49.442Z] CLI Version:   15.16.0
+[debug] [2026-05-12T06:46:49.442Z] Platform:      darwin
+[debug] [2026-05-12T06:46:49.442Z] Node Version:  v25.9.0
+[debug] [2026-05-12T06:46:49.442Z] Time:          Mon May 11 2026 23:46:49 GMT-0700 (Pacific Daylight Time)
+[debug] [2026-05-12T06:46:49.442Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-12T06:46:49.443Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  /Users/manav/Documents/Projects/golden-hind
+
+[debug] [2026-05-12T06:46:50.098Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2026-05-12T06:46:50.098Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] 
+[debug] [2026-05-12T06:46:59.159Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-12T06:46:59.160Z] > authorizing via signed-in user (manavnkjoshi@gmail.com)
+[debug] [2026-05-12T06:46:59.161Z] Checked if tokens are valid: false, expires at: 1778435933174
+[debug] [2026-05-12T06:46:59.161Z] Checked if tokens are valid: false, expires at: 1778435933174
+[debug] [2026-05-12T06:46:59.161Z] > refreshing access token with scopes: []
+[debug] [2026-05-12T06:46:59.162Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-12T06:46:59.162Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-12T06:46:59.325Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-05-12T06:46:59.325Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-12T06:46:59.338Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=100
+[debug] [2026-05-12T06:46:59.965Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-05-12T06:46:59.966Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[info] i  Don't want to scroll through all your projects? If you know your project ID, you can initialize it directly using firebase init --project <project_id>.
+ 
+[debug] [2026-05-12T06:47:05.303Z] ExitPromptError: User force closed the prompt with SIGINT
+    at Interface.sigint (/opt/homebrew/lib/node_modules/firebase-tools/node_modules/@inquirer/core/dist/commonjs/lib/create-prompt.js:101:37)
+    at Interface.emit (node:events:509:20)
+    at [_ttyWrite] [as _ttyWrite] (node:internal/readline/interface:1327:18)
+    at ReadStream.onkeypress (node:internal/readline/interface:284:20)
+    at ReadStream.emit (node:events:521:24)
+    at emitKeys (node:internal/readline/utils:371:14)
+    at emitKeys.next (<anonymous>)
+    at ReadStream.onData (node:internal/readline/emitKeypressEvents:64:36)
+    at ReadStream.emit (node:events:509:20)
+    at addChunk (node:internal/streams/readable:564:12)
+[error] 
+[error] Error: An unexpected error has occurred.
