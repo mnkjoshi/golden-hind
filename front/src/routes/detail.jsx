@@ -363,7 +363,13 @@ export default function Detail() {
                         {cast.length > 0 && (
                             <div className="detail-cast">
                                 {cast.map(actor => (
-                                    <div key={actor.id} className="detail-cast-item">
+                                    <div
+                                        key={actor.id}
+                                        className="detail-cast-item detail-cast-clickable"
+                                        onClick={() => navigate(`/person/${actor.id}`)}
+                                        role="link"
+                                        tabIndex={0}
+                                    >
                                         <div className="detail-cast-photo">
                                             {actor.profile_path
                                                 ? <img src={`https://image.tmdb.org/t/p/w185/${actor.profile_path}`} alt={actor.name} />
@@ -374,6 +380,29 @@ export default function Detail() {
                                         <span className="detail-cast-name">{actor.name}</span>
                                     </div>
                                 ))}
+                            </div>
+                        )}
+
+                        {detail?.belongs_to_collection && (
+                            <div
+                                className="detail-collection-banner"
+                                onClick={() => navigate(`/collection/${detail.belongs_to_collection.id}`)}
+                                role="link"
+                                tabIndex={0}
+                            >
+                                {detail.belongs_to_collection.backdrop_path && (
+                                    <img
+                                        className="detail-collection-bg"
+                                        src={`https://image.tmdb.org/t/p/w780/${detail.belongs_to_collection.backdrop_path}`}
+                                        alt=""
+                                    />
+                                )}
+                                <div className="detail-collection-scrim" />
+                                <div className="detail-collection-content">
+                                    <span className="detail-collection-eyebrow">Part of</span>
+                                    <span className="detail-collection-name">{detail.belongs_to_collection.name}</span>
+                                    <span className="detail-collection-cta">Browse collection →</span>
+                                </div>
                             </div>
                         )}
 

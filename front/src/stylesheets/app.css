@@ -587,6 +587,28 @@ p {
     pointer-events: none;
 }
 
+/* Continue Watching progress bar — always-visible thin strip pinned to the
+   bottom of the poster, so users see how far they got at a glance. */
+.card-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    z-index: 2;
+    pointer-events: none;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    overflow: hidden;
+}
+
+.card-progress-fill {
+    height: 100%;
+    background: #3FA3FF;
+    transition: width 0.3s ease;
+}
+
 .content-card:hover .card-overlay {
     opacity: 1;
 }

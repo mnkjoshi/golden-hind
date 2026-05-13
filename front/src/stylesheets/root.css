@@ -217,7 +217,6 @@ p, h1 {
     background: rgba(63, 163, 255, 0.25);
     box-shadow: 0 6px 20px rgba(63, 163, 255, 0.3);
 }
-}
 
 .landing-entry:active {
     transform: translateY(0);

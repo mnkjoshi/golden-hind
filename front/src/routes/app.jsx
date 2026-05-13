@@ -957,6 +957,16 @@ export default function App() {
                                             loading="lazy"
                                             decoding="async"
                                         />
+                                        {(() => {
+                                            const cid = (result.number_of_episodes == null ? 'm' : 't') + result.id;
+                                            const pct = parseFloat(localStorage.getItem('playbackPct_' + cid));
+                                            if (!isFinite(pct) || pct <= 0.01) return null;
+                                            return (
+                                                <div className="card-progress" aria-label={`${Math.round(pct * 100)}% watched`}>
+                                                    <div className="card-progress-fill" style={{ width: `${Math.min(100, pct * 100)}%` }} />
+                                                </div>
+                                            );
+                                        })()}
                                         <div className="card-overlay">
                                             <div className="card-info">
                                                 <h3 className="card-title">{result.name || result.title || "Untitled"}</h3>

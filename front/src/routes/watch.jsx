@@ -45,6 +45,8 @@ export default function App() {
     const plyrRef = useRef(null);
     const flashTimeoutRef = useRef(null);
     const inPlayerCastBtnRef = useRef(null);
+    const skipIdleTimerRef = useRef(null);
+    const skipIdleCleanupRef = useRef(null);
 
     const [upNextInfo, setUpNextInfo] = useState(null); // { targetEpisode, targetSeason }
     const [upNextSeconds, setUpNextSeconds] = useState(5);
@@ -93,7 +95,25 @@ export default function App() {
     const playbackStateRef = useRef({});
     const savePositionTimerRef = useRef(null);
 
+    // Watch party state.
+    // The room id lives in the URL (?party=ABC123) so links are shareable.
+    // Refs mirror the state so closures inside Plyr listeners always read the latest.
     let location = useLocation();
+    const initialPartyRoomId = new URLSearchParams(location.search).get('party') || null;
+    const [partyRoomId, setPartyRoomId] = useState(initialPartyRoomId);
+    const [partyStatus, setPartyStatus] = useState(initialPartyRoomId ? 'connecting' : 'idle');
+    const [partyModalOpen, setPartyModalOpen] = useState(false);
+    const [partyJoinInput, setPartyJoinInput] = useState('');
+    const [partyJoinError, setPartyJoinError] = useState('');
+    const [partyLinkCopied, setPartyLinkCopied] = useState(false);
+    const partyRoomIdRef = useRef(initialPartyRoomId);
+    const applyingRemotePartyRef = useRef(false);
+    const partySourceRef = useRef(null);
+    const pendingPartyStateRef = useRef(null);
+    const pushPartyUpdateRef = useRef(null);
+    const applyPartyStateRef = useRef(null);
+    useEffect(() => { partyRoomIdRef.current = partyRoomId; }, [partyRoomId]);
+
     const navigate = useNavigate();
     const subTraceEnabled = new URLSearchParams(location.search).has('subtrace');
     const addSubtitleDebugLine = (line) => {
@@ -142,6 +162,173 @@ export default function App() {
         }).catch(() => {});
     };
 
+    // ── Watch party logic ────────────────────────────────────────────────────
+    // Refs let Plyr listeners (registered inside the lmUrl effect) always call
+    // the latest version of these functions without re-registration.
+    pushPartyUpdateRef.current = (extra = {}) => {
+        const roomId = partyRoomIdRef.current;
+        if (!roomId) return;
+        if (applyingRemotePartyRef.current) return;
+        const p = plyrRef.current;
+        const u = localStorage.getItem('user');
+        const t = localStorage.getItem('token');
+        if (!u || !t) return;
+        axios.post('https://goldenhind.tech/party/update', {
+            user: u, token: t, roomId,
+            state: {
+                position: p?.currentTime ?? 0,
+                paused: p ? p.paused : true,
+                season: parseInt(season) || 1,
+                episode: parseInt(episode) || 1,
+                ...extra,
+            }
+        }).catch(() => {});
+    };
+
+    applyPartyStateRef.current = (state) => {
+        if (!state || typeof state !== 'object') return;
+        // Stash for later — Plyr may not exist yet when the SSE fires (e.g.
+        // first message right after joining, before the HLS source has loaded).
+        pendingPartyStateRef.current = state;
+
+        // Episode/season sync runs immediately; it drives lmUrl re-fetch which
+        // sets up a new Plyr instance, and Plyr's MANIFEST_PARSED callback
+        // re-runs this function with the stashed state to do the seek/play.
+        applyingRemotePartyRef.current = true;
+        if (id.slice(0, 1) === 't' && state.season != null && state.episode != null) {
+            const s = parseInt(state.season);
+            const e = parseInt(state.episode);
+            if (s && e && (s !== parseInt(season) || e !== parseInt(episode))) {
+                setSeason(s);
+                setEpisode(e);
+                localStorage.setItem('season' + id, s);
+                localStorage.setItem('episode' + id, e);
+            }
+        }
+
+        const p = plyrRef.current;
+        if (!p || !isFinite(p.duration)) {
+            // Player not ready — leave pendingPartyStateRef set; initPlyr will retry.
+            // Reset the flag a bit later so user actions aren't permanently squelched.
+            setTimeout(() => { applyingRemotePartyRef.current = false; }, 800);
+            return;
+        }
+
+        if (typeof state.position === 'number' && Math.abs(p.currentTime - state.position) > 1.5) {
+            p.currentTime = state.position;
+        }
+        if (state.paused === true && !p.paused) {
+            p.pause();
+        } else if (state.paused === false && p.paused) {
+            p.play().catch(() => {});
+        }
+
+        pendingPartyStateRef.current = null;
+        setTimeout(() => { applyingRemotePartyRef.current = false; }, 500);
+    };
+
+    // SSE subscription — re-opened whenever the room id changes.
+    useEffect(() => {
+        if (!partyRoomId) {
+            setPartyStatus('idle');
+            return;
+        }
+        const u = localStorage.getItem('user');
+        const t = localStorage.getItem('token');
+        if (!u || !t) return;
+        const url = `https://goldenhind.tech/party/stream?roomId=${encodeURIComponent(partyRoomId)}&user=${encodeURIComponent(u)}&token=${encodeURIComponent(t)}`;
+        const es = new EventSource(url);
+        partySourceRef.current = es;
+        setPartyStatus('connecting');
+        es.onopen = () => setPartyStatus('connected');
+        es.onerror = () => setPartyStatus('error');
+        es.onmessage = (ev) => {
+            try {
+                const state = JSON.parse(ev.data);
+                applyPartyStateRef.current?.(state);
+            } catch {}
+        };
+        es.addEventListener('end', () => {
+            setPartyStatus('idle');
+            setPartyRoomId(null);
+            // Drop ?party= from the URL so a refresh doesn't re-join a dead room
+            const params = new URLSearchParams(window.location.search);
+            params.delete('party');
+            const next = window.location.pathname + (params.toString() ? `?${params}` : '');
+            window.history.replaceState(null, '', next);
+        });
+        return () => { try { es.close(); } catch {} partySourceRef.current = null; };
+    }, [partyRoomId]);
+
+    const startWatchParty = async () => {
+        const u = localStorage.getItem('user');
+        const t = localStorage.getItem('token');
+        if (!u || !t) return;
+        try {
+            const r = await axios.post('https://goldenhind.tech/party/create', {
+                user: u, token: t,
+                contentId: id,
+                season: parseInt(season) || 1,
+                episode: parseInt(episode) || 1,
+            });
+            if (r.data?.roomId) {
+                setPartyRoomId(r.data.roomId);
+                const params = new URLSearchParams(window.location.search);
+                params.set('party', r.data.roomId);
+                window.history.replaceState(null, '', window.location.pathname + '?' + params);
+                setPartyModalOpen(true);
+            }
+        } catch {}
+    };
+
+    const joinWatchParty = async () => {
+        const code = (partyJoinInput || '').trim().toUpperCase();
+        if (!/^[A-Z2-9]{6}$/.test(code)) {
+            setPartyJoinError('Codes are 6 letters/digits.');
+            return;
+        }
+        setPartyJoinError('');
+        const u = localStorage.getItem('user');
+        const t = localStorage.getItem('token');
+        try {
+            const r = await axios.post('https://goldenhind.tech/party/info', { user: u, token: t, roomId: code });
+            const info = r.data;
+            if (!info?.contentId) {
+                setPartyJoinError('Room not found.');
+                return;
+            }
+            // If the host is watching a different title, redirect to the right URL
+            if (info.contentId !== id) {
+                navigate(`/watch/${info.contentId}?party=${code}`);
+                return;
+            }
+            setPartyRoomId(code);
+            const params = new URLSearchParams(window.location.search);
+            params.set('party', code);
+            window.history.replaceState(null, '', window.location.pathname + '?' + params);
+            setPartyModalOpen(false);
+        } catch {
+            setPartyJoinError('Could not join — bad code or network issue.');
+        }
+    };
+
+    const leaveWatchParty = () => {
+        setPartyRoomId(null);
+        setPartyModalOpen(false);
+        const params = new URLSearchParams(window.location.search);
+        params.delete('party');
+        const next = window.location.pathname + (params.toString() ? `?${params}` : '');
+        window.history.replaceState(null, '', next);
+    };
+
+    const copyPartyLink = () => {
+        if (!partyRoomId) return;
+        const url = `${window.location.origin}/watch/${id}?party=${partyRoomId}`;
+        navigator.clipboard?.writeText(url).then(() => {
+            setPartyLinkCopied(true);
+            setTimeout(() => setPartyLinkCopied(false), 1800);
+        }).catch(() => {});
+    };
 
     // Disable body overflow when watch page is active + log watch time on unmount
     useEffect(() => {
@@ -426,11 +613,47 @@ export default function App() {
             });
             plyrRef.current = player;
 
-            // Skip-overlay visibility tracks Plyr's auto-hide so the back/forward
-            // buttons fade in/out together with the bottom control bar.
+            // Watch party: push local play/pause/seek to peers and apply any
+            // pending remote state that arrived before Plyr was ready.
+            player.on('play', () => pushPartyUpdateRef.current?.({ paused: false }));
+            player.on('pause', () => pushPartyUpdateRef.current?.({ paused: true }));
+            player.on('seeked', () => pushPartyUpdateRef.current?.());
+            // Retry pending party state once playback metadata is available
+            const retryParty = () => {
+                if (pendingPartyStateRef.current) {
+                    applyPartyStateRef.current?.(pendingPartyStateRef.current);
+                }
+            };
+            player.on('loadedmetadata', retryParty);
+            player.on('canplay', retryParty);
+
+            // Skip-overlay autohide.
+            // Plyr forces controls visible via :hover CSS, so its controlshidden
+            // event never fires while the cursor is over the player — even if
+            // it's idle. We run our own pointer-idle timer so the back/forward
+            // buttons fade after ~3s of stillness regardless of Plyr's state.
             setControlsVisible(true);
-            player.on('controlshidden', () => setControlsVisible(false));
-            player.on('controlsshown', () => setControlsVisible(true));
+            const refreshSkipIdle = () => {
+                setControlsVisible(true);
+                if (skipIdleTimerRef.current) clearTimeout(skipIdleTimerRef.current);
+                skipIdleTimerRef.current = setTimeout(() => setControlsVisible(false), 3000);
+            };
+            const onPointerLeavePlayer = () => {
+                if (skipIdleTimerRef.current) clearTimeout(skipIdleTimerRef.current);
+                setControlsVisible(false);
+            };
+            container.addEventListener('mousemove', refreshSkipIdle);
+            container.addEventListener('mouseenter', refreshSkipIdle);
+            container.addEventListener('mouseleave', onPointerLeavePlayer);
+            player.on('controlsshown', refreshSkipIdle);
+            skipIdleCleanupRef.current = () => {
+                if (skipIdleTimerRef.current) clearTimeout(skipIdleTimerRef.current);
+                skipIdleTimerRef.current = null;
+                container.removeEventListener('mousemove', refreshSkipIdle);
+                container.removeEventListener('mouseenter', refreshSkipIdle);
+                container.removeEventListener('mouseleave', onPointerLeavePlayer);
+            };
+            refreshSkipIdle();
 
             // Inject a cast button into Plyr's bottom control bar so users can
             // start/stop casting from inside the player itself (alongside
@@ -464,15 +687,32 @@ export default function App() {
                 if (now - lastSaved > 5000 && player.currentTime > 5) {
                     lastSaved = now;
                     localStorage.setItem(posKey, player.currentTime);
+                    // Series-level percentage for the Continue Watching cards on /app.
+                    // Tracks the *currently watching* episode/movie regardless of season.
+                    if (player.duration > 0) {
+                        const pct = Math.min(1, Math.max(0, player.currentTime / player.duration));
+                        localStorage.setItem('playbackPct_' + id, pct.toFixed(3));
+                    }
                 }
                 const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
-                if (an === 1 && !upNextShown && player.duration > 0 && player.currentTime / player.duration >= 0.95) {
-                    const hasNext = parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe);
-                    if (hasNext) {
-                        upNextShown = true;
-                        const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
-                        const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
-                        triggerUpNext(nextEp, nextSe);
+                if (an === 1 && !upNextShown && player.duration > 0) {
+                    // For episodes over 20 min, end credits typically run ~60–90s.
+                    // Fire up-next 90s before the end so the viewer doesn't sit
+                    // through the entire credit roll. For short content (≤20min)
+                    // a fixed window would trigger too early, so fall back to 95%.
+                    const remaining = player.duration - player.currentTime;
+                    const longContent = player.duration > 1200;
+                    const creditsReached = longContent
+                        ? remaining <= 90
+                        : player.currentTime / player.duration >= 0.95;
+                    if (creditsReached) {
+                        const hasNext = parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe);
+                        if (hasNext) {
+                            upNextShown = true;
+                            const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
+                            const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
+                            triggerUpNext(nextEp, nextSe);
+                        }
                     }
                 }
             });
@@ -484,6 +724,7 @@ export default function App() {
             // Auto-next for provider 4 — execute immediately on end (popup already showing from 95%)
             player.on('ended', () => {
                 localStorage.removeItem(posKey);
+                localStorage.removeItem('playbackPct_' + id);
                 const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
                 if (an !== 1) return;
                 if (upNextInfoRef.current) {
@@ -540,6 +781,7 @@ export default function App() {
                 }
             }
             video.removeEventListener('webkitcurrentplaybacktargetiswirelesschanged', handleAirplayChange);
+            if (skipIdleCleanupRef.current) { skipIdleCleanupRef.current(); skipIdleCleanupRef.current = null; }
             // Don't reset cast state to false — Cast SDK session may still be active
             // independently of this <video> element. The CAST_STATE_CHANGED listener
             // and the next mount's re-seed handle correctness.
@@ -1355,6 +1597,16 @@ export default function App() {
                                 <span>{castConnected ? 'Casting' : 'Cast'}</span>
                             </button>
                         )}
+                        <button
+                            className={`wbar-btn${partyRoomId ? ' on' : ''}`}
+                            onClick={() => setPartyModalOpen(true)}
+                            aria-label={partyRoomId ? 'Watch party active' : 'Start or join a watch party'}
+                        >
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                            </svg>
+                            <span>{partyRoomId ? `Party ${partyRoomId}` : 'Party'}</span>
+                        </button>
                         <button className="wbar-btn wbar-btn-server" onClick={() => {
                             const next = parseInt(provider) >= 3 ? 1 : parseInt(provider) + 1;
                             setProvider(next);
@@ -1421,6 +1673,62 @@ export default function App() {
         </div>
             {providerToast && (
                 <div className="provider-toast">{providerToast}</div>
+            )}
+
+            {partyRoomId && (
+                <div className={`party-banner party-banner-${partyStatus}`}>
+                    <span className="party-banner-dot" />
+                    <span className="party-banner-label">
+                        Watch Party · <strong>{partyRoomId}</strong>
+                        <span className="party-banner-status">
+                            {partyStatus === 'connected' ? 'live' : partyStatus === 'connecting' ? 'connecting…' : 'disconnected'}
+                        </span>
+                    </span>
+                    <button className="party-banner-btn" onClick={copyPartyLink}>
+                        {partyLinkCopied ? 'Copied!' : 'Copy link'}
+                    </button>
+                    <button className="party-banner-btn party-banner-leave" onClick={leaveWatchParty}>Leave</button>
+                </div>
+            )}
+
+            {partyModalOpen && (
+                <div className="party-modal-overlay" onClick={() => setPartyModalOpen(false)}>
+                    <div className="party-modal" onClick={(e) => e.stopPropagation()}>
+                        <button className="party-modal-close" onClick={() => setPartyModalOpen(false)}>✕</button>
+                        <h2 className="party-modal-title">Watch Party</h2>
+                        {partyRoomId ? (
+                            <>
+                                <p className="party-modal-sub">You're in room <strong>{partyRoomId}</strong>. Share this link:</p>
+                                <div className="party-modal-link">
+                                    <code>{`${window.location.origin}/watch/${id}?party=${partyRoomId}`}</code>
+                                    <button className="party-modal-copy" onClick={copyPartyLink}>
+                                        {partyLinkCopied ? 'Copied' : 'Copy'}
+                                    </button>
+                                </div>
+                                <p className="party-modal-hint">Anyone with the link auto-joins. Play, pause, and seeks sync across all viewers. Episode changes propagate too.</p>
+                                <button className="party-modal-action party-modal-action-danger" onClick={leaveWatchParty}>Leave party</button>
+                            </>
+                        ) : (
+                            <>
+                                <p className="party-modal-sub">Watch with friends — playback stays in sync.</p>
+                                <button className="party-modal-action" onClick={startWatchParty}>Create party for this title</button>
+                                <div className="party-modal-divider"><span>or join</span></div>
+                                <div className="party-modal-join">
+                                    <input
+                                        className="party-modal-input"
+                                        placeholder="Room code (6 letters/digits)"
+                                        value={partyJoinInput}
+                                        onChange={(e) => setPartyJoinInput(e.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6))}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') joinWatchParty(); }}
+                                        maxLength={6}
+                                    />
+                                    <button className="party-modal-action party-modal-action-secondary" onClick={joinWatchParty}>Join</button>
+                                </div>
+                                {partyJoinError && <p className="party-modal-error">{partyJoinError}</p>}
+                            </>
+                        )}
+                    </div>
+                </div>
             )}
             {subTraceEnabled && subtitleDebugOverlay.length > 0 && (
                 <div style={{

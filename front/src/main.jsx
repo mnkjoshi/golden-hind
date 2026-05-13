@@ -19,10 +19,13 @@ import Music from './routes/music.jsx'
 import Admin from './routes/admin.jsx'
 import Test from './routes/test.jsx'
 import Detail from './routes/detail.jsx'
+import Person from './routes/person.jsx'
+import Collection from './routes/collection.jsx'
 import ErrorPage from './routes/error.jsx'
 import './stylesheets/admin.css'
 import './stylesheets/detail.css'
 import './stylesheets/music.css'
+import './stylesheets/person.css'
 
 import {
   createBrowserRouter,
@@ -81,6 +84,16 @@ const router = createBrowserRouter([
     errorElement: <ErrorPage/>
   },
   {
+    path: "/person/:id",
+    element: <Person/>,
+    errorElement: <ErrorPage/>
+  },
+  {
+    path: "/collection/:id",
+    element: <Collection/>,
+    errorElement: <ErrorPage/>
+  },
+  {
     path: "/music",
     element: <Music/>,
     errorElement: <ErrorPage/>
@@ -102,3 +115,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
      <RouterProvider router={router}/>
   </React.StrictMode>,
 )
+
+// Register the PWA service worker for offline shell + installability.
+// Only runs in production builds; the dev server serves /sw.js but we skip
+// registration there to avoid stale-cache headaches during local dev.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}

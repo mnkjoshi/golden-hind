@@ -654,6 +654,44 @@ app.post('/season', async (request, response) => {
     }
 });
 
+// Person details + filmography for /person/:id route
+const personCache = new Map();
+app.post('/person', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, personId } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        if (personCache.has(personId)) return response.status(200).json(personCache.get(personId));
+        const url = `https://api.themoviedb.org/3/person/${personId}?api_key=${process.env.TMDB_Credentials}&append_to_response=combined_credits,external_ids`;
+        const apiResponse = await axios.get(url);
+        personCache.set(personId, apiResponse.data);
+        response.status(200).json(apiResponse.data);
+    } catch (error) {
+        logError(user, '/person', error).catch(() => {});
+        response.status(202).send("UKE");
+    }
+});
+
+// Collection details for /collection/:id route
+const collectionCache = new Map();
+app.post('/collection', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, collectionId } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        if (collectionCache.has(collectionId)) return response.status(200).json(collectionCache.get(collectionId));
+        const url = `https://api.themoviedb.org/3/collection/${collectionId}?api_key=${process.env.TMDB_Credentials}`;
+        const apiResponse = await axios.get(url);
+        collectionCache.set(collectionId, apiResponse.data);
+        response.status(200).json(apiResponse.data);
+    } catch (error) {
+        logError(user, '/collection', error).catch(() => {});
+        response.status(202).send("UKE");
+    }
+});
+
 app.post('/favourite', async (request, response) => {
 
     response.setHeader("Access-Control-Allow-Credentials", "true");
@@ -1222,6 +1260,131 @@ app.post('/admin/create-user', async (request, response) => {
         logError('manav', '/admin/create-user', error).catch(() => {});
         response.status(500).send(error.message);
     }
+});
+
+// ── Watch parties ───────────────────────────────────────────────────────────
+// Each party is a Firebase RTDB node at /parties/{roomId} holding the shared
+// playback state. Clients send state changes via POST and receive updates via
+// SSE: the server holds open a `value` listener on the room and pushes every
+// change to subscribed clients (except echoing the change back to its actor).
+
+function generatePartyCode() {
+    // 6 chars, omitting easily-confused glyphs (I, O, 0, 1)
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+}
+
+app.post('/party/create', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, contentId, season, episode } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const db = admin.database();
+        // Retry a couple of times in case of a (very rare) code collision
+        let roomId;
+        for (let i = 0; i < 5; i++) {
+            roomId = generatePartyCode();
+            const existing = await db.ref(`parties/${roomId}`).once('value');
+            if (!existing.exists()) break;
+        }
+        await db.ref(`parties/${roomId}`).set({
+            host: user,
+            contentId: contentId || '',
+            season: parseInt(season) || 1,
+            episode: parseInt(episode) || 1,
+            position: 0,
+            paused: true,
+            actor: user,
+            lastUpdate: Date.now(),
+        });
+        // Auto-cleanup after 6 hours of room creation
+        setTimeout(() => db.ref(`parties/${roomId}`).remove().catch(() => {}), 6 * 60 * 60 * 1000);
+        response.status(200).json({ roomId });
+    } catch (error) {
+        logError(user, '/party/create', error).catch(() => {});
+        response.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/party/update', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, roomId, state } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    if (!roomId || !state || typeof state !== 'object') return response.status(400).json({ error: 'roomId + state required' });
+    try {
+        const db = admin.database();
+        // Only allow whitelisted keys — never let clients write actor/host/lastUpdate directly
+        const allowed = ['position', 'paused', 'season', 'episode', 'contentId'];
+        const patch = { actor: user, lastUpdate: Date.now() };
+        for (const k of allowed) if (k in state) patch[k] = state[k];
+        await db.ref(`parties/${roomId}`).update(patch);
+        response.status(200).json({ ok: true });
+    } catch (error) {
+        logError(user, '/party/update', error).catch(() => {});
+        response.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/party/info', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, roomId } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const db = admin.database();
+        const snap = await db.ref(`parties/${roomId}`).once('value');
+        if (!snap.exists()) return response.status(404).json({ error: 'Room not found' });
+        response.status(200).json(snap.val());
+    } catch (error) {
+        logError(user, '/party/info', error).catch(() => {});
+        response.status(500).json({ error: error.message });
+    }
+});
+
+// SSE stream — server pushes every state change on the room to this client.
+// Drops echoes back to the same actor that sent them so the originator doesn't
+// fight its own updates.
+app.get('/party/stream', async (request, response) => {
+    const { roomId, user, token } = request.query;
+    if (!await Authenticate(user, token)) return response.status(401).end();
+    if (!roomId) return response.status(400).end();
+
+    response.setHeader('Content-Type', 'text/event-stream');
+    response.setHeader('Cache-Control', 'no-cache, no-transform');
+    response.setHeader('Connection', 'keep-alive');
+    response.setHeader('X-Accel-Buffering', 'no');
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.flushHeaders?.();
+
+    const heartbeat = setInterval(() => { try { response.write(':\n\n'); } catch {} }, 25000);
+
+    const db = admin.database();
+    const ref = db.ref(`parties/${roomId}`);
+    const cb = (snap) => {
+        const val = snap.val();
+        if (!val) {
+            try { response.write(`event: end\ndata: {}\n\n`); } catch {}
+            return;
+        }
+        // Don't echo a user's own updates back at them
+        if (val.actor === user) return;
+        try { response.write(`data: ${JSON.stringify(val)}\n\n`); } catch {}
+    };
+    ref.on('value', cb);
+
+    await db.ref(`parties/${roomId}/participants/${user}`).set(true).catch(() => {});
+
+    const cleanup = () => {
+        clearInterval(heartbeat);
+        ref.off('value', cb);
+        db.ref(`parties/${roomId}/participants/${user}`).remove().catch(() => {});
+    };
+    request.on('close', cleanup);
+    request.on('error', cleanup);
 });
 
 //process.env.PORT

@@ -1,0 +1,250 @@
+.person-page {
+    min-height: 100vh;
+    background: #0a0e27;
+    color: #fff;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+.person-content {
+    padding: 110px 60px 80px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.person-loading, .person-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    color: rgba(255,255,255,0.5);
+}
+
+.person-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255,255,255,0.15);
+    border-top-color: #3FA3FF;
+    border-radius: 50%;
+    animation: person-spin 0.8s linear infinite;
+}
+@keyframes person-spin { to { transform: rotate(360deg); } }
+
+.person-header {
+    display: flex;
+    gap: 40px;
+    margin-bottom: 60px;
+}
+
+.person-photo {
+    width: 240px;
+    height: 360px;
+    object-fit: cover;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    flex-shrink: 0;
+}
+
+.person-photo-placeholder {
+    background: #1a1f3a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 80px;
+    color: rgba(255,255,255,0.2);
+}
+
+.person-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.person-name {
+    font-family: Viga, sans-serif;
+    font-size: 44px;
+    font-weight: 400;
+    margin: 0 0 8px;
+    line-height: 1.1;
+}
+
+.person-known-for {
+    color: #3FA3FF;
+    font-size: 16px;
+    margin: 0 0 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.person-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 24px;
+}
+
+.person-fact {
+    color: rgba(255,255,255,0.7);
+    font-size: 14px;
+}
+
+.person-bio {
+    color: rgba(255,255,255,0.85);
+    font-size: 15px;
+    line-height: 1.6;
+    max-height: 140px;
+    overflow: hidden;
+    position: relative;
+}
+
+.person-bio.expanded {
+    max-height: none;
+}
+
+.person-bio:not(.expanded)::after {
+    content: '';
+    position: absolute;
+    bottom: 30px;
+    left: 0;
+    right: 0;
+    height: 50px;
+    background: linear-gradient(to bottom, transparent, #0a0e27);
+    pointer-events: none;
+}
+
+.person-bio p {
+    margin: 0;
+    white-space: pre-line;
+}
+
+.person-bio-toggle {
+    background: none;
+    border: none;
+    color: #3FA3FF;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 8px 0 0;
+    font-weight: 600;
+}
+
+.person-bio-toggle:hover {
+    text-decoration: underline;
+}
+
+.person-section {
+    margin-top: 40px;
+}
+
+.person-section-title {
+    font-family: Viga, sans-serif;
+    font-size: 24px;
+    font-weight: 400;
+    margin: 0 0 24px;
+}
+
+.person-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+.person-credit {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.person-credit:hover {
+    transform: translateY(-4px);
+}
+
+.person-credit-poster {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.person-credit-meta {
+    padding: 10px 4px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.person-credit-title {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.person-credit-role {
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+    font-style: italic;
+    line-height: 1.3;
+}
+
+.person-credit-year {
+    font-size: 12px;
+    color: rgba(255,255,255,0.45);
+    margin-top: 2px;
+}
+
+/* Collection banner — wider hero treatment */
+.collection-banner {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    min-height: 280px;
+    margin-bottom: 40px;
+    display: flex;
+    align-items: flex-end;
+}
+
+.collection-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+}
+
+.collection-banner-scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(10,14,39,0.95) 10%, rgba(10,14,39,0.3) 60%, transparent 100%);
+    z-index: 1;
+}
+
+.collection-banner-info {
+    position: relative;
+    z-index: 2;
+    padding: 40px;
+    max-width: 760px;
+}
+
+.collection-overview {
+    color: rgba(255,255,255,0.85);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 12px 0;
+}
+
+.collection-count {
+    color: #3FA3FF;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 8px 0 0;
+}
+
+@media (max-width: 768px) {
+    .person-content { padding: 90px 16px 40px; }
+    .person-header { flex-direction: column; gap: 24px; }
+    .person-photo { width: 160px; height: 240px; align-self: center; }
+    .person-name { font-size: 32px; text-align: center; }
+    .person-known-for, .person-facts, .person-bio { text-align: center; }
+    .person-facts { align-items: center; }
+    .person-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; }
+    .collection-banner-info { padding: 24px; }
+}
