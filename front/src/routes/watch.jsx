@@ -364,6 +364,32 @@ export default function App() {
         };
     }, [partyRoomId]);
 
+    // Direct push for season/episode changes the local user made. Bypasses
+    // the debounce + settle window because: (a) episode change is an explicit
+    // user action, not a Plyr event cycle, so debouncing isn't needed; and
+    // (b) the lmUrl effect opens a 2.5s settle window on every source change,
+    // which would otherwise swallow the very push we need to send.
+    const pushPartyEpisodeNow = (newSeason, newEpisode) => {
+        const roomId = partyRoomIdRef.current;
+        if (!roomId) return;
+        const u = localStorage.getItem('user');
+        const t = localStorage.getItem('token');
+        if (!u || !t) return;
+        const state = {
+            position: 0,
+            paused: false,
+            season: parseInt(newSeason) || 1,
+            episode: parseInt(newEpisode) || 1,
+        };
+        partyLastSentRef.current = state;
+        partyLog('push EPISODE', state);
+        axios.post('https://goldenhind.tech/party/update', {
+            user: u, token: t, roomId, state,
+            clientId: partyClientIdRef.current,
+        }).then(() => partyLog('episode push ok'))
+          .catch(e => partyLog('episode push fail', e.message || 'err'));
+    };
+
     const startWatchParty = async () => {
         const u = localStorage.getItem('user');
         const t = localStorage.getItem('token');
@@ -1456,6 +1482,7 @@ export default function App() {
             const prev = parseInt(episode) - 1;
             localStorage.setItem('episode' + id, prev);
             setEpisode(prev);
+            pushPartyEpisodeNow(season, prev);
         } else if (parseInt(season) > 1) {
             const prevSe = parseInt(season) - 1;
             const prevSeasonInfo = seriesData?.seasons?.find(s => s.season_number === prevSe);
@@ -1465,6 +1492,7 @@ export default function App() {
                 localStorage.setItem('episode' + id, lastEp);
                 setSeason(prevSe);
                 setEpisode(lastEp);
+                pushPartyEpisodeNow(prevSe, lastEp);
             } else {
                 const u = localStorage.getItem('user'), t = localStorage.getItem('token');
                 axios.post('https://goldenhind.tech/season', { user: u, token: t, seriesId: vidID, seasonNumber: prevSe })
@@ -1474,12 +1502,14 @@ export default function App() {
                         localStorage.setItem('episode' + id, lastEp);
                         setSeason(prevSe);
                         setEpisode(lastEp);
+                        pushPartyEpisodeNow(prevSe, lastEp);
                     })
                     .catch(() => {
                         localStorage.setItem('season' + id, prevSe);
                         localStorage.setItem('episode' + id, 1);
                         setSeason(prevSe);
                         setEpisode(1);
+                        pushPartyEpisodeNow(prevSe, 1);
                     });
             }
         }
@@ -1490,12 +1520,14 @@ export default function App() {
             const next = parseInt(episode) + 1;
             localStorage.setItem('episode' + id, next);
             setEpisode(next);
+            pushPartyEpisodeNow(season, next);
         } else if (parseInt(season) < parseInt(maxSe)) {
             const nextSe = parseInt(season) + 1;
             localStorage.setItem('season' + id, nextSe);
             localStorage.setItem('episode' + id, 1);
             setSeason(nextSe);
             setEpisode(1);
+            pushPartyEpisodeNow(nextSe, 1);
         }
     };
 
@@ -1562,6 +1594,7 @@ export default function App() {
         setEpisode(info.targetEpisode);
         setSeason(info.targetSeason);
         setAutoPlay(1);
+        pushPartyEpisodeNow(info.targetSeason, info.targetEpisode);
     };
 
     return (
@@ -1781,6 +1814,7 @@ export default function App() {
                                         setEpisode(epNum);
                                         localStorage.setItem('season' + id, panelSeason);
                                         localStorage.setItem('episode' + id, epNum);
+                                        pushPartyEpisodeNow(panelSeason, epNum);
                                     }}
                                 >
                                     {epNum}
