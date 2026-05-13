@@ -366,7 +366,12 @@ export default function Detail() {
                                     <div
                                         key={actor.id}
                                         className="detail-cast-item detail-cast-clickable"
-                                        onClick={() => navigate(`/person/${actor.id}`)}
+                                        onClick={() => navigate(`/person/${actor.id}`, {
+                                            state: {
+                                                fromBackdrop: detail?.backdrop_path || null,
+                                                fromTitle: detail?.title || detail?.name || '',
+                                            }
+                                        })}
                                         role="link"
                                         tabIndex={0}
                                     >
@@ -386,7 +391,11 @@ export default function Detail() {
                         {detail?.belongs_to_collection && (
                             <div
                                 className="detail-collection-banner"
-                                onClick={() => navigate(`/collection/${detail.belongs_to_collection.id}`)}
+                                onClick={() => navigate(`/collection/${detail.belongs_to_collection.id}`, {
+                                    state: {
+                                        fromBackdrop: detail?.belongs_to_collection?.backdrop_path || detail?.backdrop_path || null,
+                                    }
+                                })}
                                 role="link"
                                 tabIndex={0}
                             >

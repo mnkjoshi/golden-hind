@@ -112,6 +112,9 @@ export default function App() {
     const pendingPartyStateRef = useRef(null);
     const pushPartyUpdateRef = useRef(null);
     const applyPartyStateRef = useRef(null);
+    const partyPushDebounceRef = useRef(null);
+    const partyLastSentRef = useRef(null);
+    const partySettleUntilRef = useRef(0);
     useEffect(() => { partyRoomIdRef.current = partyRoomId; }, [partyRoomId]);
 
     const navigate = useNavigate();
@@ -165,24 +168,49 @@ export default function App() {
     // ── Watch party logic ────────────────────────────────────────────────────
     // Refs let Plyr listeners (registered inside the lmUrl effect) always call
     // the latest version of these functions without re-registration.
+    // Push our local state to the party. Debounced so transient play→pause
+    // bounces during buffering (Safari especially) collapse to a single send,
+    // and we read the *settled* paused state at fire time rather than
+    // trusting whichever event last triggered us. Identical-to-last-sent
+    // pushes are dropped so we don't echo-loop with peers, and pushes during
+    // the source-change settle window are ignored entirely (Plyr fires a
+    // pause when tearing down the old video).
     pushPartyUpdateRef.current = (extra = {}) => {
         const roomId = partyRoomIdRef.current;
         if (!roomId) return;
         if (applyingRemotePartyRef.current) return;
-        const p = plyrRef.current;
-        const u = localStorage.getItem('user');
-        const t = localStorage.getItem('token');
-        if (!u || !t) return;
-        axios.post('https://goldenhind.tech/party/update', {
-            user: u, token: t, roomId,
-            state: {
-                position: p?.currentTime ?? 0,
-                paused: p ? p.paused : true,
+        if (Date.now() < partySettleUntilRef.current) return;
+        if (partyPushDebounceRef.current) clearTimeout(partyPushDebounceRef.current);
+        partyPushDebounceRef.current = setTimeout(() => {
+            const p = plyrRef.current;
+            const u = localStorage.getItem('user');
+            const t = localStorage.getItem('token');
+            if (!u || !t || !p) return;
+            if (applyingRemotePartyRef.current) return;
+            if (!isFinite(p.duration) || p.duration === 0) return;
+
+            const state = {
+                position: p.currentTime ?? 0,
+                paused: !!p.paused,
                 season: parseInt(season) || 1,
                 episode: parseInt(episode) || 1,
                 ...extra,
+            };
+
+            // Dedupe: skip if the change is too small to matter.
+            const prev = partyLastSentRef.current;
+            if (prev
+                && prev.paused === state.paused
+                && prev.season === state.season
+                && prev.episode === state.episode
+                && Math.abs(prev.position - state.position) < 0.8) {
+                return;
             }
-        }).catch(() => {});
+            partyLastSentRef.current = state;
+            axios.post('https://goldenhind.tech/party/update', {
+                user: u, token: t, roomId, state
+            }).catch(() => {});
+        }, 120);
     };
 
     applyPartyStateRef.current = (state) => {
@@ -191,10 +219,15 @@ export default function App() {
         // first message right after joining, before the HLS source has loaded).
         pendingPartyStateRef.current = state;
 
-        // Episode/season sync runs immediately; it drives lmUrl re-fetch which
-        // sets up a new Plyr instance, and Plyr's MANIFEST_PARSED callback
-        // re-runs this function with the stashed state to do the seek/play.
+        // Lock out pushes while we mutate the player so the resulting
+        // play/pause/seeked events don't bounce back to peers. We also extend
+        // the lock past the actual mutation since Safari can buffer for >500ms
+        // before firing the canonical events.
         applyingRemotePartyRef.current = true;
+
+        // Episode/season sync runs immediately; it drives lmUrl re-fetch which
+        // sets up a new Plyr instance, and Plyr's loadedmetadata callback
+        // re-runs this function with the stashed state to do the seek/play.
         if (id.slice(0, 1) === 't' && state.season != null && state.episode != null) {
             const s = parseInt(state.season);
             const e = parseInt(state.episode);
@@ -203,14 +236,17 @@ export default function App() {
                 setEpisode(e);
                 localStorage.setItem('season' + id, s);
                 localStorage.setItem('episode' + id, e);
+                // Suppress pushes longer — source-change reinit takes a while
+                partySettleUntilRef.current = Date.now() + 4000;
+                setTimeout(() => { applyingRemotePartyRef.current = false; }, 4000);
+                return;
             }
         }
 
         const p = plyrRef.current;
-        if (!p || !isFinite(p.duration)) {
-            // Player not ready — leave pendingPartyStateRef set; initPlyr will retry.
-            // Reset the flag a bit later so user actions aren't permanently squelched.
-            setTimeout(() => { applyingRemotePartyRef.current = false; }, 800);
+        if (!p || !isFinite(p.duration) || p.duration === 0) {
+            // Player not ready — leave pendingPartyStateRef set; canplay/loadedmetadata will retry.
+            setTimeout(() => { applyingRemotePartyRef.current = false; }, 1200);
             return;
         }
 
@@ -223,8 +259,20 @@ export default function App() {
             p.play().catch(() => {});
         }
 
+        // Seed lastSent so the upcoming play/pause/seeked events we just
+        // synthesised compare equal and the debounce drops them.
+        partyLastSentRef.current = {
+            position: p.currentTime,
+            paused: !!p.paused,
+            season: parseInt(season) || 1,
+            episode: parseInt(episode) || 1,
+        };
+
         pendingPartyStateRef.current = null;
-        setTimeout(() => { applyingRemotePartyRef.current = false; }, 500);
+        // Hold the lock long enough to absorb buffering-induced pause/play
+        // bounces on the receiving side.
+        partySettleUntilRef.current = Date.now() + 1500;
+        setTimeout(() => { applyingRemotePartyRef.current = false; }, 1500);
     };
 
     // SSE subscription — re-opened whenever the room id changes.
@@ -480,6 +528,9 @@ export default function App() {
 
         const container = lmContainerRef.current;
         container.innerHTML = ''; // wipe previous Plyr wrapper completely
+        // Suppress party pushes during the source-change reinit — the tearing-
+        // down old player + buffering new one fires spurious pause/play events.
+        partySettleUntilRef.current = Date.now() + 2500;
 
         // Create a fresh <video> element — React never touches this node
         const video = document.createElement('video');

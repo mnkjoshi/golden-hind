@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import Topbar from '../components/topbar';
@@ -8,8 +8,22 @@ const API = 'https://goldenhind.tech';
 export default function Person() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
+
+    // Carry the backdrop of the title the user clicked away from so the
+    // person page feels rooted in the work that led them there (e.g. click
+    // RDJ from Iron Man → Iron Man's backdrop sits behind his bio). Falls
+    // back to a sessionStorage stash so a refresh doesn't go blank.
+    const incomingBackdrop = location.state?.fromBackdrop || null;
+    const [bgBackdrop, setBgBackdrop] = useState(() => {
+        if (incomingBackdrop) {
+            sessionStorage.setItem('personBg_' + id, incomingBackdrop);
+            return incomingBackdrop;
+        }
+        return sessionStorage.getItem('personBg_' + id) || null;
+    });
 
     const [person, setPerson] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -25,6 +39,13 @@ export default function Person() {
             .catch(() => {})
             .finally(() => setLoading(false));
     }, [id]);
+
+    useEffect(() => {
+        if (incomingBackdrop) {
+            sessionStorage.setItem('personBg_' + id, incomingBackdrop);
+            setBgBackdrop(incomingBackdrop);
+        }
+    }, [incomingBackdrop, id]);
 
     const openCredit = (credit) => {
         const prefix = credit.media_type === 'tv' ? 't' : 'm';
@@ -54,6 +75,12 @@ export default function Person() {
     if (loading) {
         return (
             <div className="person-page">
+                {bgBackdrop && (
+                    <div className="person-backdrop-layer">
+                        <img className="person-backdrop" src={`https://image.tmdb.org/t/p/original/${bgBackdrop}`} alt="" />
+                        <div className="person-backdrop-scrim" />
+                    </div>
+                )}
                 <Topbar />
                 <div className="person-loading"><div className="person-spinner"/></div>
             </div>
@@ -63,6 +90,12 @@ export default function Person() {
     if (!person) {
         return (
             <div className="person-page">
+                {bgBackdrop && (
+                    <div className="person-backdrop-layer">
+                        <img className="person-backdrop" src={`https://image.tmdb.org/t/p/original/${bgBackdrop}`} alt="" />
+                        <div className="person-backdrop-scrim" />
+                    </div>
+                )}
                 <Topbar />
                 <div className="person-empty">Person not found.</div>
             </div>
@@ -71,6 +104,12 @@ export default function Person() {
 
     return (
         <div className="person-page">
+            {bgBackdrop && (
+                <div className="person-backdrop-layer">
+                    <img className="person-backdrop" src={`https://image.tmdb.org/t/p/original/${bgBackdrop}`} alt="" />
+                    <div className="person-backdrop-scrim" />
+                </div>
+            )}
             <Topbar />
             <div className="person-content">
                 <div className="person-header">
