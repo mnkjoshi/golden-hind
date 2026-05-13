@@ -169,13 +169,13 @@ export default function App() {
     // Refs let Plyr listeners (registered inside the lmUrl effect) always call
     // the latest version of these functions without re-registration.
     // Push our local state to the party. Debounced so transient play→pause
-    // bounces during buffering (Safari especially) collapse to a single send,
-    // and we read the *settled* paused state at fire time rather than
-    // trusting whichever event last triggered us. Identical-to-last-sent
-    // pushes are dropped so we don't echo-loop with peers, and pushes during
-    // the source-change settle window are ignored entirely (Plyr fires a
-    // pause when tearing down the old video).
-    pushPartyUpdateRef.current = (extra = {}) => {
+    // bounces during buffering (Safari especially) collapse to one send. We
+    // intentionally don't trust an `extra` from the triggering event — by the
+    // time the debounce fires the video has settled and `p.paused` reflects
+    // the user's actual intent, so the LAST event in any spurious cycle
+    // doesn't win. Identical-to-last-sent pushes are dropped to avoid echoes,
+    // and pushes during the source-change settle window are ignored entirely.
+    pushPartyUpdateRef.current = () => {
         const roomId = partyRoomIdRef.current;
         if (!roomId) return;
         if (applyingRemotePartyRef.current) return;
@@ -187,6 +187,7 @@ export default function App() {
             const t = localStorage.getItem('token');
             if (!u || !t || !p) return;
             if (applyingRemotePartyRef.current) return;
+            if (Date.now() < partySettleUntilRef.current) return;
             if (!isFinite(p.duration) || p.duration === 0) return;
 
             const state = {
@@ -194,10 +195,8 @@ export default function App() {
                 paused: !!p.paused,
                 season: parseInt(season) || 1,
                 episode: parseInt(episode) || 1,
-                ...extra,
             };
 
-            // Dedupe: skip if the change is too small to matter.
             const prev = partyLastSentRef.current;
             if (prev
                 && prev.paused === state.paused
@@ -210,7 +209,7 @@ export default function App() {
             axios.post('https://goldenhind.tech/party/update', {
                 user: u, token: t, roomId, state
             }).catch(() => {});
-        }, 120);
+        }, 180);
     };
 
     applyPartyStateRef.current = (state) => {
@@ -665,18 +664,29 @@ export default function App() {
             plyrRef.current = player;
 
             // Watch party: push local play/pause/seek to peers and apply any
-            // pending remote state that arrived before Plyr was ready.
-            player.on('play', () => pushPartyUpdateRef.current?.({ paused: false }));
-            player.on('pause', () => pushPartyUpdateRef.current?.({ paused: true }));
+            // pending remote state that arrived before Plyr was ready. The
+            // push reads the settled p.paused at debounce time, so transient
+            // play↔pause cycles during buffering collapse correctly.
+            player.on('play', () => pushPartyUpdateRef.current?.());
+            player.on('pause', () => pushPartyUpdateRef.current?.());
             player.on('seeked', () => pushPartyUpdateRef.current?.());
-            // Retry pending party state once playback metadata is available
+            // Retry pending party state once playback metadata is available.
+            // We hook several events so whichever fires first (or last after
+            // any localStorage-restore handler) re-applies the host's state.
+            // The 250ms setTimeout defers past other once-canplay handlers
+            // that may set currentTime, ensuring the party seek wins.
             const retryParty = () => {
-                if (pendingPartyStateRef.current) {
-                    applyPartyStateRef.current?.(pendingPartyStateRef.current);
-                }
+                if (!pendingPartyStateRef.current) return;
+                applyPartyStateRef.current?.(pendingPartyStateRef.current);
+                setTimeout(() => {
+                    if (pendingPartyStateRef.current) {
+                        applyPartyStateRef.current?.(pendingPartyStateRef.current);
+                    }
+                }, 250);
             };
             player.on('loadedmetadata', retryParty);
             player.on('canplay', retryParty);
+            player.on('playing', retryParty);
 
             // Skip-overlay autohide.
             // Plyr forces controls visible via :hover CSS, so its controlshidden
@@ -725,8 +735,10 @@ export default function App() {
                 inPlayerCastBtnRef.current = castBtn;
             }
 
-            // Restore playback position (skip if < 5s to avoid replaying a fresh start)
-            if (savedPos > 5) {
+            // Restore playback position (skip if < 5s to avoid replaying a fresh start).
+            // Skipped entirely when in a watch party — the party's state is the
+            // authority and applying both fights over `currentTime` on canplay.
+            if (savedPos > 5 && !partyRoomIdRef.current) {
                 video.addEventListener('canplay', () => { video.currentTime = savedPos; }, { once: true });
             }
 

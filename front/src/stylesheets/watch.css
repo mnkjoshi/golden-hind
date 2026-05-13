@@ -1101,7 +1101,9 @@ p {
 /* ── Watch party banner + modal ─────────────────────────────────────────── */
 .party-banner {
     position: fixed;
-    top: 70px;
+    /* Sit just under the topbar, which itself is offset by the safe-area
+       inset in PWA / standalone mode. */
+    top: calc(70px + env(safe-area-inset-top, 0px) + 8px);
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -1359,7 +1361,7 @@ p {
 
 @media (max-width: 600px) {
     .party-banner {
-        top: 64px;
+        top: calc(64px + env(safe-area-inset-top, 0px) + 6px);
         font-size: 12px;
         padding: 6px 10px 6px 12px;
         gap: 10px;
