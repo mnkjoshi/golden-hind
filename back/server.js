@@ -1312,14 +1312,17 @@ app.post('/party/create', async (request, response) => {
 app.post('/party/update', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    const { user, token, roomId, state } = request.body;
+    const { user, token, roomId, state, clientId } = request.body;
     if (!await Authenticate(user, token)) return response.status(202).send("UNV");
     if (!roomId || !state || typeof state !== 'object') return response.status(400).json({ error: 'roomId + state required' });
     try {
         const db = admin.database();
         // Only allow whitelisted keys — never let clients write actor/host/lastUpdate directly
         const allowed = ['position', 'paused', 'season', 'episode', 'contentId'];
-        const patch = { actor: user, lastUpdate: Date.now() };
+        // The actor is the unique-per-tab clientId when the client sends one
+        // (so the SSE echo filter works even with two tabs under one login).
+        // Falls back to the username if the client is on an old build.
+        const patch = { actor: clientId || user, lastUpdate: Date.now() };
         for (const k of allowed) if (k in state) patch[k] = state[k];
         await db.ref(`parties/${roomId}`).update(patch);
         response.status(200).json({ ok: true });
@@ -1349,7 +1352,7 @@ app.post('/party/info', async (request, response) => {
 // Drops echoes back to the same actor that sent them so the originator doesn't
 // fight its own updates.
 app.get('/party/stream', async (request, response) => {
-    const { roomId, user, token } = request.query;
+    const { roomId, user, token, clientId } = request.query;
     if (!await Authenticate(user, token)) return response.status(401).end();
     if (!roomId) return response.status(400).end();
 
@@ -1360,18 +1363,25 @@ app.get('/party/stream', async (request, response) => {
     response.setHeader('Access-Control-Allow-Origin', '*');
     response.flushHeaders?.();
 
+    // Prime the stream immediately so the client's onopen fires fast and so
+    // any reverse-proxy buffer doesn't sit on an empty body for 30s.
+    try { response.write(`: connected\n\n`); } catch {}
+
     const heartbeat = setInterval(() => { try { response.write(':\n\n'); } catch {} }, 25000);
 
     const db = admin.database();
     const ref = db.ref(`parties/${roomId}`);
+    // We filter echoes by the per-tab clientId when present (works correctly
+    // with multiple tabs on one user). Falls back to the username for older
+    // clients. If neither matches, the update is broadcast.
+    const selfActor = clientId || user;
     const cb = (snap) => {
         const val = snap.val();
         if (!val) {
             try { response.write(`event: end\ndata: {}\n\n`); } catch {}
             return;
         }
-        // Don't echo a user's own updates back at them
-        if (val.actor === user) return;
+        if (val.actor === selfActor) return;
         try { response.write(`data: ${JSON.stringify(val)}\n\n`); } catch {}
     };
     ref.on('value', cb);

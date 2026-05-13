@@ -100,12 +100,14 @@ export default function App() {
     // Refs mirror the state so closures inside Plyr listeners always read the latest.
     let location = useLocation();
     const initialPartyRoomId = new URLSearchParams(location.search).get('party') || null;
+    const partyDebugEnabled = new URLSearchParams(location.search).has('partydebug');
     const [partyRoomId, setPartyRoomId] = useState(initialPartyRoomId);
     const [partyStatus, setPartyStatus] = useState(initialPartyRoomId ? 'connecting' : 'idle');
     const [partyModalOpen, setPartyModalOpen] = useState(false);
     const [partyJoinInput, setPartyJoinInput] = useState('');
     const [partyJoinError, setPartyJoinError] = useState('');
     const [partyLinkCopied, setPartyLinkCopied] = useState(false);
+    const [partyDebugLog, setPartyDebugLog] = useState([]);
     const partyRoomIdRef = useRef(initialPartyRoomId);
     const applyingRemotePartyRef = useRef(false);
     const partySourceRef = useRef(null);
@@ -115,7 +117,23 @@ export default function App() {
     const partyPushDebounceRef = useRef(null);
     const partyLastSentRef = useRef(null);
     const partySettleUntilRef = useRef(0);
+    // A per-tab UUID — used as the `actor` on every push so server-side echo
+    // filtering works even when both peers are signed in as the same user
+    // (useful for testing in two tabs / two browsers on one account).
+    const partyClientIdRef = useRef(
+        (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : Math.random().toString(36).slice(2) + Date.now()
+    );
     useEffect(() => { partyRoomIdRef.current = partyRoomId; }, [partyRoomId]);
+
+    const partyLog = (...args) => {
+        const line = `${new Date().toLocaleTimeString()} ${args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')}`;
+        if (partyDebugEnabled) {
+            console.log('[party]', ...args);
+            setPartyDebugLog(prev => [line, ...prev].slice(0, 30));
+        }
+    };
 
     const navigate = useNavigate();
     const subTraceEnabled = new URLSearchParams(location.search).has('subtrace');
@@ -178,8 +196,8 @@ export default function App() {
     pushPartyUpdateRef.current = () => {
         const roomId = partyRoomIdRef.current;
         if (!roomId) return;
-        if (applyingRemotePartyRef.current) return;
-        if (Date.now() < partySettleUntilRef.current) return;
+        if (applyingRemotePartyRef.current) { partyLog('push skipped: applyingRemote'); return; }
+        if (Date.now() < partySettleUntilRef.current) { partyLog('push skipped: settle window'); return; }
         if (partyPushDebounceRef.current) clearTimeout(partyPushDebounceRef.current);
         partyPushDebounceRef.current = setTimeout(() => {
             const p = plyrRef.current;
@@ -203,12 +221,16 @@ export default function App() {
                 && prev.season === state.season
                 && prev.episode === state.episode
                 && Math.abs(prev.position - state.position) < 0.8) {
+                partyLog('push deduped', state);
                 return;
             }
             partyLastSentRef.current = state;
+            partyLog('push', state);
             axios.post('https://goldenhind.tech/party/update', {
-                user: u, token: t, roomId, state
-            }).catch(() => {});
+                user: u, token: t, roomId, state,
+                clientId: partyClientIdRef.current,
+            }).then(() => partyLog('push ok'))
+              .catch(e => partyLog('push fail', e.message || 'err'));
         }, 180);
     };
 
@@ -274,7 +296,9 @@ export default function App() {
         setTimeout(() => { applyingRemotePartyRef.current = false; }, 1500);
     };
 
-    // SSE subscription — re-opened whenever the room id changes.
+    // SSE subscription — re-opened whenever the room id changes. Includes the
+    // per-tab clientId so the server can filter out the originator's own
+    // updates (works even with two tabs under one username).
     useEffect(() => {
         if (!partyRoomId) {
             setPartyStatus('idle');
@@ -283,28 +307,61 @@ export default function App() {
         const u = localStorage.getItem('user');
         const t = localStorage.getItem('token');
         if (!u || !t) return;
-        const url = `https://goldenhind.tech/party/stream?roomId=${encodeURIComponent(partyRoomId)}&user=${encodeURIComponent(u)}&token=${encodeURIComponent(t)}`;
-        const es = new EventSource(url);
-        partySourceRef.current = es;
-        setPartyStatus('connecting');
-        es.onopen = () => setPartyStatus('connected');
-        es.onerror = () => setPartyStatus('error');
-        es.onmessage = (ev) => {
-            try {
-                const state = JSON.parse(ev.data);
-                applyPartyStateRef.current?.(state);
-            } catch {}
+        let es = null;
+        let reconnectTimer = null;
+        let closed = false;
+
+        const connect = () => {
+            const url = `https://goldenhind.tech/party/stream`
+                + `?roomId=${encodeURIComponent(partyRoomId)}`
+                + `&user=${encodeURIComponent(u)}`
+                + `&token=${encodeURIComponent(t)}`
+                + `&clientId=${encodeURIComponent(partyClientIdRef.current)}`;
+            partyLog('SSE connect', url);
+            es = new EventSource(url);
+            partySourceRef.current = es;
+            setPartyStatus('connecting');
+            es.onopen = () => { partyLog('SSE open'); setPartyStatus('connected'); };
+            es.onerror = (e) => {
+                partyLog('SSE error', es.readyState);
+                setPartyStatus('error');
+                // Browsers will auto-reconnect EventSource on transient errors,
+                // but if the server returned 4xx, readyState=CLOSED and we have
+                // to recreate. Retry every 3s.
+                if (es.readyState === EventSource.CLOSED && !closed) {
+                    try { es.close(); } catch {}
+                    if (reconnectTimer) clearTimeout(reconnectTimer);
+                    reconnectTimer = setTimeout(connect, 3000);
+                }
+            };
+            es.onmessage = (ev) => {
+                try {
+                    const state = JSON.parse(ev.data);
+                    partyLog('recv', { actor: state.actor, paused: state.paused, position: state.position, s: state.season, e: state.episode });
+                    applyPartyStateRef.current?.(state);
+                } catch (err) {
+                    partyLog('parse fail', err.message);
+                }
+            };
+            es.addEventListener('end', () => {
+                partyLog('SSE end (room deleted)');
+                closed = true;
+                setPartyStatus('idle');
+                setPartyRoomId(null);
+                const params = new URLSearchParams(window.location.search);
+                params.delete('party');
+                const next = window.location.pathname + (params.toString() ? `?${params}` : '');
+                window.history.replaceState(null, '', next);
+            });
         };
-        es.addEventListener('end', () => {
-            setPartyStatus('idle');
-            setPartyRoomId(null);
-            // Drop ?party= from the URL so a refresh doesn't re-join a dead room
-            const params = new URLSearchParams(window.location.search);
-            params.delete('party');
-            const next = window.location.pathname + (params.toString() ? `?${params}` : '');
-            window.history.replaceState(null, '', next);
-        });
-        return () => { try { es.close(); } catch {} partySourceRef.current = null; };
+
+        connect();
+        return () => {
+            closed = true;
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            try { es?.close(); } catch {}
+            partySourceRef.current = null;
+        };
     }, [partyRoomId]);
 
     const startWatchParty = async () => {
@@ -1791,6 +1848,34 @@ export default function App() {
                             </>
                         )}
                     </div>
+                </div>
+            )}
+            {partyDebugEnabled && (
+                <div style={{
+                    position: 'fixed',
+                    left: 8,
+                    top: 8,
+                    width: 380,
+                    maxHeight: '60vh',
+                    overflow: 'auto',
+                    zIndex: 99998,
+                    background: 'rgba(0,0,0,0.86)',
+                    color: '#80c0ff',
+                    border: '1px solid rgba(63,163,255,0.45)',
+                    borderRadius: 8,
+                    padding: 10,
+                    fontSize: 11,
+                    lineHeight: 1.35,
+                    fontFamily: 'monospace',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
+                }}>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                        party debug · room={partyRoomId || '-'} · status={partyStatus} · clientId={partyClientIdRef.current.slice(0, 8)}…
+                    </div>
+                    {partyDebugLog.length === 0
+                        ? <div style={{ color: '#888' }}>(no events yet)</div>
+                        : partyDebugLog.join('\n')}
                 </div>
             )}
             {subTraceEnabled && subtitleDebugOverlay.length > 0 && (
