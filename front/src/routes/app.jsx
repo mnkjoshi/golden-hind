@@ -66,6 +66,10 @@ export default function App() {
     const [recentRecsLoading, setRecentRecsLoading] = useState(false)
     const [recentlyReviewed, setRecentlyReviewed] = useState(null)
     const [recentlyReviewedLoading, setRecentlyReviewedLoading] = useState(false)
+    // Bottom-center pill shown the first time fresh recommendations arrive in
+    // a session. Dismissed by scrolling, clicking the pill, or after 10s.
+    const [showNewRecsToast, setShowNewRecsToast] = useState(false)
+    const newRecsToastTimerRef = useRef(null)
     const [trailerKey, setTrailerKey] = useState(null)
     const [trailerLoading, setTrailerLoading] = useState(false)
     const [activeGenre, setActiveGenre] = useState(null)
@@ -264,10 +268,11 @@ export default function App() {
                         .then(r => {
                             const data = Array.isArray(r.data) ? r.data : [];
                             setLifetimeRecs(data);
-                            // Only cache non-empty results so a bad response never poisons the cache
                             if (data.length > 0) {
                                 localStorage.setItem('ghLifetimeRecs_v2', JSON.stringify(data));
                                 localStorage.setItem('ghLifetimeRecsTime_v2', now.toString());
+                                // Fresh recs arrived → nudge the user to scroll down
+                                setShowNewRecsToast(true);
                             }
                         })
                         .catch(() => {}) // silently fail — section just won't show
@@ -297,6 +302,7 @@ export default function App() {
                             if (data.length > 0) {
                                 localStorage.setItem('ghRecentRecs_v2', JSON.stringify(data));
                                 localStorage.setItem('ghRecentRecsTime_v2', now.toString());
+                                setShowNewRecsToast(true);
                             }
                         })
                         .catch(() => {})
@@ -312,9 +318,34 @@ export default function App() {
         const christmasTimer = setTimeout(() => {
             setShowChristmas(false);
         }, 30000);
-        
+
         return () => clearTimeout(christmasTimer);
     }, []);
+
+    // "View new recommendations" pill — dismiss after 10s or on first scroll.
+    useEffect(() => {
+        if (!showNewRecsToast) return;
+        if (newRecsToastTimerRef.current) clearTimeout(newRecsToastTimerRef.current);
+        newRecsToastTimerRef.current = setTimeout(() => setShowNewRecsToast(false), 10000);
+        const onScroll = () => {
+            if (window.scrollY > 40) setShowNewRecsToast(false);
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => {
+            if (newRecsToastTimerRef.current) clearTimeout(newRecsToastTimerRef.current);
+            window.removeEventListener('scroll', onScroll);
+        };
+    }, [showNewRecsToast]);
+
+    const scrollToRecommendations = () => {
+        setShowNewRecsToast(false);
+        const el = document.querySelector('.recs-section, [data-section="recommendations"]')
+            || Array.from(document.querySelectorAll('.section-title'))
+                .find(n => /recommend/i.test(n.textContent || ''))
+                ?.closest('.content-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        else window.scrollTo({ top: window.innerHeight * 1.5, behavior: 'smooth' });
+    };
 
     // Fetch latest commit and check if user has seen it
     useEffect(() => {
@@ -760,12 +791,31 @@ export default function App() {
                     </div>
                 </div>
             )}
+
+            {showNewRecsToast && !isLoading && (
+                <button className="new-recs-pill" onClick={scrollToRecommendations} aria-label="View new recommendations">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+                        <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+                    </svg>
+                    <span>New recommendations · scroll down</span>
+                </button>
+            )}
             
-            {/* Loading Indicator */}
+            {/* Loading skeleton — shimmering placeholders mirroring the real
+                layout (hero, then a few card rows) so the page doesn't pop. */}
             {isLoading && (
-                <div className="loading-container">
-                    <div className="loading-spinner"></div>
-                    <p className="loading-text">Loading your content...</p>
+                <div className="home-skeleton">
+                    <div className="skel-hero" />
+                    {[0, 1, 2].map(rowIdx => (
+                        <div className="skel-row" key={rowIdx}>
+                            <div className="skel-row-title" />
+                            <div className="skel-row-cards">
+                                {Array.from({ length: 7 }).map((_, i) => (
+                                    <div className="skel-card" key={i} />
+                                ))}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
             

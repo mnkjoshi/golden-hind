@@ -47,6 +47,8 @@ export default function App() {
     const inPlayerCastBtnRef = useRef(null);
     const skipIdleTimerRef = useRef(null);
     const skipIdleCleanupRef = useRef(null);
+    const watchPlayerRef = useRef(null);
+    const creditsIntervalRef = useRef(null);
 
     const [upNextInfo, setUpNextInfo] = useState(null); // { targetEpisode, targetSeason }
     const [upNextSeconds, setUpNextSeconds] = useState(5);
@@ -746,6 +748,53 @@ export default function App() {
             });
             plyrRef.current = player;
 
+            // ── Heuristic title-screen / credits detector ─────────────────
+            // Samples a small offscreen canvas every 2s and triggers up-next
+            // early when the frame goes dark for 8s+ in the last 25% of the
+            // episode — typical credits roll. Cheap (32×18 pixels) and only
+            // armed for TV episodes with a known next-up.
+            if (type === 'tv') {
+                const creditsCanvas = document.createElement('canvas');
+                creditsCanvas.width = 32;
+                creditsCanvas.height = 18;
+                const creditsCtx = creditsCanvas.getContext('2d', { willReadFrequently: true });
+                let darkCount = 0;
+                let detectorTainted = false;
+                if (creditsIntervalRef.current) clearInterval(creditsIntervalRef.current);
+                creditsIntervalRef.current = setInterval(() => {
+                    if (detectorTainted) return;
+                    if (upNextInfoRef.current) { darkCount = 0; return; }
+                    if (!video || video.readyState < 2 || !isFinite(video.duration) || video.duration === 0) return;
+                    const pct = video.currentTime / video.duration;
+                    if (pct < 0.75) { darkCount = 0; return; }
+                    const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
+                    if (an !== 1) return;
+                    if (!(parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe))) return;
+                    try {
+                        creditsCtx.drawImage(video, 0, 0, 32, 18);
+                        const data = creditsCtx.getImageData(0, 0, 32, 18).data;
+                        let sum = 0;
+                        const pixels = data.length / 4;
+                        for (let i = 0; i < data.length; i += 4) {
+                            sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                        }
+                        const mean = sum / pixels;
+                        if (mean < 50) darkCount++;
+                        else darkCount = Math.max(0, darkCount - 1);
+                        if (darkCount >= 4) {
+                            darkCount = 0;
+                            const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
+                            const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
+                            triggerUpNext(nextEp, nextSe);
+                        }
+                    } catch {
+                        // Canvas got tainted (CORS mismatch). Bail — the
+                        // timestamp-based trigger still works.
+                        detectorTainted = true;
+                    }
+                }, 2000);
+            }
+
             // Watch party: push local play/pause/seek to peers and apply any
             // pending remote state that arrived before Plyr was ready. The
             // push reads the settled p.paused at debounce time, so transient
@@ -772,10 +821,13 @@ export default function App() {
             player.on('playing', retryParty);
 
             // Skip-overlay autohide.
-            // Plyr forces controls visible via :hover CSS, so its controlshidden
-            // event never fires while the cursor is over the player — even if
-            // it's idle. We run our own pointer-idle timer so the back/forward
-            // buttons fade after ~3s of stillness regardless of Plyr's state.
+            // The listener has to be on the common ancestor of both the video
+            // container AND the .lm-skip-overlay (they're siblings under
+            // .watch-player). If we attach to the video container alone,
+            // mousemove from the skip buttons doesn't bubble there, the timer
+            // expires, pointer-events drops off the buttons mid-hover, and
+            // the cursor oscillates between button and the now-invisible
+            // overlay — flicker loop + missed clicks.
             setControlsVisible(true);
             const refreshSkipIdle = () => {
                 setControlsVisible(true);
@@ -786,16 +838,17 @@ export default function App() {
                 if (skipIdleTimerRef.current) clearTimeout(skipIdleTimerRef.current);
                 setControlsVisible(false);
             };
-            container.addEventListener('mousemove', refreshSkipIdle);
-            container.addEventListener('mouseenter', refreshSkipIdle);
-            container.addEventListener('mouseleave', onPointerLeavePlayer);
+            const listenTarget = watchPlayerRef.current || container;
+            listenTarget.addEventListener('mousemove', refreshSkipIdle);
+            listenTarget.addEventListener('mouseenter', refreshSkipIdle);
+            listenTarget.addEventListener('mouseleave', onPointerLeavePlayer);
             player.on('controlsshown', refreshSkipIdle);
             skipIdleCleanupRef.current = () => {
                 if (skipIdleTimerRef.current) clearTimeout(skipIdleTimerRef.current);
                 skipIdleTimerRef.current = null;
-                container.removeEventListener('mousemove', refreshSkipIdle);
-                container.removeEventListener('mouseenter', refreshSkipIdle);
-                container.removeEventListener('mouseleave', onPointerLeavePlayer);
+                listenTarget.removeEventListener('mousemove', refreshSkipIdle);
+                listenTarget.removeEventListener('mouseenter', refreshSkipIdle);
+                listenTarget.removeEventListener('mouseleave', onPointerLeavePlayer);
             };
             refreshSkipIdle();
 
@@ -928,6 +981,7 @@ export default function App() {
             }
             video.removeEventListener('webkitcurrentplaybacktargetiswirelesschanged', handleAirplayChange);
             if (skipIdleCleanupRef.current) { skipIdleCleanupRef.current(); skipIdleCleanupRef.current = null; }
+            if (creditsIntervalRef.current) { clearInterval(creditsIntervalRef.current); creditsIntervalRef.current = null; }
             // Don't reset cast state to false — Cast SDK session may still be active
             // independently of this <video> element. The CAST_STATE_CHANGED listener
             // and the next mount's re-seed handle correctness.
@@ -1043,6 +1097,20 @@ export default function App() {
         upNextInfoRef.current = { targetEpisode, targetSeason };
         setUpNextInfo({ targetEpisode, targetSeason });
         setUpNextSeconds(5);
+        // Start the 5s countdown immediately so the popup auto-advances unless
+        // the user clips it. Works for all providers, not just iframe ones.
+        setUpNextCounting(true);
+        // Refetch metadata for the exact target so the popup always shows the
+        // right title — the [season,episode] useEffect can race with rapid
+        // episode advances and leave nextEpData pointing at the wrong one.
+        if (type === 'tv') {
+            const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+            axios.post('https://goldenhind.tech/eretrieve', {
+                user: u, token: t, series: vidID,
+                season: targetSeason, episode: targetEpisode,
+            }).then(r => setNextEpData({ name: r.data.name, still_path: r.data.still_path }))
+              .catch(() => {});
+        }
     };
 
     const cancelUpNext = () => {
@@ -1605,7 +1673,7 @@ export default function App() {
             <Topbar/>
             <div className= "watch-holder" id= "watch-holder">
                 <div className= "watch-system">
-                <div className= "watch-player">
+                <div className= "watch-player" ref={watchPlayerRef}>
                     {parseInt(provider) === 1 ? (
                         <>
                             {/* Container is always mounted so Plyr always has a live DOM node.
