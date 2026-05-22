@@ -41,7 +41,29 @@ const POPULAR_GENRES = [
     { id: 53, name: 'Thriller' }, { id: 16, name: 'Animation' }, { id: 80, name: 'Crime' },
 ];
 
-export default function App() {  
+// Thin progress strip rendered at the bottom of any card whose item has a
+// saved watch percentage in localStorage. Source of truth is watch.jsx which
+// writes `playbackPct_<id>` every 5s while the HLS player is running.
+//
+// Uses media_type when present (set by GetInfo on the server) and falls back
+// to the number_of_episodes heuristic for raw TMDB trending payloads that
+// don't go through GetInfo.
+function CardProgressBar({ result }) {
+    if (!result || !result.id) return null;
+    const isTv = result.media_type
+        ? result.media_type === 'tv'
+        : result.number_of_episodes != null;
+    const cid = (isTv ? 't' : 'm') + result.id;
+    const pct = parseFloat(localStorage.getItem('playbackPct_' + cid));
+    if (!isFinite(pct) || pct <= 0.01) return null;
+    return (
+        <div className="card-progress" aria-label={`${Math.round(pct * 100)}% watched`}>
+            <div className="card-progress-fill" style={{ width: `${Math.min(100, pct * 100)}%` }} />
+        </div>
+    );
+}
+
+export default function App() {
     let location = useLocation();
     const navigate = useNavigate();
 
@@ -1007,16 +1029,7 @@ export default function App() {
                                             loading="lazy"
                                             decoding="async"
                                         />
-                                        {(() => {
-                                            const cid = (result.number_of_episodes == null ? 'm' : 't') + result.id;
-                                            const pct = parseFloat(localStorage.getItem('playbackPct_' + cid));
-                                            if (!isFinite(pct) || pct <= 0.01) return null;
-                                            return (
-                                                <div className="card-progress" aria-label={`${Math.round(pct * 100)}% watched`}>
-                                                    <div className="card-progress-fill" style={{ width: `${Math.min(100, pct * 100)}%` }} />
-                                                </div>
-                                            );
-                                        })()}
+                                        <CardProgressBar result={result} />
                                         <div className="card-overlay">
                                             <div className="card-info">
                                                 <h3 className="card-title">{result.name || result.title || "Untitled"}</h3>
@@ -1053,6 +1066,81 @@ export default function App() {
                         </div>
                     </div>
                 )}
+
+                {/* My List (watchlist) — empty state */}
+                {myListData !== null && myListData.length === 0 && (
+                    <div className="content-section">
+                        <div className="section-header">
+                            <h2 className="section-title">My List</h2>
+                        </div>
+                        <div className="empty-state">
+                            <span className="empty-state-icon">+</span>
+                            <p className="empty-state-text">Your watchlist is empty.</p>
+                            <button className="empty-state-cta" onClick={() => navigate('/search')}>Browse and add titles</button>
+                        </div>
+                    </div>
+                )}
+
+                {/* My List (watchlist) Section */}
+                {myListData && myListData.length > 0 && (
+                    <div className="content-section">
+                        <div className="section-header">
+                            <h2 className="section-title">My List</h2>
+                            <div className="section-controls">
+                                <button className="section-arrow" onClick={() => { document.getElementById('mylist-row').scrollBy({ left: -300, behavior: 'smooth' }); }}>‹</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('mylist-row').scrollBy({ left: 300, behavior: 'smooth' }); }}>›</button>
+                            </div>
+                        </div>
+                        <div className="content-row" id="mylist-row">
+                            {myListData.filter(result => result && result.id).map((result, index) => (
+                                <div
+                                    key={result.id}
+                                    className={`content-card${expandedCard?.uid === `mylist:${result.id}` ? ' card-expanded' : ''}${isTvSelected('mylist-row', result) ? ' tv-selected' : ''}`}
+                                    data-tv-row="mylist-row"
+                                    data-tv-id={String(result.id)}
+                                    data-tv-index={index}
+                                    style={expandedCard?.uid === `mylist:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
+                                    onClick={(e) => handleCardClick(e, result)}
+                                    onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'mylist'); }}
+                                    onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
+                                >
+                                    {expandedCard?.uid === `mylist:${result.id}` && (
+                                        <div className="card-inline-trailer">
+                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}&mute=1&rel=0&iv_load_policy=3&fs=0`} allow="autoplay; encrypted-media" title="Preview" />
+                                        </div>
+                                    )}
+                                    <div className="card-image-container">
+                                        <img
+                                            className="card-image"
+                                            src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`}
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                        <div className="card-overlay">
+                                            <div className="card-info">
+                                                <h3 className="card-title">{result.name || result.title || "Untitled"}</h3>
+                                                <div className="card-meta">
+                                                    <span className="card-rating">⭐ {result.vote_average}</span>
+                                                    <span className="card-type">{result.number_of_episodes ? "TV" : "Movie"}</span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                className="card-remove-btn"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    removeFromMyList(result.number_of_episodes == null, result.id);
+                                                }}
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
 
                 {/* Based on your Recent Watch History */}
                 {(recentRecsLoading || (recentRecs && recentRecs.length > 0)) && (
@@ -1107,108 +1195,33 @@ export default function App() {
                     </div>
                 )}
 
-                {/* Trending Section */}
-                {trendingData && trendingData.results && (
-                    <div className="content-section">
-                        <div className="section-header">
-                            <h2 className="section-title">Trending Now</h2>
-                            <div className="genre-pills">
-                                <button className={`genre-pill${activeGenre === null ? ' active' : ''}`} onClick={() => setActiveGenre(null)}>All</button>
-                                {POPULAR_GENRES.map(g => (
-                                    <button key={g.id} className={`genre-pill${activeGenre === g.id ? ' active' : ''}`} onClick={() => setActiveGenre(activeGenre === g.id ? null : g.id)}>{g.name}</button>
-                                ))}
-                            </div>
-                            <div className="section-controls">
-                                <button 
-                                    className="section-arrow" 
-                                    onClick={() => {
-                                        const container = document.getElementById('trending-row');
-                                        container.scrollBy({ left: -300, behavior: 'smooth' });
-                                    }}
-                                >
-                                    ‹
-                                </button>
-                                <button 
-                                    className="section-arrow" 
-                                    onClick={() => {
-                                        const container = document.getElementById('trending-row');
-                                        container.scrollBy({ left: 300, behavior: 'smooth' });
-                                    }}
-                                >
-                                    ›
-                                </button>
-                            </div>
-                        </div>
-                        <div className="content-row" id="trending-row">
-                            {trendingData && trendingData.results && trendingData.results
-                                .filter(result => result && result.id)
-                                .filter(result => activeGenre === null || (result.genre_ids && result.genre_ids.includes(activeGenre)))
-                                .map((result, index) => (
-                                <div
-                                    key={result.id}
-                                    className={`content-card${expandedCard?.uid === `trending:${result.id}` ? ' card-expanded' : ''}${isTvSelected('trending-row', result) ? ' tv-selected' : ''}`}
-                                    data-tv-row="trending-row"
-                                    data-tv-id={String(result.id)}
-                                    data-tv-index={index}
-                                    style={expandedCard?.uid === `trending:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
-                                    onClick={(e) => handleCardClick(e, result)}
-                                    onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'trending'); }}
-                                    onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
-                                >
-                                    {expandedCard?.uid === `trending:${result.id}` && (
-                                        <div className="card-inline-trailer">
-                                            <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}&mute=1&rel=0&iv_load_policy=3&fs=0`} allow="autoplay; encrypted-media" title="Preview" />
-                                        </div>
-                                    )}
-                                    <div className={`card-image-container${isTvSelected('trending-row', result) ? ' tv-selected' : ''}`}>
-                                        <img
-                                            className="card-image"
-                                            src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`}
-                                            loading="lazy"
-                                            decoding="async"
-                                        />
-                                        <div className="card-overlay">
-                                            <div className="card-info">
-                                                <h3 className="card-title">{result.name || result.title || "Untitled"}</h3>
-                                                <div className="card-meta">
-                                                    <span className="card-rating">⭐ {result.vote_average}</span>
-                                                    <span className="card-type">{result.media_type === "movie" ? "Movie" : "TV"}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
 
-                {/* Recently Reviewed by Users */}
-                {(recentlyReviewedLoading || (recentlyReviewed && recentlyReviewed.length > 0)) && (
+                {/* Recommendations */}
+                {(lifetimeRecsLoading || (lifetimeRecs && lifetimeRecs.length > 0)) && (
                     <div className="content-section">
                         <div className="section-header">
-                            <h2 className="section-title">Recently Reviewed by Users</h2>
+                            <h2 className="section-title rec-section-title">Recommendations</h2>
                             <div className="section-controls">
-                                <button className="section-arrow" onClick={() => { document.getElementById('recently-reviewed-row').scrollBy({ left: -320, behavior: 'smooth' }); }}>‹</button>
-                                <button className="section-arrow" onClick={() => { document.getElementById('recently-reviewed-row').scrollBy({ left: 320, behavior: 'smooth' }); }}>›</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('lifetime-recs-row').scrollBy({ left: -320, behavior: 'smooth' }); }}>‹</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('lifetime-recs-row').scrollBy({ left: 320, behavior: 'smooth' }); }}>›</button>
                             </div>
                         </div>
-                        <div className="content-row" id="recently-reviewed-row">
-                            {recentlyReviewedLoading
+                        <div className="content-row" id="lifetime-recs-row">
+                            {lifetimeRecsLoading
                                 ? [...Array(5)].map((_, i) => (
                                     <div key={i} className="content-card rec-wide-card">
                                         <div className="card-image-container rec-skeleton-img"></div>
                                     </div>
                                 ))
-                                : recentlyReviewed.filter(r => r && r.id).map((result, index) => (
+                                : lifetimeRecs.filter(r => r && r.id).map((result, index) => (
                                     <div
                                         key={result.id}
-                                        className={`content-card rec-wide-card${isTvSelected('recently-reviewed-row', result) ? ' tv-selected' : ''}`}
-                                        data-tv-row="recently-reviewed-row"
+                                        className={`content-card rec-wide-card${isTvSelected('lifetime-recs-row', result) ? ' tv-selected' : ''}`}
+                                        data-tv-row="lifetime-recs-row"
                                         data-tv-id={String(result.id)}
                                         data-tv-index={index}
                                         onClick={(e) => handleCardClick(e, result)}
-                                        onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'recently-reviewed'); }}
+                                        onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'wide'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >
                                         <div className="card-image-container">
@@ -1235,6 +1248,7 @@ export default function App() {
                         </div>
                     </div>
                 )}
+
 
                 {/* Favourites — empty state */}
                 {bookmarkData !== null && bookmarkData.length === 0 && (
@@ -1327,49 +1341,60 @@ export default function App() {
                 )}
 
 
-                {/* My List (watchlist) — empty state */}
-                {myListData !== null && myListData.length === 0 && (
+                {/* Trending Section */}
+                {trendingData && trendingData.results && (
                     <div className="content-section">
                         <div className="section-header">
-                            <h2 className="section-title">My List</h2>
-                        </div>
-                        <div className="empty-state">
-                            <span className="empty-state-icon">+</span>
-                            <p className="empty-state-text">Your watchlist is empty.</p>
-                            <button className="empty-state-cta" onClick={() => navigate('/search')}>Browse and add titles</button>
-                        </div>
-                    </div>
-                )}
-
-                {/* My List (watchlist) Section */}
-                {myListData && myListData.length > 0 && (
-                    <div className="content-section">
-                        <div className="section-header">
-                            <h2 className="section-title">My List</h2>
+                            <h2 className="section-title">Trending Now</h2>
+                            <div className="genre-pills">
+                                <button className={`genre-pill${activeGenre === null ? ' active' : ''}`} onClick={() => setActiveGenre(null)}>All</button>
+                                {POPULAR_GENRES.map(g => (
+                                    <button key={g.id} className={`genre-pill${activeGenre === g.id ? ' active' : ''}`} onClick={() => setActiveGenre(activeGenre === g.id ? null : g.id)}>{g.name}</button>
+                                ))}
+                            </div>
                             <div className="section-controls">
-                                <button className="section-arrow" onClick={() => { document.getElementById('mylist-row').scrollBy({ left: -300, behavior: 'smooth' }); }}>‹</button>
-                                <button className="section-arrow" onClick={() => { document.getElementById('mylist-row').scrollBy({ left: 300, behavior: 'smooth' }); }}>›</button>
+                                <button 
+                                    className="section-arrow" 
+                                    onClick={() => {
+                                        const container = document.getElementById('trending-row');
+                                        container.scrollBy({ left: -300, behavior: 'smooth' });
+                                    }}
+                                >
+                                    ‹
+                                </button>
+                                <button 
+                                    className="section-arrow" 
+                                    onClick={() => {
+                                        const container = document.getElementById('trending-row');
+                                        container.scrollBy({ left: 300, behavior: 'smooth' });
+                                    }}
+                                >
+                                    ›
+                                </button>
                             </div>
                         </div>
-                        <div className="content-row" id="mylist-row">
-                            {myListData.filter(result => result && result.id).map((result, index) => (
+                        <div className="content-row" id="trending-row">
+                            {trendingData && trendingData.results && trendingData.results
+                                .filter(result => result && result.id)
+                                .filter(result => activeGenre === null || (result.genre_ids && result.genre_ids.includes(activeGenre)))
+                                .map((result, index) => (
                                 <div
                                     key={result.id}
-                                    className={`content-card${expandedCard?.uid === `mylist:${result.id}` ? ' card-expanded' : ''}${isTvSelected('mylist-row', result) ? ' tv-selected' : ''}`}
-                                    data-tv-row="mylist-row"
+                                    className={`content-card${expandedCard?.uid === `trending:${result.id}` ? ' card-expanded' : ''}${isTvSelected('trending-row', result) ? ' tv-selected' : ''}`}
+                                    data-tv-row="trending-row"
                                     data-tv-id={String(result.id)}
                                     data-tv-index={index}
-                                    style={expandedCard?.uid === `mylist:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
+                                    style={expandedCard?.uid === `trending:${result.id}` ? { width: expandedCard.expandedWidth, height: expandedCard.cardHeight } : undefined}
                                     onClick={(e) => handleCardClick(e, result)}
-                                    onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'mylist'); }}
+                                    onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, false, 'trending'); }}
                                     onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                 >
-                                    {expandedCard?.uid === `mylist:${result.id}` && (
+                                    {expandedCard?.uid === `trending:${result.id}` && (
                                         <div className="card-inline-trailer">
                                             <iframe src={`https://www.youtube.com/embed/${expandedCard.key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${expandedCard.key}&mute=1&rel=0&iv_load_policy=3&fs=0`} allow="autoplay; encrypted-media" title="Preview" />
                                         </div>
                                     )}
-                                    <div className="card-image-container">
+                                    <div className={`card-image-container${isTvSelected('trending-row', result) ? ' tv-selected' : ''}`}>
                                         <img
                                             className="card-image"
                                             src={`https://image.tmdb.org/t/p/w300/${result.poster_path}`}
@@ -1381,18 +1406,9 @@ export default function App() {
                                                 <h3 className="card-title">{result.name || result.title || "Untitled"}</h3>
                                                 <div className="card-meta">
                                                     <span className="card-rating">⭐ {result.vote_average}</span>
-                                                    <span className="card-type">{result.number_of_episodes ? "TV" : "Movie"}</span>
+                                                    <span className="card-type">{result.media_type === "movie" ? "Movie" : "TV"}</span>
                                                 </div>
                                             </div>
-                                            <button
-                                                className="card-remove-btn"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    removeFromMyList(result.number_of_episodes == null, result.id);
-                                                }}
-                                            >
-                                                Remove
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -1401,32 +1417,33 @@ export default function App() {
                     </div>
                 )}
 
-                {/* Recommendations */}
-                {(lifetimeRecsLoading || (lifetimeRecs && lifetimeRecs.length > 0)) && (
+
+                {/* Recently Reviewed by Users */}
+                {(recentlyReviewedLoading || (recentlyReviewed && recentlyReviewed.length > 0)) && (
                     <div className="content-section">
                         <div className="section-header">
-                            <h2 className="section-title rec-section-title">Recommendations</h2>
+                            <h2 className="section-title">Recently Reviewed by Users</h2>
                             <div className="section-controls">
-                                <button className="section-arrow" onClick={() => { document.getElementById('lifetime-recs-row').scrollBy({ left: -320, behavior: 'smooth' }); }}>‹</button>
-                                <button className="section-arrow" onClick={() => { document.getElementById('lifetime-recs-row').scrollBy({ left: 320, behavior: 'smooth' }); }}>›</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('recently-reviewed-row').scrollBy({ left: -320, behavior: 'smooth' }); }}>‹</button>
+                                <button className="section-arrow" onClick={() => { document.getElementById('recently-reviewed-row').scrollBy({ left: 320, behavior: 'smooth' }); }}>›</button>
                             </div>
                         </div>
-                        <div className="content-row" id="lifetime-recs-row">
-                            {lifetimeRecsLoading
+                        <div className="content-row" id="recently-reviewed-row">
+                            {recentlyReviewedLoading
                                 ? [...Array(5)].map((_, i) => (
                                     <div key={i} className="content-card rec-wide-card">
                                         <div className="card-image-container rec-skeleton-img"></div>
                                     </div>
                                 ))
-                                : lifetimeRecs.filter(r => r && r.id).map((result, index) => (
+                                : recentlyReviewed.filter(r => r && r.id).map((result, index) => (
                                     <div
                                         key={result.id}
-                                        className={`content-card rec-wide-card${isTvSelected('lifetime-recs-row', result) ? ' tv-selected' : ''}`}
-                                        data-tv-row="lifetime-recs-row"
+                                        className={`content-card rec-wide-card${isTvSelected('recently-reviewed-row', result) ? ' tv-selected' : ''}`}
+                                        data-tv-row="recently-reviewed-row"
                                         data-tv-id={String(result.id)}
                                         data-tv-index={index}
                                         onClick={(e) => handleCardClick(e, result)}
-                                        onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'wide'); }}
+                                        onMouseEnter={(e) => { showTooltip(e, result); handleCardEnter(e, result, true, 'recently-reviewed'); }}
                                         onMouseLeave={() => { hideTooltip(); handleCardLeave(); }}
                                     >
                                         <div className="card-image-container">
