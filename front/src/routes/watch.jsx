@@ -129,6 +129,11 @@ export default function App() {
     );
     useEffect(() => { partyRoomIdRef.current = partyRoomId; }, [partyRoomId]);
 
+    // Live readout for the credits/title-screen heuristic. Enabled with
+    // ?creditsdebug — shows brightness, motion, score and taint status.
+    const creditsDebugEnabled = new URLSearchParams(location.search).has('creditsdebug');
+    const [creditsDebug, setCreditsDebug] = useState(null);
+
     const partyLog = (...args) => {
         const line = `${new Date().toLocaleTimeString()} ${args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')}`;
         if (partyDebugEnabled) {
@@ -749,50 +754,78 @@ export default function App() {
             plyrRef.current = player;
 
             // ── Heuristic title-screen / credits detector ─────────────────
-            // Samples a small offscreen canvas every 2s and triggers up-next
-            // early when the frame goes dark for 8s+ in the last 25% of the
-            // episode — typical credits roll. Cheap (32×18 pixels) and only
-            // armed for TV episodes with a known next-up.
+            // Samples a 32×18 offscreen canvas once a second during the last
+            // 20% of a TV episode. A frame counts as "credits-like" if it's
+            // either dark (scrolling credits) OR barely changing from the
+            // previous frame (static end-card / freeze-frame credits). Five
+            // such seconds in a row triggers up-next early. Runs regardless of
+            // the Auto-Next toggle so the popup appears; whether it auto-
+            // advances still respects the user's countdown / cancel.
             if (type === 'tv') {
                 const creditsCanvas = document.createElement('canvas');
                 creditsCanvas.width = 32;
                 creditsCanvas.height = 18;
                 const creditsCtx = creditsCanvas.getContext('2d', { willReadFrequently: true });
-                let darkCount = 0;
+                let score = 0;
+                let prevData = null;
                 let detectorTainted = false;
                 if (creditsIntervalRef.current) clearInterval(creditsIntervalRef.current);
                 creditsIntervalRef.current = setInterval(() => {
-                    if (detectorTainted) return;
-                    if (upNextInfoRef.current) { darkCount = 0; return; }
                     if (!video || video.readyState < 2 || !isFinite(video.duration) || video.duration === 0) return;
                     const pct = video.currentTime / video.duration;
-                    if (pct < 0.75) { darkCount = 0; return; }
                     const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
-                    if (an !== 1) return;
-                    if (!(parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe))) return;
+                    const hasNext = (parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe)) && an === 1;
+
+                    if (detectorTainted) {
+                        if (creditsDebugEnabled) setCreditsDebug({ pct, mean: null, motion: null, score, tainted: true });
+                        return;
+                    }
+
+                    let mean = null, motion = null, creditsLike = false;
                     try {
                         creditsCtx.drawImage(video, 0, 0, 32, 18);
                         const data = creditsCtx.getImageData(0, 0, 32, 18).data;
-                        let sum = 0;
+                        let sum = 0, diff = 0;
                         const pixels = data.length / 4;
                         for (let i = 0; i < data.length; i += 4) {
-                            sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                            const luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                            sum += luma;
+                            if (prevData) {
+                                diff += Math.abs(data[i] - prevData[i])
+                                      + Math.abs(data[i + 1] - prevData[i + 1])
+                                      + Math.abs(data[i + 2] - prevData[i + 2]);
+                            }
                         }
-                        const mean = sum / pixels;
-                        if (mean < 50) darkCount++;
-                        else darkCount = Math.max(0, darkCount - 1);
-                        if (darkCount >= 4) {
-                            darkCount = 0;
-                            const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
-                            const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
-                            triggerUpNext(nextEp, nextSe);
-                        }
+                        mean = sum / pixels;
+                        motion = prevData ? diff / (pixels * 3) : 999;
+                        prevData = data;
+                        // Dark frame OR a near-static scene while still playing.
+                        creditsLike = !video.paused && pct >= 0.80 && (mean < 60 || motion < 3.5);
                     } catch {
-                        // Canvas got tainted (CORS mismatch). Bail — the
-                        // timestamp-based trigger still works.
                         detectorTainted = true;
+                        if (creditsDebugEnabled) setCreditsDebug({ pct, mean: null, motion: null, score, tainted: true });
+                        return;
                     }
-                }, 2000);
+
+                    if (creditsLike && hasNext && !upNextInfoRef.current) score++;
+                    else if (!creditsLike) score = Math.max(0, score - 1);
+
+                    if (creditsDebugEnabled) {
+                        setCreditsDebug({
+                            pct: +pct.toFixed(3),
+                            mean: mean == null ? null : +mean.toFixed(1),
+                            motion: motion == null ? null : +motion.toFixed(2),
+                            score, hasNext, tainted: false,
+                        });
+                    }
+
+                    if (score >= 5 && hasNext && !upNextInfoRef.current) {
+                        score = 0;
+                        const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
+                        const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
+                        triggerUpNext(nextEp, nextSe);
+                    }
+                }, 1000);
             }
 
             // Watch party: push local play/pause/seek to peers and apply any
@@ -1978,6 +2011,38 @@ export default function App() {
                     {partyDebugLog.length === 0
                         ? <div style={{ color: '#888' }}>(no events yet)</div>
                         : partyDebugLog.join('\n')}
+                </div>
+            )}
+            {creditsDebugEnabled && (
+                <div style={{
+                    position: 'fixed',
+                    right: 8,
+                    top: 8,
+                    width: 260,
+                    zIndex: 99998,
+                    background: 'rgba(0,0,0,0.86)',
+                    color: '#ffd27f',
+                    border: '1px solid rgba(255,210,127,0.45)',
+                    borderRadius: 8,
+                    padding: 10,
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    fontFamily: 'monospace',
+                }}>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>credits detector</div>
+                    {!creditsDebug ? (
+                        <div style={{ color: '#888' }}>(waiting for player…)</div>
+                    ) : creditsDebug.tainted ? (
+                        <div style={{ color: '#ff8a8a' }}>canvas TAINTED — pixel detection unavailable (CORS). Timestamp trigger only.</div>
+                    ) : (
+                        <>
+                            <div>pct: {creditsDebug.pct} {creditsDebug.pct >= 0.8 ? '(armed)' : '(waiting ≥0.80)'}</div>
+                            <div>brightness: {creditsDebug.mean} {creditsDebug.mean != null && creditsDebug.mean < 60 ? '← dark' : ''}</div>
+                            <div>motion: {creditsDebug.motion} {creditsDebug.motion != null && creditsDebug.motion < 3.5 ? '← static' : ''}</div>
+                            <div>score: {creditsDebug.score} / 5</div>
+                            <div>hasNext+autoNext: {String(creditsDebug.hasNext)}</div>
+                        </>
+                    )}
                 </div>
             )}
             {subTraceEnabled && subtitleDebugOverlay.length > 0 && (
