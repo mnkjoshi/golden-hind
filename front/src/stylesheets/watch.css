@@ -964,6 +964,16 @@ p {
 }
 
 /* ── Up-next overlay ── */
+/* When portaled into the fullscreen .plyr element, sit above Plyr's controls. */
+.plyr:fullscreen .up-next-overlay,
+.plyr:-webkit-full-screen .up-next-overlay,
+.plyr--fullscreen-active .up-next-overlay,
+.plyr:fullscreen .lm-skip-overlay,
+.plyr:-webkit-full-screen .lm-skip-overlay,
+.plyr--fullscreen-active .lm-skip-overlay {
+    z-index: 2147483000;
+}
+
 .up-next-overlay {
     position: absolute;
     bottom: 64px;

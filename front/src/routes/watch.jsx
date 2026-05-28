@@ -1,6 +1,7 @@
 ﻿import { Outlet, useNavigate, useLocation, useParams } from "react-router-dom";
 import axios from 'axios'
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Hls from 'hls.js';
 import Plyr from 'plyr';
 import 'plyr/dist/plyr.css';
@@ -40,6 +41,10 @@ export default function App() {
     const [lmError, setLmError] = useState(null);
     const [skipFlash, setSkipFlash] = useState(null); // 'forward' | 'back' | null
     const [controlsVisible, setControlsVisible] = useState(true);
+    // When Plyr enters desktop fullscreen it fullscreens its own .plyr element,
+    // so sibling overlays (up-next, skip buttons) disappear. We portal those
+    // overlays into the fullscreen element while it's active.
+    const [fsHost, setFsHost] = useState(null);
     const lmContainerRef = useRef(null);
     const hlsRef = useRef(null);
     const plyrRef = useRef(null);
@@ -773,8 +778,11 @@ export default function App() {
                 creditsIntervalRef.current = setInterval(() => {
                     if (!video || video.readyState < 2 || !isFinite(video.duration) || video.duration === 0) return;
                     const pct = video.currentTime / video.duration;
-                    const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
-                    const hasNext = (parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe)) && an === 1;
+                    const { episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
+                    // Credits detection drives the up-next countdown on its own,
+                    // independent of the Auto Next toggle — once we visually
+                    // detect the title/credits screen we always offer the skip.
+                    const hasNext = parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe);
 
                     if (detectorTainted) {
                         if (creditsDebugEnabled) setCreditsDebug({ pct, mean: null, motion: null, score, tainted: true });
@@ -852,6 +860,16 @@ export default function App() {
             player.on('loadedmetadata', retryParty);
             player.on('canplay', retryParty);
             player.on('playing', retryParty);
+
+            // Portal the up-next / skip overlays into the fullscreen element so
+            // they're visible in desktop fullscreen. iOS native fullscreen uses
+            // the OS video player and can't host HTML overlays — nothing to do
+            // there. Falls back to document.fullscreenElement if Plyr doesn't
+            // expose its container.
+            player.on('enterfullscreen', () => {
+                setFsHost(player.elements?.container || document.fullscreenElement || null);
+            });
+            player.on('exitfullscreen', () => setFsHost(null));
 
             // Skip-overlay autohide.
             // The listener has to be on the common ancestor of both the video
@@ -1015,6 +1033,7 @@ export default function App() {
             video.removeEventListener('webkitcurrentplaybacktargetiswirelesschanged', handleAirplayChange);
             if (skipIdleCleanupRef.current) { skipIdleCleanupRef.current(); skipIdleCleanupRef.current = null; }
             if (creditsIntervalRef.current) { clearInterval(creditsIntervalRef.current); creditsIntervalRef.current = null; }
+            setFsHost(null);
             // Don't reset cast state to false — Cast SDK session may still be active
             // independently of this <video> element. The CAST_STATE_CHANGED listener
             // and the next mount's re-seed handle correctness.
@@ -1727,41 +1746,50 @@ export default function App() {
                                     <p>⚠ {lmError}</p>
                                 </div>
                             )}
-                            <div className={`lm-skip-overlay${controlsVisible ? ' visible' : ''}`}>
-                                <button className="lm-skip-btn lm-skip-back" onClick={handleSkipBack} aria-label="Back 10 seconds">
-                                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-                                    </svg>
-                                    <span className="lm-skip-label">10</span>
-                                </button>
-                                <button className="lm-skip-btn lm-skip-forward" onClick={handleSkipForward} aria-label="Forward 10 seconds">
-                                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style={{transform:'scaleX(-1)'}}>
-                                        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-                                    </svg>
-                                    <span className="lm-skip-label">10</span>
-                                </button>
-                            </div>
-                            {skipFlash && (
-                                <div className={`lm-skip-flash lm-skip-flash-${skipFlash}`}>
-                                    {skipFlash === 'forward' ? '+10s' : '−10s'}
-                                </div>
-                            )}
-                            {upNextInfo && (
-                                <div className="up-next-overlay">
-                                    {nextEpData?.still_path && (
-                                        <img className="up-next-thumb" src={`https://image.tmdb.org/t/p/w300/${nextEpData.still_path}`} alt="" />
-                                    )}
-                                    <div className="up-next-info">
-                                        <span className="up-next-label">Up Next</span>
-                                        {nextEpData?.name && <span className="up-next-ep-name">{nextEpData.name}</span>}
-                                        {upNextCounting && <span className="up-next-text">Auto-playing in {upNextSeconds}s</span>}
-                                    </div>
-                                    <div className="up-next-actions">
-                                        <button className="up-next-play-now" onClick={() => executeUpNextRef.current?.()}>Play Now</button>
-                                        <button className="up-next-cancel" onClick={cancelUpNext}>✕</button>
-                                    </div>
-                                </div>
-                            )}
+                            {(() => {
+                                const overlays = (
+                                    <>
+                                        <div className={`lm-skip-overlay${controlsVisible ? ' visible' : ''}`}>
+                                            <button className="lm-skip-btn lm-skip-back" onClick={handleSkipBack} aria-label="Back 10 seconds">
+                                                <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                                                </svg>
+                                                <span className="lm-skip-label">10</span>
+                                            </button>
+                                            <button className="lm-skip-btn lm-skip-forward" onClick={handleSkipForward} aria-label="Forward 10 seconds">
+                                                <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style={{transform:'scaleX(-1)'}}>
+                                                    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                                                </svg>
+                                                <span className="lm-skip-label">10</span>
+                                            </button>
+                                        </div>
+                                        {skipFlash && (
+                                            <div className={`lm-skip-flash lm-skip-flash-${skipFlash}`}>
+                                                {skipFlash === 'forward' ? '+10s' : '−10s'}
+                                            </div>
+                                        )}
+                                        {upNextInfo && (
+                                            <div className="up-next-overlay">
+                                                {nextEpData?.still_path && (
+                                                    <img className="up-next-thumb" src={`https://image.tmdb.org/t/p/w300/${nextEpData.still_path}`} alt="" />
+                                                )}
+                                                <div className="up-next-info">
+                                                    <span className="up-next-label">Up Next</span>
+                                                    {nextEpData?.name && <span className="up-next-ep-name">{nextEpData.name}</span>}
+                                                    {upNextCounting && <span className="up-next-text">Auto-playing in {upNextSeconds}s</span>}
+                                                </div>
+                                                <div className="up-next-actions">
+                                                    <button className="up-next-play-now" onClick={() => executeUpNextRef.current?.()}>Play Now</button>
+                                                    <button className="up-next-cancel" onClick={cancelUpNext}>✕</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                                // In fullscreen, portal into the fullscreen element so the
+                                // overlays render on top of the native fullscreen view.
+                                return fsHost ? createPortal(overlays, fsHost) : overlays;
+                            })()}
                         </>
                     ) : (
                         <iframe
@@ -2040,7 +2068,7 @@ export default function App() {
                             <div>brightness: {creditsDebug.mean} {creditsDebug.mean != null && creditsDebug.mean < 60 ? '← dark' : ''}</div>
                             <div>motion: {creditsDebug.motion} {creditsDebug.motion != null && creditsDebug.motion < 3.5 ? '← static' : ''}</div>
                             <div>score: {creditsDebug.score} / 5</div>
-                            <div>hasNext+autoNext: {String(creditsDebug.hasNext)}</div>
+                            <div>hasNext: {String(creditsDebug.hasNext)}</div>
                         </>
                     )}
                 </div>
