@@ -13,7 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npm ci && npm run build
+      # Tests gate the preview deploy — build only runs if they pass.
+      - run: npm ci && npm test && npm run build
         working-directory: ./front
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:

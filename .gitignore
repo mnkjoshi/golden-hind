@@ -70,3 +70,11 @@ node_modules/
 
 # GitHub Actions self-hosted runner
 actions-runner/
+
+# Installed agent skills (tooling, not project source)
+.agents/
+.claude/skills/
+skills-lock.json
+
+# macOS
+.DS_Store

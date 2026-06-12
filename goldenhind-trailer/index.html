@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #05070f; }
+      body { font-family: "Inter", "Helvetica Neue", Arial, sans-serif; color: #fff; }
+      :root { --blue: #3FA3FF; --blue-bright: #6db8ff; --gold: #f5c542; --gold-deep: #d99a1c; }
+
+      #root { position: relative; width: 1920px; height: 1080px; background: #05070f; }
+      .scene { position: absolute; inset: 0; overflow: hidden; }
+
+      /* ===== Scene 1 — calm sea ===== */
+      #sea-scene { background: linear-gradient(180deg, #0a1430 0%, #122a52 46%, #0c3b63 60%, #0a2f55 100%); }
+      .sun { position: absolute; left: 50%; top: 30%; width: 360px; height: 360px; margin: -180px 0 0 -180px;
+             border-radius: 50%; background: radial-gradient(circle, rgba(255,225,150,0.55), rgba(255,200,120,0) 70%); }
+      .sea { position: absolute; left: 0; right: 0; bottom: 0; height: 46%; background: linear-gradient(180deg, rgba(63,163,255,0.22), rgba(5,20,45,0.65)); }
+      .wave { position: absolute; left: -10%; width: 120%; height: 26px; border-radius: 50%; background: rgba(120,190,255,0.16); filter: blur(2px); }
+      .intro-line { position: absolute; left: 0; right: 0; bottom: 14%; text-align: center; font-size: 30px; letter-spacing: 7px;
+                    text-transform: uppercase; color: rgba(214,230,255,0.82); font-weight: 600; }
+      /* floating streaming-service logo tiles */
+      .ltile { position: absolute; width: 150px; height: 150px; border-radius: 32px; display: flex; align-items: center; justify-content: center;
+               box-shadow: 0 20px 44px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.07); overflow: hidden; }
+      .ltile-rfl { position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%); width: 150px; height: 30px;
+                   background: radial-gradient(ellipse at center, rgba(120,180,255,0.18), transparent 70%); filter: blur(3px); }
+
+      .wheel-svg { display: block; filter: drop-shadow(0 0 26px rgba(63,163,255,0.55)); }
+
+      #logo-img { width: 880px; height: auto; filter: drop-shadow(0 0 34px rgba(63,163,255,0.5)); }
+      #close-img { width: 660px; height: auto; filter: drop-shadow(0 0 26px rgba(63,163,255,0.45)); }
+
+      /* ===== Scene 2 — slam + logo ===== */
+      #slam-scene { background: radial-gradient(circle at 50% 46%, #0c1d3e 0%, #05070f 70%); }
+      #wheel-roller { position: absolute; left: 50%; top: 46%; }
+      #shock { position: absolute; left: 50%; top: 46%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 6px solid var(--gold); opacity: 0; }
+      #flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
+      #logo-lockup { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 26px; }
+      #logo-wheel { width: 300px; height: 300px; }
+      .wordmark { font-weight: 900; letter-spacing: 6px; line-height: 0.92; text-align: center; }
+      .wordmark .the { display: block; font-size: 34px; letter-spacing: 16px; color: var(--blue-bright); margin-bottom: 6px; }
+      .wordmark .gh { display: block; font-size: 132px; background: linear-gradient(180deg, #ffe9a8 0%, var(--gold) 55%, var(--gold-deep) 100%);
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 4px 30px rgba(245,197,66,0.25); }
+
+      /* ===== Scene 3 — feature montage with movie wallpapers ===== */
+      #feature-scene { background: #05070f; }
+      .wall-row { position: absolute; left: 0; display: flex; gap: 24px; }
+      .wall { width: 560px; height: 315px; border-radius: 12px; background-size: cover; background-position: center; flex: 0 0 auto; box-shadow: 0 16px 40px rgba(0,0,0,0.55); }
+      .scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,7,15,0.30) 0%, rgba(5,7,15,0.84) 36%, rgba(5,7,15,0.84) 64%, rgba(5,7,15,0.30) 100%); }
+      .grain { position: absolute; inset: 0; opacity: 0.05; pointer-events: none; background-image: radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px); background-size: 4px 4px; }
+      .feature-cap { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); padding: 0 150px; }
+      .feature-kicker { font-size: 24px; letter-spacing: 8px; text-transform: uppercase; color: var(--blue-bright); margin-bottom: 14px; }
+      .feature-text { font-size: 100px; font-weight: 900; line-height: 1.0; letter-spacing: 1px; text-shadow: 0 6px 30px rgba(0,0,0,0.7); max-width: 1500px; }
+      .feature-text .hi { background: linear-gradient(180deg, #ffe9a8, var(--gold)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+      .reaction { position: absolute; font-size: 64px; }
+      .tick { position: absolute; background: var(--gold); transform-origin: 0 0; }
+
+      /* ===== Scene 4 — close ===== */
+      #close-scene { background: #05070f; }
+      #close-lockup { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 18px; }
+      #close-wheel { width: 210px; height: 210px; }
+      .close-kicker { font-size: 26px; letter-spacing: 12px; color: var(--blue-bright); text-transform: uppercase; }
+      #setsail { font-size: 50px; font-weight: 900; letter-spacing: 9px; color: var(--gold); text-transform: uppercase; text-shadow: 0 4px 24px rgba(245,197,66,0.3); white-space: nowrap; }
+      .close-rule { width: 0; height: 3px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="29.5" data-width="1920" data-height="1080">
+
+      <!-- ===== SCENE 1: CALM FLEET (0–9.46) ===== -->
+      <div id="sea-scene" class="scene clip" data-start="0" data-duration="6.3" data-track-index="0">
+        <div class="sun"></div>
+        <div class="sea"></div>
+        <div class="wave" style="bottom: 40%"></div>
+        <div class="wave" style="bottom: 30%; opacity:0.7"></div>
+        <div class="wave" style="bottom: 18%; opacity:0.5"></div>
+        <div class="wave" style="bottom: 8%; opacity:0.35"></div>
+
+        <!-- Netflix -->
+        <div class="ltile" id="logo1" style="left: 250px; top: 560px; background:#000;">
+          <span style="color:#E50914; font:900 128px 'Arial Black','Arial',sans-serif; transform: scaleY(1.16); line-height:1;">N</span>
+          <div class="ltile-rfl"></div>
+        </div>
+        <!-- Prime Video -->
+        <div class="ltile" id="logo2" style="left: 700px; top: 600px; background:#1399FF;">
+          <div style="text-align:center;">
+            <div style="color:#fff; font:800 30px 'Inter',sans-serif; line-height:1.0;">prime</div>
+            <svg width="86" height="26" viewBox="0 0 86 26" style="display:block;margin:4px auto 0;"><path d="M6 8 Q43 30 80 8" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M80 8 l-2 -8 l9 5 z" fill="#fff"/></svg>
+          </div>
+          <div class="ltile-rfl"></div>
+        </div>
+        <!-- Disney+ -->
+        <div class="ltile" id="logo3" style="left: 1160px; top: 575px; background:linear-gradient(160deg,#1a3a8f,#0a1f4d);">
+          <span style="color:#fff; font:italic 800 40px 'Georgia','Times New Roman',serif;">Disney<sup style="font-size:22px; top:-0.7em;">+</sup></span>
+          <div class="ltile-rfl"></div>
+        </div>
+        <!-- Apple TV -->
+        <div class="ltile" id="logo4" style="left: 1560px; top: 605px; background:#0a0a0a;">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <svg width="42" height="50" viewBox="0 0 24 28" fill="#fff"><path d="M16.36 13.9c.02 2.3 2.02 3.06 2.04 3.07-.02.05-.32 1.1-1.06 2.18-.64.93-1.3 1.86-2.35 1.88-1.03.02-1.36-.61-2.54-.61-1.18 0-1.55.59-2.52.63-1.01.04-1.78-1.01-2.42-1.94-1.32-1.9-2.33-5.37-.97-7.72.67-1.16 1.88-1.9 3.19-1.92 1-.02 1.94.67 2.55.67.61 0 1.76-.83 2.96-.71.5.02 1.92.2 2.83 1.52-.07.05-1.69.99-1.67 2.95M14.6 7.4c.54-.65.9-1.56.8-2.46-.78.03-1.72.52-2.27 1.17-.5.58-.93 1.5-.81 2.39.87.07 1.75-.44 2.28-1.1"/></svg>
+            <span style="color:#fff; font:800 30px 'Inter',sans-serif; letter-spacing:1px;">tv</span>
+          </div>
+          <div class="ltile-rfl"></div>
+        </div>
+
+        <div class="intro-line" id="introLine">We love movies… and every sea we sail to find them
+      </div>
+
+      <!-- ===== SCENE 2: SLAM + LOGO (9.46–14.71) ===== -->
+      <div id="slam-scene" class="scene clip" data-start="6.3" data-duration="4.5" data-track-index="0">
+        <div id="flash"></div>
+        <div id="shock"></div>
+        <div id="wheel-roller"></div>
+        <div id="logo-lockup" style="opacity:0;">
+          <img id="logo-img" src="assets/textlogo.png" alt="The Golden Hind" />
+        </div>
+      </div>
+
+      <!-- ===== SCENE 3: FEATURE MONTAGE (14.71–27.72) ===== -->
+      <div id="feature-scene" class="scene clip" data-start="10.8" data-duration="10.7" data-track-index="0">
+        <div class="wall-row" id="wall-top" style="top: 70px; height: 315px;">
+          <div class="wall" style="background-image:url(assets/wall1.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall2.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall3.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall4.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall5.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall6.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall1.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall2.jpg)"></div>
+        </div>
+        <div class="wall-row" id="wall-bot" style="bottom: 70px; height: 315px;">
+          <div class="wall" style="background-image:url(assets/wall4.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall5.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall6.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall1.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall2.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall3.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall4.jpg)"></div>
+          <div class="wall" style="background-image:url(assets/wall5.jpg)"></div>
+        </div>
+        <div class="scrim"></div>
+        <div class="grain"></div>
+
+        <div class="tick" id="tickTL" style="left:90px; top:74px; width:70px; height:5px;"></div>
+        <div class="tick" id="tickTL2" style="left:90px; top:74px; width:5px; height:70px;"></div>
+        <div class="tick" id="tickBR" style="right:90px; bottom:74px; width:70px; height:5px;"></div>
+        <div class="tick" id="tickBR2" style="right:90px; bottom:74px; width:5px; height:70px;"></div>
+
+        <div class="feature-cap" id="f1"><div class="feature-kicker">⚓ ALL ABOARD</div><div class="feature-text">MOVIES. SHOWS. <span class="hi">BOOKS. MUSIC.</span></div></div>
+        <div class="feature-cap" id="f2" style="opacity:0;"><div class="feature-kicker">⚓ FAIR WINDS</div><div class="feature-text">EVERY TITLE, INSTANT. <span class="hi">NO WAITING.</span></div></div>
+        <div class="feature-cap" id="f3" style="opacity:0;"><div class="feature-kicker">⚓ SAIL TOGETHER</div><div class="feature-text">WATCH PARTIES — <span class="hi">LIVE CHAT &amp; REACTIONS</span></div></div>
+        <div class="feature-cap" id="f4" style="opacity:0;"><div class="feature-kicker">⚓ NEVER LOSE YOUR PLACE</div><div class="feature-text">PICK UP ANYWHERE. <span class="hi">EVEN OFFLINE.</span></div></div>
+
+        <div class="reaction" id="rx1" style="left: 1500px; top: 470px; opacity:0;">🔥</div>
+        <div class="reaction" id="rx2" style="left: 1620px; top: 400px; opacity:0;">❤️</div>
+        <div class="reaction" id="rx3" style="left: 1560px; top: 330px; opacity:0;">😂</div>
+      </div>
+
+      <!-- ===== SCENE 4: CLOSE (27.72–33) ===== -->
+      <div id="close-scene" class="scene clip" data-start="21.5" data-duration="8.0" data-track-index="0">
+        <div id="close-lockup" style="opacity:0;">
+          <div class="close-kicker" id="closeKicker">ONE SHIP · EVERY SEA</div>
+          <img id="close-img" src="assets/textlogo.png" alt="The Golden Hind" />
+          <div class="close-rule" id="close-rule"></div>
+        </div>
+      </div>
+
+      <!-- ===== AUDIO ===== -->
+      <audio id="a-amb"    data-start="0"     data-track-index="5" src="assets/ambience.wav" data-volume="0.8"></audio>
+      <audio id="a-vo"     data-start="0"     data-track-index="6" src="assets/vo.wav"       data-volume="1"></audio>
+      <audio id="a-impact" data-start="6.3"   data-track-index="7" src="assets/impact.wav"   data-volume="0.95"></audio>
+      <audio id="a-ding"   data-start="6.4"   data-track-index="8" src="assets/dingding.wav" data-volume="0.8"></audio>
+      <audio id="a-music"  data-start="6.3"   data-track-index="9" src="assets/music.wav"    data-volume="0.4"></audio>
+      <audio id="a-ding2"  data-start="26.3"  data-track-index="10" src="assets/bellring.wav" data-volume="0.95"></audio>
+    </div>
+
+    <script>
+      function buildWheel(el, color, px) {
+        const NS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(NS, "svg");
+        svg.setAttribute("viewBox", "0 0 200 200"); svg.setAttribute("width", px); svg.setAttribute("height", px); svg.setAttribute("class", "wheel-svg");
+        const mk = (tag, attrs) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); return n; };
+        svg.appendChild(mk("circle", { cx:100, cy:100, r:62, fill:"none", stroke:color, "stroke-width":12 }));
+        svg.appendChild(mk("circle", { cx:100, cy:100, r:18, fill:color }));
+        svg.appendChild(mk("circle", { cx:100, cy:100, r:8, fill:"#05070f" }));
+        for (let i = 0; i < 8; i++) {
+          const a = (Math.PI / 4) * i, dx = Math.cos(a), dy = Math.sin(a);
+          svg.appendChild(mk("line", { x1:100+dx*16, y1:100+dy*16, x2:100+dx*70, y2:100+dy*70, stroke:color, "stroke-width":10, "stroke-linecap":"round" }));
+          svg.appendChild(mk("circle", { cx:100+dx*82, cy:100+dy*82, r:12, fill:color }));
+          svg.appendChild(mk("circle", { cx:100+dx*70, cy:100+dy*70, r:7, fill:color }));
+        }
+        el.appendChild(svg);
+      }
+      buildWheel(document.getElementById("wheel-roller"), "#3FA3FF", 300);
+
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      /* SCENE 1: logos float + bob (0–6.5), BAM on "Until now" */
+      tl.fromTo(".wave", { x: -40 }, { x: 40, duration: 6.3, ease: "sine.inOut" }, 0);
+      tl.from("#logo1", { y: 34, opacity: 0, duration: 0.7, ease: "power2.out" }, 0.2);
+      tl.from("#logo2", { y: 34, opacity: 0, duration: 0.7, ease: "power2.out" }, 0.32);
+      tl.from("#logo3", { y: 34, opacity: 0, duration: 0.7, ease: "power2.out" }, 0.44);
+      tl.from("#logo4", { y: 34, opacity: 0, duration: 0.7, ease: "power2.out" }, 0.56);
+      // gentle bob (settles before the hit)
+      tl.to("#logo1", { y: "-=22", rotation: -3, duration: 1.1, ease: "sine.inOut", yoyo: true, repeat: 3 }, 1.0);
+      tl.to("#logo2", { y: "-=18", rotation: 3, duration: 1.1, ease: "sine.inOut", yoyo: true, repeat: 3 }, 1.05);
+      tl.to("#logo3", { y: "-=24", rotation: -2.5, duration: 1.05, ease: "sine.inOut", yoyo: true, repeat: 3 }, 1.15);
+      tl.to("#logo4", { y: "-=20", rotation: 3.5, duration: 1.0, ease: "sine.inOut", yoyo: true, repeat: 3 }, 1.25);
+      tl.fromTo("#introLine", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 1.0, ease: "power2.out" }, 1.4);
+      tl.to("#introLine", { opacity: 0, duration: 0.4, ease: "power2.in" }, 5.5);
+      /* logos blasted away as the wheel hits */
+      tl.to("#logo1", { x: -640, y: 240, rotation: -240, opacity: 0, duration: 0.3, ease: "power3.in" }, 5.95);
+      tl.to("#logo2", { x: -300, y: 300, rotation: -170, opacity: 0, duration: 0.3, ease: "power3.in" }, 5.97);
+      tl.to("#logo3", { x: 360, y: 290, rotation: 190, opacity: 0, duration: 0.3, ease: "power3.in" }, 5.97);
+      tl.to("#logo4", { x: 720, y: 240, rotation: 250, opacity: 0, duration: 0.3, ease: "power3.in" }, 5.99);
+      tl.set(["#logo1","#logo2","#logo3","#logo4"], { opacity: 0 }, 6.3);
+
+      /* SCENE 2: BAM + wheel rotates in → seats into the logo's O (6.5–10.66) */
+      tl.fromTo("#flash", { opacity: 0 }, { opacity: 0.92, duration: 0.08, ease: "power2.out" }, 6.3)
+        .to("#flash", { opacity: 0, duration: 0.45, ease: "power2.out" }, 6.38);
+      tl.fromTo("#wheel-roller",
+        { x: 1500, scale: 0.5, rotation: 0, xPercent: -50, yPercent: -50, transformOrigin: "50% 50%" },
+        { x: 0, scale: 1, rotation: 540, duration: 0.85, ease: "power3.out" }, 6.35);
+      tl.to("#wheel-roller", { scale: 1.08, rotation: 640, duration: 0.18, ease: "back.out(2)" }, 7.2);
+      // glide into the logo's O-slot (measured screen 717,555 · ~174px), text fades AROUND it
+      tl.to("#wheel-roller", { x: -243, y: 58, scale: 0.62, rotation: 700, duration: 0.32, ease: "power2.inOut" }, 7.38);
+      tl.set("#logo-lockup", { opacity: 1 }, 7.7);
+      tl.fromTo("#logo-img", { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "power2.out" }, 7.72);
+      tl.fromTo("#shock", { scale: 0, opacity: 0.85 }, { scale: 34, opacity: 0, duration: 0.9, ease: "power2.out" }, 7.7);
+      tl.to("#wheel-roller", { opacity: 0, duration: 0.3 }, 8.1);
+      tl.to("#logo-img", { scale: 1.03, duration: 1.4, ease: "sine.inOut" }, 8.3);
+
+      /* SCENE 3: feature montage with sliding wallpapers (10.66–21.1) */
+      tl.fromTo("#wall-top", { x: 0 }, { x: -1100, duration: 10.7, ease: "none" }, 10.8);
+      tl.fromTo("#wall-bot", { x: -1100 }, { x: 0, duration: 10.7, ease: "none" }, 10.8);
+      tl.fromTo(["#tickTL","#tickTL2","#tickBR","#tickBR2"], { scaleX: 0, scaleY: 0 }, { scaleX: 1, scaleY: 1, duration: 0.4, ease: "power2.out" }, 10.95);
+
+      const feats = ["#f1","#f2","#f3","#f4"];
+      const fIn  = [10.85, 14.05, 16.15, 19.25];
+      const fOut = [13.7, 15.85, 18.95, 21.3];
+      const eases = ["power4.out","back.out(1.6)","power3.out","expo.out"];
+      const fromX = [-120, 120, -120, 120];
+      feats.forEach((f, i) => {
+        tl.set(f, { opacity: 1 }, fIn[i]);
+        tl.fromTo(f + " .feature-kicker", { opacity: 0, x: fromX[i] * 0.4 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }, fIn[i]);
+        tl.fromTo(f + " .feature-text", { opacity: 0, x: fromX[i], skewX: i % 2 ? -8 : 8 }, { opacity: 1, x: 0, skewX: 0, duration: 0.5, ease: eases[i] }, fIn[i] + 0.05);
+        tl.to(f, { opacity: 0, x: -fromX[i] * 0.5, duration: 0.3, ease: "power2.in" }, fOut[i]);
+        tl.set(f, { opacity: 0 }, fOut[i] + 0.31);
+      });
+      [["#rx1",16.6],["#rx2",16.85],["#rx3",17.1]].forEach(([r, s]) => {
+        tl.fromTo(r, { opacity: 0, y: 40, scale: 0.6 }, { opacity: 1, y: -40, scale: 1, duration: 0.5, ease: "power2.out" }, s);
+        tl.to(r, { opacity: 0, y: -170, duration: 1.1, ease: "power1.out" }, s + 0.5);
+      });
+
+      /* SCENE 4: close (21.1–27.6) — "One ship. Every sea." → DING-DING ~26 → hold → fade */
+      tl.set("#close-lockup", { opacity: 1 }, 21.56);
+      tl.fromTo("#closeKicker", { opacity: 0, letterSpacing: "32px" }, { opacity: 1, letterSpacing: "12px", duration: 0.6, ease: "power2.out" }, 21.6);
+      tl.fromTo("#close-img", { scale: 1.22, opacity: 0, y: 8 }, { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: "back.out(1.6)" }, 21.75);
+      tl.fromTo("#close-rule", { width: 0 }, { width: 520, duration: 0.6, ease: "power2.out" }, 22.3);
+      tl.to("#close-img", { scale: 1.03, duration: 2.6, ease: "sine.inOut" }, 22.6);
+      // single logo pulse on the ship bell RING
+      tl.to("#close-img", { scale: 1.08, duration: 0.2, ease: "power2.out", yoyo: true, repeat: 1 }, 26.3);
+      // ring out, then transition off and hold a beat of black before the end
+      tl.to("#close-lockup", { opacity: 0, duration: 0.6, ease: "power2.in" }, 28.6);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

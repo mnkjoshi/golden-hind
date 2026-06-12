@@ -4,6 +4,7 @@ import Authenticate  from "../components/authenticate.jsx";
 import React, { useEffect, useState, useRef } from 'react';
 import Topbar from "../components/topbar.jsx"
 import { track } from '../utils/analytics.js'
+import { formatRelativeTime } from '../utils/format.js'
 
 // TMDB Genre mapping
 const genreMap = {
@@ -21,18 +22,6 @@ const genreMap = {
 const getGenreNames = (genreIds) => {
     if (!genreIds || !Array.isArray(genreIds)) return "Unknown";
     return genreIds.map(id => genreMap[id] || "Unknown").filter(name => name !== "Unknown").join(", ") || "Unknown";
-};
-
-const formatRelativeTime = (ts) => {
-    if (!ts) return '';
-    const diff = Date.now() - parseInt(ts);
-    const mins = Math.floor(diff / 60000);
-    if (mins < 2) return 'Just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return days === 1 ? 'Yesterday' : `${days}d ago`;
 };
 
 const POPULAR_GENRES = [
@@ -68,6 +57,8 @@ export default function App() {
     const navigate = useNavigate();
 
     
+    // Bumped after server watch-percentages merge to re-render progress bars.
+    const [, setPctVersion] = useState(0)
     const [bookmarkData, setBookmarkData] = useState(null)
     const [continueData, setContinueData] = useState(null)
     const [myListData, setMyListData] = useState(null)
@@ -111,6 +102,11 @@ export default function App() {
     const [mobileCardSheet, setMobileCardSheet] = useState(null)
     const [tvMode, setTvMode] = useState(() => localStorage.getItem('tvMode') === 'on' && window.innerWidth >= 1024)
     const [tvSelection, setTvSelection] = useState(null)
+    // Welcome / intro video popup (shown once per user per version; admin-gated)
+    const [introShow, setIntroShow] = useState(false)
+    const [introVersion, setIntroVersion] = useState(1)
+    const [introMuted, setIntroMuted] = useState(false)
+    const introVideoRef = useRef(null)
     const cardHoverTimerRef = useRef(null)
     const cardLeaveTimerRef = useRef(null)
     const cardHoverTargetRef = useRef(null)
@@ -119,6 +115,47 @@ export default function App() {
 
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
+
+    // Ask the server whether to show the welcome video (enabled + not yet seen
+    // by this user at the current version). Cross-device via the user record.
+    useEffect(() => {
+        if (!user || !token) return;
+        let active = true;
+        axios.post('https://goldenhind.tech/intro/status', { user, token })
+            .then(r => {
+                if (!active || !r.data?.show) return;
+                setIntroVersion(r.data.version || 1);
+                setIntroShow(true);
+            })
+            .catch(() => {});
+        return () => { active = false; };
+    }, []);
+
+    // Try to autoplay with sound; browsers usually block that, so fall back to
+    // muted autoplay and surface an unmute button.
+    useEffect(() => {
+        if (!introShow) return;
+        const v = introVideoRef.current;
+        if (!v) return;
+        v.play().catch(() => {
+            v.muted = true;
+            setIntroMuted(true);
+            v.play().catch(() => {});
+        });
+    }, [introShow]);
+
+    const finishIntro = () => {
+        setIntroShow(false);
+        axios.post('https://goldenhind.tech/intro/seen', { user, token, version: introVersion }).catch(() => {});
+    };
+
+    const unmuteIntro = () => {
+        const v = introVideoRef.current;
+        if (!v) return;
+        v.muted = false;
+        setIntroMuted(false);
+        v.play().catch(() => {});
+    };
 
     const fetchTrailer = async (item) => {
         if (trailerLoading) return;
@@ -200,7 +237,16 @@ export default function App() {
         if (user == null) {
             navigate('/auth')
         } else {
-            track('page_view', { page: 'home' })
+            // Log a "session start" only on a fresh load — first visit, or after
+            // a 30-min gap — instead of firing on every navigation back to home,
+            // which used to flood analytics with page_view noise.
+            const SESSION_GAP = 30 * 60 * 1000;
+            const lastSeen = parseInt(localStorage.getItem('lastSeenTs') || '0');
+            const now = Date.now();
+            if (!lastSeen || now - lastSeen > SESSION_GAP) {
+                track('session_start', {});
+            }
+            localStorage.setItem('lastSeenTs', String(now));
             if (bookmarkData === null && continueData === null && trendingData === null) {
                 setIsLoading(true)
                 console.time('fetchData');
@@ -272,6 +318,27 @@ export default function App() {
                 }).catch((error) => {
                     console.error('Failed to load trending:', error)
                 });
+
+                // Cross-device watch progress: merge server-recorded percentages
+                // into localStorage (taking the furthest) so Continue-Watching
+                // bars reflect viewing on any device, then force a re-render.
+                axios({
+                    method: 'post',
+                    url: 'https://goldenhind.tech/position/percentages',
+                    data: { user, token }
+                }).then((response) => {
+                    const map = response.data || {};
+                    let changed = false;
+                    Object.entries(map).forEach(([cid, pct]) => {
+                        const val = Number(pct);
+                        const local = parseFloat(localStorage.getItem('playbackPct_' + cid));
+                        if (isFinite(val) && val > 0 && (!isFinite(local) || val > local)) {
+                            localStorage.setItem('playbackPct_' + cid, val.toFixed(3));
+                            changed = true;
+                        }
+                    });
+                    if (changed) setPctVersion(v => v + 1);
+                }).catch(() => {});
 
                 // Load AI recommendations with 4-hour localStorage cache
                 const REC_TTL = 48 * 60 * 60 * 1000;
@@ -785,6 +852,31 @@ export default function App() {
     return (
         <div className={`app-main ${showChristmas ? 'christmas-active' : ''}`} id="app-main">
             <Topbar/>
+
+            {/* Welcome / intro video — shown once per user (server-tracked) */}
+            {introShow && (
+                <div className="intro-overlay" onClick={finishIntro}>
+                    <div className="intro-modal" onClick={e => e.stopPropagation()}>
+                        <button className="intro-skip" onClick={finishIntro} aria-label="Skip intro">Skip ✕</button>
+                        <video
+                            ref={introVideoRef}
+                            className="intro-video"
+                            src="/intro.mp4"
+                            autoPlay
+                            playsInline
+                            controls
+                            onEnded={finishIntro}
+                        />
+                        {introMuted && (
+                            <button className="intro-unmute" onClick={unmuteIntro}>
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></svg>
+                                Tap for sound
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {tvMode && !isLoading && (
                 <div className="tv-mode-status" aria-live="polite">
                     <span className="tv-mode-dot"></span>

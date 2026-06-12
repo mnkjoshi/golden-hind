@@ -7,18 +7,11 @@ import TextLogoGlitch2 from '../assets/TextLogoGlitch2.png';
 import TextLogoGlitch3 from '../assets/TextLogoGlitch3.png';
 import TextLogoGlitch4 from '../assets/TextLogoGlitch4.png';
 import TextLogoGlitch5 from '../assets/TextLogoGlitch5.png';
+import { formatWatchTime, formatRelativeTime } from '../utils/format.js';
 
 const GLITCH_FRAMES = [TextLogoGlitch1, TextLogoGlitch2, TextLogoGlitch3, TextLogoGlitch4, TextLogoGlitch5];
 
 const BASE_URL = 'https://goldenhind.tech';
-
-function formatWatchTime(seconds) {
-    if (!seconds || seconds < 1) return '0m';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
 
 export default function Topbar() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -49,6 +42,12 @@ export default function Topbar() {
     const [showActivityModal, setShowActivityModal] = useState(false);
     const [activityData, setActivityData] = useState(null);
     const [activityLoading, setActivityLoading] = useState(false);
+
+    // New-episode / new-season notifications
+    const [notifications, setNotifications] = useState([]);
+    const [notifUnread, setNotifUnread] = useState(0);
+    const [notifOpen, setNotifOpen] = useState(false);
+    const notifRef = useRef(null);
 
     const [logoSrc, setLogoSrc] = useState(TextLogo);
     const glitchIntervalRef = useRef(null);
@@ -95,6 +94,9 @@ export default function Topbar() {
             if (searchWrapperRef.current && !searchWrapperRef.current.contains(e.target)) {
                 setShowSearchDropdown(false);
             }
+            if (notifRef.current && !notifRef.current.contains(e.target)) {
+                setNotifOpen(false);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -110,6 +112,39 @@ export default function Topbar() {
         document.addEventListener('keydown', handleEsc);
         return () => document.removeEventListener('keydown', handleEsc);
     }, []);
+
+    // Poll notifications (also refreshed when the dropdown is opened).
+    useEffect(() => {
+        if (!user || !token) return;
+        let active = true;
+        const load = () => {
+            axios.post(`${BASE_URL}/notifications`, { user, token })
+                .then(r => {
+                    if (!active) return;
+                    setNotifications(r.data.notifications || []);
+                    setNotifUnread(r.data.unread || 0);
+                })
+                .catch(() => {});
+        };
+        load();
+        const iv = setInterval(load, 120000);
+        return () => { active = false; clearInterval(iv); };
+    }, []);
+
+    const toggleNotifications = () => {
+        const willOpen = !notifOpen;
+        setNotifOpen(willOpen);
+        if (willOpen && notifUnread > 0) {
+            axios.post(`${BASE_URL}/notifications/seen`, { user, token }).catch(() => {});
+            setNotifUnread(0);
+            setNotifications(prev => prev.map(n => ({ ...n, seen: true })));
+        }
+    };
+
+    const openNotification = (n) => {
+        setNotifOpen(false);
+        if (n.contentId) navigate(`/watch/${n.contentId}`);
+    };
 
     const commitSearch = (query) => {
         const q = query.trim();
@@ -342,6 +377,43 @@ export default function Topbar() {
                                                 ))}
                                             </div>
                                         </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="notif-section" ref={notifRef}>
+                            <button className="notif-button" onClick={toggleNotifications} aria-label="Notifications">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                {notifUnread > 0 && <span className="notif-badge">{notifUnread > 9 ? '9+' : notifUnread}</span>}
+                            </button>
+                            {notifOpen && (
+                                <div className="notif-dropdown">
+                                    <div className="notif-dropdown-header">Notifications</div>
+                                    {notifications.length === 0 ? (
+                                        <div className="notif-empty">You're all caught up.</div>
+                                    ) : (
+                                        notifications.map(n => (
+                                            <button
+                                                key={n.id}
+                                                className={`notif-item${n.seen ? '' : ' unread'}`}
+                                                onClick={() => openNotification(n)}
+                                            >
+                                                {n.poster_path ? (
+                                                    <img className="notif-item-poster" src={`https://image.tmdb.org/t/p/w92${n.poster_path}`} alt="" />
+                                                ) : (
+                                                    <div className="notif-item-poster notif-item-poster-empty">📺</div>
+                                                )}
+                                                <div className="notif-item-body">
+                                                    <span className="notif-item-msg">{n.message}</span>
+                                                    <span className="notif-item-time">{formatRelativeTime(n.ts)}</span>
+                                                </div>
+                                                {!n.seen && <span className="notif-item-dot" />}
+                                            </button>
+                                        ))
                                     )}
                                 </div>
                             )}

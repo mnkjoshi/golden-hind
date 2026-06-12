@@ -99,8 +99,15 @@ export default function App() {
     const startTimeRef = useRef(Date.now());
     const contentNameRef = useRef('');
     const continueTrackedRef = useRef(false);
+    const watchTrackedRef = useRef(false);
     const playbackStateRef = useRef({});
     const savePositionTimerRef = useRef(null);
+    // Server-side resume position (seconds) for the current episode/movie,
+    // fetched cross-device so resume works on any device, not just this one.
+    const resumePosRef = useRef(0);
+    // Warmed next-episode stream so advancing is near-instant.
+    // Shape: { key: "season_episode", url, subtitles }.
+    const prefetchRef = useRef({ key: null, url: null, subtitles: null });
 
     // Watch party state.
     // The room id lives in the URL (?party=ABC123) so links are shareable.
@@ -115,6 +122,21 @@ export default function App() {
     const [partyJoinError, setPartyJoinError] = useState('');
     const [partyLinkCopied, setPartyLinkCopied] = useState(false);
     const [partyDebugLog, setPartyDebugLog] = useState([]);
+    // Chat + presence within a party.
+    const [partyChat, setPartyChat] = useState([]); // [{ id, user, text, ts }]
+    const [partyChatInput, setPartyChatInput] = useState('');
+    const [partyParticipants, setPartyParticipants] = useState([]);
+    const [partyChatOpen, setPartyChatOpen] = useState(false);
+    const [partyUnread, setPartyUnread] = useState(0);
+    const partyChatSeenRef = useRef(new Set());
+    const partyChatOpenRef = useRef(false);
+    const partyChatEndRef = useRef(null);
+    // Floating emoji reactions: [{ id, emoji, left }]. Auto-removed after the
+    // float animation. spawnReactionRef lets the SSE listener call the latest.
+    const [partyReactions, setPartyReactions] = useState([]);
+    const reactionIdRef = useRef(0);
+    const spawnReactionRef = useRef(null);
+    const PARTY_EMOJI = ['❤️', '😂', '😮', '😢', '🔥', '👏', '👍', '🎉'];
     const partyRoomIdRef = useRef(initialPartyRoomId);
     const applyingRemotePartyRef = useRef(false);
     const partySourceRef = useRef(null);
@@ -319,6 +341,11 @@ export default function App() {
         const u = localStorage.getItem('user');
         const t = localStorage.getItem('token');
         if (!u || !t) return;
+        // Fresh chat/presence state for this room.
+        setPartyChat([]);
+        setPartyParticipants([]);
+        setPartyUnread(0);
+        partyChatSeenRef.current = new Set();
         let es = null;
         let reconnectTimer = null;
         let closed = false;
@@ -364,6 +391,30 @@ export default function App() {
                 params.delete('party');
                 const next = window.location.pathname + (params.toString() ? `?${params}` : '');
                 window.history.replaceState(null, '', next);
+            });
+            // Chat — server replays the last 50 then streams new messages.
+            // Dedupe by id since replays repeat on reconnect.
+            es.addEventListener('chat', (ev) => {
+                try {
+                    const m = JSON.parse(ev.data);
+                    if (!m || !m.id || partyChatSeenRef.current.has(m.id)) return;
+                    partyChatSeenRef.current.add(m.id);
+                    setPartyChat(prev => [...prev, m].slice(-200));
+                    if (!partyChatOpenRef.current && m.user !== u) {
+                        setPartyUnread(n => n + 1);
+                    }
+                } catch {}
+            });
+            // Presence — array of participant usernames.
+            es.addEventListener('presence', (ev) => {
+                try { setPartyParticipants(JSON.parse(ev.data) || []); } catch {}
+            });
+            // Reactions — float the emoji over the player.
+            es.addEventListener('reaction', (ev) => {
+                try {
+                    const r = JSON.parse(ev.data);
+                    if (r?.emoji) spawnReactionRef.current?.(r.emoji);
+                } catch {}
             });
         };
 
@@ -463,6 +514,48 @@ export default function App() {
         window.history.replaceState(null, '', next);
     };
 
+    const sendPartyChat = () => {
+        const text = partyChatInput.trim();
+        if (!text || !partyRoomId) return;
+        const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+        if (!u || !t) return;
+        setPartyChatInput('');
+        // Message echoes back to us over the chat SSE channel, so no optimistic add.
+        axios.post('https://goldenhind.tech/party/chat', { user: u, token: t, roomId: partyRoomId, text })
+            .catch(() => {});
+    };
+
+    // Spawn a floating emoji over the player; auto-clears after the animation.
+    const spawnReaction = (emoji) => {
+        const rid = ++reactionIdRef.current;
+        const left = 8 + Math.random() * 84; // % across the player width
+        setPartyReactions(prev => [...prev, { id: rid, emoji, left }]);
+        setTimeout(() => setPartyReactions(prev => prev.filter(r => r.id !== rid)), 2600);
+    };
+    spawnReactionRef.current = spawnReaction;
+
+    // Reactions echo back to the sender over SSE too, so we don't add locally —
+    // the round-trip keeps every viewer's display consistent.
+    const sendReaction = (emoji) => {
+        if (!partyRoomId) return;
+        const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+        if (!u || !t) return;
+        axios.post('https://goldenhind.tech/party/react', { user: u, token: t, roomId: partyRoomId, emoji })
+            .catch(() => {});
+    };
+
+    // Keep the open-state ref in sync (SSE closures read it) and clear unread
+    // whenever the chat panel is open.
+    useEffect(() => {
+        partyChatOpenRef.current = partyChatOpen;
+        if (partyChatOpen) setPartyUnread(0);
+    }, [partyChatOpen]);
+
+    // Auto-scroll the chat to the newest message.
+    useEffect(() => {
+        if (partyChatOpen) partyChatEndRef.current?.scrollIntoView({ block: 'nearest' });
+    }, [partyChat, partyChatOpen]);
+
     const copyPartyLink = () => {
         if (!partyRoomId) return;
         const url = `${window.location.origin}/watch/${id}?party=${partyRoomId}`;
@@ -472,32 +565,55 @@ export default function App() {
         }).catch(() => {});
     };
 
-    // Disable body overflow when watch page is active + log watch time on unmount
+    // Disable body overflow when watch page is active + log watch time reliably.
+    // Watch time is flushed as a delta on every "page might be going away" signal
+    // — visibilitychange→hidden (covers tab switch / backgrounding, the common
+    // case on mobile), pagehide, and unmount — using sendBeacon so it survives a
+    // tab close. The previous version only fired on SPA unmount, so closing the
+    // tab lost the session entirely (why the user-side total looked broken).
     useEffect(() => {
-        track('watch', { id, type: id.slice(0, 1) === 'm' ? 'movie' : 'tv' })
         document.body.classList.add('watch-page');
         document.documentElement.classList.add('watch-page');
 
-        return () => {
-            document.body.classList.remove('watch-page');
-            document.documentElement.classList.remove('watch-page');
-            const duration = Math.round((Date.now() - startTimeRef.current) / 1000);
+        let lastFlush = Date.now();
+        const flushWatchTime = () => {
+            const now = Date.now();
+            const duration = Math.round((now - lastFlush) / 1000);
+            lastFlush = now; // reset so re-entry only counts new time (no double-count)
             const watchUser = localStorage.getItem('user');
             const watchToken = localStorage.getItem('token');
-            if (watchUser && watchToken && duration >= 10) {
+            if (!watchUser || !watchToken || duration < 10) return;
+            const payload = JSON.stringify({
+                user: watchUser,
+                token: watchToken,
+                contentId: id,
+                contentName: contentNameRef.current || 'Unknown',
+                duration,
+            });
+            let beaconed = false;
+            try {
+                beaconed = navigator.sendBeacon
+                    && navigator.sendBeacon('https://goldenhind.tech/watch-time', new Blob([payload], { type: 'application/json' }));
+            } catch { /* fall through to fetch */ }
+            if (!beaconed) {
                 fetch('https://goldenhind.tech/watch-time', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     keepalive: true,
-                    body: JSON.stringify({
-                        user: watchUser,
-                        token: watchToken,
-                        contentId: id,
-                        contentName: contentNameRef.current || 'Unknown',
-                        duration
-                    })
+                    body: payload,
                 }).catch(() => {});
             }
+        };
+        const onVisibility = () => { if (document.visibilityState === 'hidden') flushWatchTime(); };
+        document.addEventListener('visibilitychange', onVisibility);
+        window.addEventListener('pagehide', flushWatchTime);
+
+        return () => {
+            document.body.classList.remove('watch-page');
+            document.documentElement.classList.remove('watch-page');
+            document.removeEventListener('visibilitychange', onVisibility);
+            window.removeEventListener('pagehide', flushWatchTime);
+            flushWatchTime();
         };
     }, []);
 
@@ -522,12 +638,21 @@ export default function App() {
         return () => clearTimeout(timer);
     }, []);
 
-    // Keep contentNameRef in sync so the unmount closure always has the latest title
+    // Keep contentNameRef in sync so the watch-time beacon always has a title.
+    // For TV use the series name (data holds the *episode* for shows), and fire
+    // a single, name-bearing `watch` analytics event once the title is known so
+    // the admin feed shows what was watched instead of a bare content id.
     useEffect(() => {
-        if (data && (data.name || data.title)) {
-            contentNameRef.current = data.name || data.title;
+        const isTv = id.slice(0, 1) === 't';
+        const name = isTv ? (seriesData?.name || seriesData?.title) : (data?.name || data?.title);
+        if (name) contentNameRef.current = name;
+        if (name && !watchTrackedRef.current) {
+            watchTrackedRef.current = true;
+            track('watch', isTv
+                ? { id, name, type: 'tv', season: parseInt(season) || 1, episode: parseInt(episode) || 1 }
+                : { id, name, type: 'movie' });
         }
-    }, [data]);
+    }, [data, seriesData]);
 
     useEffect(() => { lmUrlRef.current = lmUrl; }, [lmUrl]);
     useEffect(() => { lmSubtitlesRef.current = lmSubtitles; }, [lmSubtitles]);
@@ -581,6 +706,17 @@ export default function App() {
     useEffect(() => {
         if (parseInt(provider) !== 1) return;
         if (!progressReady) return;
+        // If we warmed this exact episode's stream while the previous one
+        // played, use it directly and skip the network round-trip.
+        const epKey = `${parseInt(season)}_${parseInt(episode)}`;
+        if (type === 'tv' && prefetchRef.current.key === epKey && prefetchRef.current.url) {
+            setLmSubtitles(prefetchRef.current.subtitles || []);
+            setLmError(null);
+            setLmLoading(false);
+            setLmUrl(prefetchRef.current.url);
+            prefetchRef.current = { key: null, url: null, subtitles: null };
+            return;
+        }
         setLmUrl(null);
         setLmError(null);
         setLmLoading(true);
@@ -609,6 +745,64 @@ export default function App() {
             showProviderToast('LookMovie unavailable - switched to Server 3');
         }).finally(() => setLmLoading(false));
     }, [provider, season, episode, progressReady]);
+
+    // Fetch the cross-device resume position for the current episode/movie.
+    // Runs alongside the stream fetch; the quick POST almost always resolves
+    // before the HLS manifest is parsed, so initPlyr's canplay restore can use
+    // it. As a safety net we also seek here if the player is already up and
+    // still near the start. Skipped in a watch party (party state is authority).
+    useEffect(() => {
+        if (parseInt(provider) !== 1 || !progressReady) return;
+        resumePosRef.current = 0;
+        if (partyRoomIdRef.current) return;
+        const posKey = type === 'tv'
+            ? `playbackPos_${id}_s${season}_e${episode}`
+            : `playbackPos_${id}`;
+        const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+        if (!u || !t) return;
+        axios.post('https://goldenhind.tech/position/retrieve', { user: u, token: t, posKey })
+            .then(r => {
+                const serverPos = Number(r.data?.position) || 0;
+                resumePosRef.current = serverPos;
+                const p = plyrRef.current;
+                if (p && serverPos > 5 && isFinite(p.duration) && p.duration > 0
+                    && p.currentTime < serverPos - 2 && p.currentTime < 10 && !partyRoomIdRef.current) {
+                    p.currentTime = serverPos;
+                }
+            })
+            .catch(() => {});
+    }, [provider, season, episode, progressReady, lmUrl]);
+
+    // Warm the next episode's stream ~25s into the current one so advancing
+    // (auto-next, up-next, or the next button) is near-instant. Only for the
+    // HLS provider and only when a next episode exists.
+    useEffect(() => {
+        if (parseInt(provider) !== 1 || !progressReady || type !== 'tv') return;
+        if (!maxEp || !maxSe) return;
+        const ep = parseInt(episode), se = parseInt(season);
+        const hasNext = ep < parseInt(maxEp) || se < parseInt(maxSe);
+        if (!hasNext) return;
+        const nextEp = ep < parseInt(maxEp) ? ep + 1 : 1;
+        const nextSe = ep < parseInt(maxEp) ? se : se + 1;
+        const key = `${nextSe}_${nextEp}`;
+        if (prefetchRef.current.key === key && prefetchRef.current.url) return;
+        const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+        if (!u || !t) return;
+        const timer = setTimeout(() => {
+            axios.post('https://goldenhind.tech/server/lookmovie', { user: u, token: t, id, season: nextSe, episode: nextEp })
+                .then(r => {
+                    if (r.data?.success && r.data.url) {
+                        const subs = r.data.subtitles || [];
+                        const url = (!Hls.isSupported() && subs.length > 0)
+                            ? `https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}`
+                            : `https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`;
+                        prefetchRef.current = { key, url, subtitles: subs };
+                    }
+                })
+                .catch(() => {});
+        }, 25000);
+        return () => clearTimeout(timer);
+    }, [provider, season, episode, maxEp, maxSe, progressReady]);
 
     // Attach HLS.js + Plyr when a stream URL arrives.
     // We manage the <video> element entirely imperatively inside lmContainerRef so
@@ -744,7 +938,10 @@ export default function App() {
         const initPlyr = () => {
             const savedVolume = parseFloat(localStorage.getItem('playerVolume'));
             const savedSpeed = parseFloat(localStorage.getItem('playerSpeed'));
-            const savedPos = parseFloat(localStorage.getItem(posKey) || '0');
+            const localPos = parseFloat(localStorage.getItem(posKey) || '0');
+            // Resume to the furthest of local and server-recorded positions so
+            // progress made on another device is honoured.
+            const savedPos = Math.max(isNaN(localPos) ? 0 : localPos, resumePosRef.current || 0);
 
             const player = new Plyr(video, {
                 controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'captions', 'settings', 'pip', 'fullscreen'],
@@ -931,6 +1128,7 @@ export default function App() {
 
             // Save position every 5 seconds while playing; show up-next popup at 95%
             let lastSaved = 0;
+            let lastServerSaved = 0;
             let upNextShown = false;
             player.on('timeupdate', () => {
                 const now = Date.now();
@@ -942,6 +1140,19 @@ export default function App() {
                     if (player.duration > 0) {
                         const pct = Math.min(1, Math.max(0, player.currentTime / player.duration));
                         localStorage.setItem('playbackPct_' + id, pct.toFixed(3));
+                    }
+                }
+                // Persist to the server less often (every 15s) so resume works
+                // across devices without hammering the API.
+                if (now - lastServerSaved > 15000 && player.currentTime > 5 && player.duration > 0) {
+                    lastServerSaved = now;
+                    const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+                    if (u && t) {
+                        axios.post('https://goldenhind.tech/position/update', {
+                            user: u, token: t, posKey, contentId: id,
+                            position: player.currentTime, duration: player.duration,
+                            pct: Math.min(1, Math.max(0, player.currentTime / player.duration)),
+                        }).catch(() => {});
                     }
                 }
                 const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
@@ -975,6 +1186,15 @@ export default function App() {
             player.on('ended', () => {
                 localStorage.removeItem(posKey);
                 localStorage.removeItem('playbackPct_' + id);
+                // Reset the server-side resume position so finished content
+                // doesn't reopen mid-credits next time.
+                resumePosRef.current = 0;
+                const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+                if (u && t) {
+                    axios.post('https://goldenhind.tech/position/update', {
+                        user: u, token: t, posKey, contentId: id, position: 0, duration: 0, pct: 0,
+                    }).catch(() => {});
+                }
                 const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
                 if (an !== 1) return;
                 if (upNextInfoRef.current) {
@@ -1122,6 +1342,23 @@ export default function App() {
         if (v && v.remote && typeof v.remote.prompt === 'function') {
             v.remote.prompt().catch(() => {});
         }
+    };
+
+    // Download the current movie/episode as an MP4. The server remuxes the
+    // LookMovie HLS stream on the fly and returns it as an attachment, so we
+    // just point an anchor at the authenticated URL.
+    const handleDownload = () => {
+        const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+        if (!u || !t) return;
+        const params = new URLSearchParams({ user: u, token: t, id });
+        if (type === 'tv') { params.set('season', season); params.set('episode', episode); }
+        const a = document.createElement('a');
+        a.href = `https://goldenhind.tech/download/video?${params.toString()}`;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showProviderToast('Preparing download… this can take a moment to start.');
     };
 
     // Skip helpers
@@ -1802,6 +2039,20 @@ export default function App() {
                             style={{border: 'none'}}
                         ></iframe>
                     )}
+                    {partyRoomId && (
+                        <>
+                            <div className="party-reactions-layer">
+                                {partyReactions.map(r => (
+                                    <span key={r.id} className="party-reaction-float" style={{ left: `${r.left}%` }}>{r.emoji}</span>
+                                ))}
+                            </div>
+                            <div className="party-reactions-bar">
+                                {PARTY_EMOJI.map(e => (
+                                    <button key={e} className="party-reaction-btn" onClick={() => sendReaction(e)} aria-label={`React ${e}`}>{e}</button>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
                 <div className="watch-options">
                     <button className="wbar-details-btn" onClick={() => navigate(`/detail/${id}`)}>
@@ -1877,6 +2128,14 @@ export default function App() {
                                     <path d="M21 3H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11z"/>
                                 </svg>
                                 <span>{castConnected ? 'Casting' : 'Cast'}</span>
+                            </button>
+                        )}
+                        {parseInt(provider) === 1 && lmUrl && (
+                            <button className="wbar-btn" onClick={handleDownload} aria-label="Download this title">
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                                </svg>
+                                <span>Download</span>
                             </button>
                         )}
                         <button
@@ -1967,10 +2226,65 @@ export default function App() {
                             {partyStatus === 'connected' ? 'live' : partyStatus === 'connecting' ? 'connecting…' : 'disconnected'}
                         </span>
                     </span>
+                    {partyParticipants.length > 0 && (
+                        <span className="party-banner-presence" title={partyParticipants.join(', ')}>
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                            {partyParticipants.length}
+                        </span>
+                    )}
+                    <button className="party-banner-btn" onClick={() => setPartyChatOpen(o => !o)}>
+                        Chat{partyUnread > 0 ? ` (${partyUnread})` : ''}
+                    </button>
                     <button className="party-banner-btn" onClick={copyPartyLink}>
                         {partyLinkCopied ? 'Copied!' : 'Copy link'}
                     </button>
                     <button className="party-banner-btn party-banner-leave" onClick={leaveWatchParty}>Leave</button>
+                </div>
+            )}
+
+            {partyRoomId && partyChatOpen && (
+                <div className="party-chat">
+                    <div className="party-chat-header">
+                        <span className="party-chat-title">
+                            Party Chat
+                            {partyParticipants.length > 0 && <span className="party-chat-count"> · {partyParticipants.length} here</span>}
+                        </span>
+                        <button className="party-chat-close" onClick={() => setPartyChatOpen(false)} aria-label="Close chat">✕</button>
+                    </div>
+                    {partyParticipants.length > 0 && (
+                        <div className="party-chat-presence">
+                            {partyParticipants.map(p => (
+                                <span key={p} className="party-chat-chip">
+                                    <span className="party-chat-chip-dot" />{p}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    <div className="party-chat-messages">
+                        {partyChat.length === 0 ? (
+                            <p className="party-chat-empty">No messages yet — say hi 👋</p>
+                        ) : partyChat.map(m => {
+                            const mine = m.user === (localStorage.getItem('user'));
+                            return (
+                                <div key={m.id} className={`party-chat-msg${mine ? ' mine' : ''}`}>
+                                    {!mine && <span className="party-chat-user">{m.user}</span>}
+                                    <span className="party-chat-text">{m.text}</span>
+                                </div>
+                            );
+                        })}
+                        <div ref={partyChatEndRef} />
+                    </div>
+                    <div className="party-chat-input-row">
+                        <input
+                            className="party-chat-input"
+                            placeholder="Message…"
+                            value={partyChatInput}
+                            maxLength={500}
+                            onChange={(e) => setPartyChatInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') sendPartyChat(); }}
+                        />
+                        <button className="party-chat-send" onClick={sendPartyChat} disabled={!partyChatInput.trim()}>Send</button>
+                    </div>
                 </div>
             )}
 

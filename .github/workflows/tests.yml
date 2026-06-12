@@ -1,0 +1,40 @@
+name: Tests
+
+# Runs both test suites on every push and PR, independent of the deploy
+# workflows (which only fire on path-filtered pushes to main). This is the
+# signal that gates merges; the deploy jobs re-run the relevant suite as a
+# final safety check before shipping.
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # back tests use only node:test + built-ins (back/lib has no external
+      # deps), so no install is needed.
+      - name: Run backend tests
+        working-directory: ./back
+        run: node --test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+      - name: Install
+        working-directory: ./front
+        run: npm ci
+      # Covers the web utils and the iOS pure modules (tested from this suite).
+      - name: Run frontend tests
+        working-directory: ./front
+        run: npm test
