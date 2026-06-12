@@ -17,6 +17,12 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
 
+// Pure helpers extracted for unit testing (see back/lib + back/test).
+import { slugify, rewriteHlsManifest, hlsLanguageCode } from './lib/hls.js';
+import { normalizeToVtt } from './lib/subtitles.js';
+import { generateToken as GenerateToken, generatePartyCode } from './lib/codes.js';
+import { detectShowChanges, collectShowFollowers } from './lib/notifications.js';
+
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
 
@@ -500,7 +506,7 @@ app.post('/similar', async (request, response) => {
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, ID} = request.body
 
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         try {
             if (similarCache.has(ID)) return response.status(200).send(JSON.stringify(similarCache.get(ID)));
             const Key = ID.slice(1, 100000)
@@ -532,7 +538,7 @@ app.post('/eretrieve', async (request, response) => {
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, series, season, episode } = request.body
 
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         try {
             const apiResponse = await axios({
                 method: 'get',
@@ -559,7 +565,7 @@ app.post('/mretrieve', async (request, response) => {
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, movie } = request.body
 
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         try {
             if (tmdbCache.has('m' + movie)) return response.status(200).send(JSON.stringify(tmdbCache.get('m' + movie)));
             const apiResponse = await axios({
@@ -587,7 +593,7 @@ app.post('/sretrieve', async (request, response) => {
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, series } = request.body
 
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         try {
             if (tmdbCache.has('t' + series)) return response.status(200).send(JSON.stringify(tmdbCache.get('t' + series)));
             const apiResponse = await axios({
@@ -613,7 +619,7 @@ app.post('/detail', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, tmdbId, mediaType } = request.body;
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         try {
             const cacheKey = `${mediaType}-${tmdbId}`;
             if (detailCache.has(cacheKey)) return response.status(200).json(detailCache.get(cacheKey));
@@ -637,7 +643,7 @@ app.post('/season', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, seriesId, seasonNumber } = request.body;
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         try {
             const cacheKey = `${seriesId}-S${seasonNumber}`;
             if (seasonCache.has(cacheKey)) return response.status(200).json(seasonCache.get(cacheKey));
@@ -699,7 +705,7 @@ app.post('/favourite', async (request, response) => {
     const {user, token, favId} = request.body
     const db = admin.database();
 
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         const snapshot = await db.ref(`users/${user}/favourites`).once('value');
         if (snapshot.val() == "nil") {
             db.ref(`users/${user}`).set({ favourites: JSON.stringify([favId])})
@@ -723,7 +729,7 @@ app.post('/unfavourite', async (request, response) => {
     const {user, token, favId} = request.body
     const db = admin.database();
     console.log(favId);
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         console.log("Auth passed");
         const snapshot = await db.ref(`users/${user}/favourites`).once('value');
         if (snapshot.val() == "nil") {
@@ -817,7 +823,7 @@ app.post('/continue', async (request, response) => {
     const {user, token, favId} = request.body
     const db = admin.database();
 
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         const snapshot = await db.ref(`users/${user}/continues`).once('value');
         if (snapshot.val() == "nil") {
             db.ref(`users/${user}`).set({ continues: JSON.stringify([favId])})
@@ -847,7 +853,7 @@ app.post('/uncontinue', async (request, response) => {
     const {user, token, favId} = request.body
     const db = admin.database();
 
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         const snapshot = await db.ref(`users/${user}/continues`).once('value');
         if (snapshot.val() == "nil") {
             response.status(202)
@@ -873,7 +879,7 @@ app.post('/progress_update', async (request, response) => {
     const {user, token, progID, progStatus} = request.body
     const db = admin.database();
 
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         const snapshot = await db.ref(`users/${user}/progress/${progID}`).once('value');
         
         if (snapshot.exists()) {
@@ -897,7 +903,7 @@ app.post('/progress_retrieve', async (request, response) => {
     const {user, token, progID} = request.body
     const db = admin.database();
 
-    if (Authenticate(user, token)) {
+    if (await Authenticate(user, token)) {
         const snapshot = await db.ref(`users/${user}/progress/${progID}`).once('value');
 
         if (snapshot.exists()) {
@@ -911,12 +917,207 @@ app.post('/progress_retrieve', async (request, response) => {
             response.status(404)
             response.send("VNF")
         }
-        
+
     } else {
         response.status(202)
         response.send("UNV")
     }
 })
+
+// ── Resume playback position (cross-device) ──────────────────────────────────
+// Stored per "posKey": movies use the content id ("m123"); TV episodes use
+// "t123_s1_e2" so each episode resumes independently. We also stash a
+// series/movie-level percentage under positionsPct/{contentId} so the home
+// Continue-Watching cards can render a progress bar without a per-episode key.
+// RTDB keys can't contain . # $ [ ] / — the posKey format avoids all of them.
+
+app.post('/position/update', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, posKey, contentId, position, duration, pct } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    if (!posKey) return response.status(400).send("posKey required");
+    try {
+        const db = admin.database();
+        const pos = Number(position) || 0;
+        const dur = Number(duration) || 0;
+        await db.ref(`users/${user}/positions/${posKey}`).set({
+            position: pos,
+            duration: dur,
+            updatedAt: Date.now(),
+        });
+        // Series/movie-level percentage for Continue-Watching progress bars.
+        if (contentId) {
+            const ratio = Number(pct);
+            const clamped = isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : (dur > 0 ? Math.min(1, pos / dur) : 0);
+            await db.ref(`users/${user}/positionsPct/${contentId}`).set(+clamped.toFixed(4));
+        }
+        response.status(200).send("OK");
+    } catch (error) {
+        logError(user, '/position/update', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
+
+app.post('/position/retrieve', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, posKey } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    if (!posKey) return response.status(400).send("posKey required");
+    try {
+        const db = admin.database();
+        const snap = await db.ref(`users/${user}/positions/${posKey}`).once('value');
+        if (!snap.exists()) return response.status(404).send("VNF");
+        const v = snap.val();
+        response.status(200).json({ position: v.position || 0, duration: v.duration || 0, updatedAt: v.updatedAt || 0 });
+    } catch (error) {
+        logError(user, '/position/retrieve', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
+
+// Batch percentage map for the home Continue-Watching bars (cross-device).
+app.post('/position/percentages', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const db = admin.database();
+        const snap = await db.ref(`users/${user}/positionsPct`).once('value');
+        response.status(200).json(snap.val() || {});
+    } catch (error) {
+        logError(user, '/position/percentages', error).catch(() => {});
+        response.status(200).json({});
+    }
+});
+
+// ── New-episode / new-season notifications ───────────────────────────────────
+// A daily job compares each followed TV show (from users' watchlists +
+// favourites) against TMDB and drops a notification into users/{user}/
+// notifications when a new episode or season appears. Detection logic lives in
+// lib/notifications.js (pure + unit tested); this wires it to TMDB + Firebase.
+
+async function fetchShowStatus(tvId) {
+    try {
+        const url = `https://api.themoviedb.org/3/tv/${tvId}?api_key=${process.env.TMDB_Credentials}`;
+        const r = await axios.get(url);
+        const d = r.data;
+        return {
+            name: d.name || d.title,
+            number_of_seasons: d.number_of_seasons,
+            number_of_episodes: d.number_of_episodes,
+            last_episode_to_air: d.last_episode_to_air,
+            poster_path: d.poster_path,
+        };
+    } catch {
+        return null;
+    }
+}
+
+let lastNewEpisodeCheck = 0;
+async function checkNewEpisodes() {
+    const db = admin.database();
+    const usersSnap = await db.ref('users').once('value');
+    const followers = collectShowFollowers(usersSnap.val() || {});
+    let notified = 0;
+
+    for (const [contentId, fans] of followers) {
+        try {
+            const show = await fetchShowStatus(contentId.slice(1));
+            if (!show) continue;
+            const prevSnap = await db.ref(`showTracking/${contentId}`).once('value');
+            const prev = prevSnap.exists() ? prevSnap.val() : null;
+            const { snapshot, notifications } = detectShowChanges(prev, show);
+            await db.ref(`showTracking/${contentId}`).set(snapshot);
+
+            for (const note of notifications) {
+                for (const username of fans) {
+                    await db.ref(`users/${username}/notifications`).push({
+                        ...note,
+                        contentId,
+                        title: show.name || 'A show you follow',
+                        poster_path: show.poster_path || null,
+                        ts: Date.now(),
+                        seen: false,
+                    });
+                    notified++;
+                }
+            }
+        } catch (e) {
+            logError('system', 'checkNewEpisodes', e).catch(() => {});
+        }
+    }
+    lastNewEpisodeCheck = Date.now();
+    console.log(`[checkNewEpisodes] ${followers.size} shows checked, ${notified} notifications sent`);
+    return { shows: followers.size, notified };
+}
+
+// Run daily, and once ~1 min after boot (first run only records baselines).
+setInterval(() => { checkNewEpisodes().catch(() => {}); }, 24 * 60 * 60 * 1000);
+setTimeout(() => { checkNewEpisodes().catch(() => {}); }, 60 * 1000);
+
+// Manual / external-cron trigger (admin only).
+app.post('/admin/check-new-episodes', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await AuthenticateAdmin(user, token)) return response.status(403).send("Forbidden");
+    try {
+        const result = await checkNewEpisodes();
+        response.status(200).json({ ok: true, ...result, lastNewEpisodeCheck });
+    } catch (error) {
+        logError(user, '/admin/check-new-episodes', error).catch(() => {});
+        response.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/notifications', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const db = admin.database();
+        const snap = await db.ref(`users/${user}/notifications`).orderByChild('ts').limitToLast(50).once('value');
+        const val = snap.val() || {};
+        const notifications = Object.entries(val)
+            .map(([id, n]) => ({ id, ...n }))
+            .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        const unread = notifications.filter(n => !n.seen).length;
+        response.status(200).json({ notifications, unread });
+    } catch (error) {
+        logError(user, '/notifications', error).catch(() => {});
+        response.status(200).json({ notifications: [], unread: 0 });
+    }
+});
+
+app.post('/notifications/seen', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, ids } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const db = admin.database();
+        if (Array.isArray(ids) && ids.length) {
+            const updates = {};
+            for (const id of ids) updates[`${id}/seen`] = true;
+            await db.ref(`users/${user}/notifications`).update(updates);
+        } else {
+            // Mark all as seen.
+            const snap = await db.ref(`users/${user}/notifications`).once('value');
+            const val = snap.val() || {};
+            const updates = {};
+            for (const id of Object.keys(val)) updates[`${id}/seen`] = true;
+            if (Object.keys(updates).length) await db.ref(`users/${user}/notifications`).update(updates);
+        }
+        response.status(200).send("OK");
+    } catch (error) {
+        logError(user, '/notifications/seen', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
 
 
 
@@ -1002,6 +1203,72 @@ app.post('/track', async (request, response) => {
     response.status(200).send("OK");
 });
 
+// ── Intro / welcome video ────────────────────────────────────────────────────
+// A global config (config/introVideo = { enabled, version }) gates the popup;
+// each user stores the version they last watched (users/{u}/introSeenVersion).
+// Show when enabled AND the user hasn't seen the current version. Admin can
+// disable it or bump the version to re-show it to everyone.
+
+async function getIntroConfig() {
+    const db = admin.database();
+    const snap = await db.ref('config/introVideo').once('value');
+    const cfg = snap.val() || {};
+    return { enabled: cfg.enabled !== false, version: cfg.version || 1 };
+}
+
+app.post('/intro/status', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const db = admin.database();
+        const { enabled, version } = await getIntroConfig();
+        const seenSnap = await db.ref(`users/${user}/introSeenVersion`).once('value');
+        const seenVersion = seenSnap.val() || 0;
+        response.status(200).json({ show: enabled && seenVersion < version, version });
+    } catch (error) {
+        logError(user, '/intro/status', error).catch(() => {});
+        response.status(200).json({ show: false, version: 1 });
+    }
+});
+
+app.post('/intro/seen', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, version } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const db = admin.database();
+        const v = parseInt(version) || (await getIntroConfig()).version;
+        await db.ref(`users/${user}`).update({ introSeenVersion: v });
+        response.status(200).send("OK");
+    } catch (error) {
+        logError(user, '/intro/seen', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
+
+app.post('/admin/intro/set', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, enabled, bumpVersion } = request.body;
+    if (!await AuthenticateAdmin(user, token)) return response.status(403).send("Forbidden");
+    try {
+        const db = admin.database();
+        const cfg = await getIntroConfig();
+        const next = {
+            enabled: typeof enabled === 'boolean' ? enabled : cfg.enabled,
+            version: bumpVersion ? cfg.version + 1 : cfg.version,
+        };
+        await db.ref('config/introVideo').set(next);
+        response.status(200).json(next);
+    } catch (error) {
+        logError(user, '/admin/intro/set', error).catch(() => {});
+        response.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/admin/data', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -1022,8 +1289,24 @@ app.post('/admin/data', async (request, response) => {
         const analytics = analyticsSnap.val()
             ? Object.values(analyticsSnap.val()).sort((a, b) => b.timestamp - a.timestamp)
             : [];
-        const users = usersSnap.val() ? Object.keys(usersSnap.val()) : [];
-        response.status(200).json({ errors, analytics, users });
+        const usersVal = usersSnap.val() || {};
+        const users = Object.keys(usersVal);
+        // Per-user total watch time (seconds) summed from watch_sessions, plus a
+        // grand total — computed from the users node we already loaded.
+        const watchTotals = {};
+        let watchTotalAll = 0;
+        for (const [uname, u] of Object.entries(usersVal)) {
+            const sessions = u.watch_sessions ? Object.values(u.watch_sessions) : [];
+            const secs = sessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+            watchTotals[uname] = secs;
+            watchTotalAll += secs;
+        }
+        // How many users have seen the current intro-video version.
+        const introCfgSnap = await db.ref('config/introVideo').once('value');
+        const introConfig = introCfgSnap.val() || { enabled: true, version: 1 };
+        const introSeenCount = Object.values(usersVal)
+            .filter(u => (u.introSeenVersion || 0) >= (introConfig.version || 1)).length;
+        response.status(200).json({ errors, analytics, users, watchTotals, watchTotalAll, introConfig, introSeenCount });
     } catch (error) {
         logError('manav', '/admin/data', error).catch(() => {});
         response.status(200).json({ errors: [], analytics: [], users: [], fetchError: error.message });
@@ -1268,13 +1551,6 @@ app.post('/admin/create-user', async (request, response) => {
 // SSE: the server holds open a `value` listener on the room and pushes every
 // change to subscribed clients (except echoing the change back to its actor).
 
-function generatePartyCode() {
-    // 6 chars, omitting easily-confused glyphs (I, O, 0, 1)
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = '';
-    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-    return code;
-}
 
 app.post('/party/create', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
@@ -1348,7 +1624,57 @@ app.post('/party/info', async (request, response) => {
     }
 });
 
+// Post a chat message into the room. Messages live at parties/{roomId}/chat
+// and are streamed to every peer via the dedicated `chat` SSE channel below.
+app.post('/party/chat', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, roomId, text } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    const msg = String(text || '').trim();
+    if (!roomId || !msg) return response.status(400).json({ error: 'roomId + text required' });
+    try {
+        const db = admin.database();
+        const exists = await db.ref(`parties/${roomId}`).once('value');
+        if (!exists.exists()) return response.status(404).json({ error: 'Room not found' });
+        await db.ref(`parties/${roomId}/chat`).push({
+            user,
+            text: msg.slice(0, 500),
+            ts: Date.now(),
+        });
+        response.status(200).json({ ok: true });
+    } catch (error) {
+        logError(user, '/party/chat', error).catch(() => {});
+        response.status(500).json({ error: error.message });
+    }
+});
+
+// Emoji reactions. Ephemeral — pushed to parties/{roomId}/reactions and
+// streamed to peers who are connected *now* via the `reaction` SSE channel
+// (history is not replayed). A small allow-list keeps payloads sane.
+const ALLOWED_REACTIONS = ['❤️', '😂', '😮', '😢', '🔥', '👏', '👍', '🎉'];
+app.post('/party/react', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, roomId, emoji } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    if (!roomId || !ALLOWED_REACTIONS.includes(emoji)) {
+        return response.status(400).json({ error: 'roomId + valid emoji required' });
+    }
+    try {
+        const db = admin.database();
+        const exists = await db.ref(`parties/${roomId}`).once('value');
+        if (!exists.exists()) return response.status(404).json({ error: 'Room not found' });
+        await db.ref(`parties/${roomId}/reactions`).push({ user, emoji, ts: Date.now() });
+        response.status(200).json({ ok: true });
+    } catch (error) {
+        logError(user, '/party/react', error).catch(() => {});
+        response.status(500).json({ error: error.message });
+    }
+});
+
 // SSE stream — server pushes every state change on the room to this client.
+// Three channels: default (playback state), `chat`, and `presence`.
 // Drops echoes back to the same actor that sent them so the originator doesn't
 // fight its own updates.
 app.get('/party/stream', async (request, response) => {
@@ -1375,6 +1701,10 @@ app.get('/party/stream', async (request, response) => {
     // with multiple tabs on one user). Falls back to the username for older
     // clients. If neither matches, the update is broadcast.
     const selfActor = clientId || user;
+    // Dedupe by the playback signature so chat/presence writes (which don't
+    // touch lastUpdate) don't resend identical playback state. Chat history is
+    // also stripped from the playback payload so it never bloats these pushes.
+    let lastSentSig = null;
     const cb = (snap) => {
         const val = snap.val();
         if (!val) {
@@ -1382,15 +1712,52 @@ app.get('/party/stream', async (request, response) => {
             return;
         }
         if (val.actor === selfActor) return;
-        try { response.write(`data: ${JSON.stringify(val)}\n\n`); } catch {}
+        const { chat, participants, ...playback } = val;
+        const sig = JSON.stringify([playback.position, playback.paused, playback.season, playback.episode, playback.actor, playback.lastUpdate]);
+        if (sig === lastSentSig) return;
+        lastSentSig = sig;
+        try { response.write(`data: ${JSON.stringify(playback)}\n\n`); } catch {}
     };
     ref.on('value', cb);
+
+    // Chat — replays the last 50 messages on connect, then streams new ones.
+    // A dedicated channel bypasses the playback echo filter so messages always
+    // reach every peer regardless of who last touched playback.
+    const chatRef = db.ref(`parties/${roomId}/chat`).limitToLast(50);
+    const chatCb = (snap) => {
+        const m = snap.val();
+        if (!m) return;
+        try { response.write(`event: chat\ndata: ${JSON.stringify({ ...m, id: snap.key })}\n\n`); } catch {}
+    };
+    chatRef.on('child_added', chatCb);
+
+    // Presence — broadcast the participant username list on any join/leave.
+    const presenceRef = db.ref(`parties/${roomId}/participants`);
+    const presenceCb = (snap) => {
+        try { response.write(`event: presence\ndata: ${JSON.stringify(Object.keys(snap.val() || {}))}\n\n`); } catch {}
+    };
+    presenceRef.on('value', presenceCb);
+
+    // Reactions — ephemeral; only forward ones created AFTER this client
+    // connected (no history replay), so a freshly-joined viewer doesn't get a
+    // burst of stale emoji.
+    const connectedAt = Date.now();
+    const reactionsRef = db.ref(`parties/${roomId}/reactions`).limitToLast(5);
+    const reactionCb = (snap) => {
+        const r = snap.val();
+        if (!r || (r.ts || 0) < connectedAt) return;
+        try { response.write(`event: reaction\ndata: ${JSON.stringify({ ...r, id: snap.key })}\n\n`); } catch {}
+    };
+    reactionsRef.on('child_added', reactionCb);
 
     await db.ref(`parties/${roomId}/participants/${user}`).set(true).catch(() => {});
 
     const cleanup = () => {
         clearInterval(heartbeat);
         ref.off('value', cb);
+        chatRef.off('child_added', chatCb);
+        presenceRef.off('value', presenceCb);
+        reactionsRef.off('child_added', reactionCb);
         db.ref(`parties/${roomId}/participants/${user}`).remove().catch(() => {});
     };
     request.on('close', cleanup);
@@ -1551,9 +1918,6 @@ async function OfferVerify(username, token, email) {
         .catch((error) => console.error('[verify] Email error:', error?.response?.body || error.message));
 }
 
-function GenerateToken() {
-    return Math.random().toString(36).substr(2) + Math.random().toString(36).substr(2);
-}
 
 async function AuthenticateAdmin(user, token) {
     if (user !== 'manav') return false;
@@ -1592,13 +1956,6 @@ async function getIMDBId(tmdbId, mediaType) {
     return res.data.imdb_id || null; // e.g. "tt0317219"
 }
 
-function slugify(title) {
-    return title.toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
-}
 
 const lookmovieHeaders = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -1732,91 +2089,6 @@ async function getLookmovieStreamUrl(internalId, mediaType, dbg) {
     return { streamUrl, subtitles: res.data.subtitles || [] };
 }
 
-function absolutizeManifestUrl(baseUrl, value) {
-    return new URL(value, baseUrl).toString();
-}
-
-function proxiedHlsUrl(url) {
-    return `/proxy/hls?url=${encodeURIComponent(url)}`;
-}
-
-function rewriteManifestUriAttributes(line, baseUrl) {
-    return line.replace(/URI="([^"]+)"/g, (_, uri) => {
-        if (uri.startsWith('data:')) return `URI="${uri}"`;
-        const abs = absolutizeManifestUrl(baseUrl, uri);
-        return `URI="${proxiedHlsUrl(abs)}"`;
-    });
-}
-
-function forceQuotedManifestAttribute(line, attr, value) {
-    const re = new RegExp(`(,${attr}=)("[^"]*"|[^,]*)`);
-    if (re.test(line)) return line.replace(re, `$1"${value}"`);
-    return `${line},${attr}="${value}"`;
-}
-
-function rewriteHlsManifest(manifestText, manifestUrl, { subtitleGroupId = null } = {}) {
-    return manifestText.split('\n').map(line => {
-        const t = line.trim();
-        if (!t) return line;
-
-        if (t.startsWith('#')) {
-            let out = rewriteManifestUriAttributes(line, manifestUrl);
-            if (subtitleGroupId && t.startsWith('#EXT-X-STREAM-INF')) {
-                out = forceQuotedManifestAttribute(out, 'SUBTITLES', subtitleGroupId);
-            }
-            return out;
-        }
-
-        const abs = absolutizeManifestUrl(manifestUrl, t);
-        return proxiedHlsUrl(abs);
-    }).join('\n');
-}
-
-function buildSingleVariantMaster({ originalUrl, rewrittenMediaUrl, subMediaLines }) {
-    return [
-        '#EXTM3U',
-        '#EXT-X-VERSION:3',
-        ...subMediaLines,
-        '#EXT-X-STREAM-INF:BANDWIDTH=5000000,AVERAGE-BANDWIDTH=4500000,SUBTITLES="subs"',
-        rewrittenMediaUrl || proxiedHlsUrl(originalUrl),
-    ].join('\n');
-}
-
-function hlsLanguageCode(sub, index) {
-    const raw = String(sub.language || sub.lang || sub.label || '').toLowerCase();
-    const file = String(sub.file || sub.url || '').toLowerCase();
-    const text = `${raw} ${file}`;
-    const languageMap = [
-        ['en', /\b(en|eng|english)\b/],
-        ['es', /\b(es|spa|spanish|espanol|español)\b/],
-        ['fr', /\b(fr|fre|fra|french)\b/],
-        ['de', /\b(de|ger|deu|german)\b/],
-        ['it', /\b(it|ita|italian)\b/],
-        ['pt', /\b(pt|por|portuguese)\b/],
-        ['nl', /\b(nl|dut|nld|dutch)\b/],
-        ['ru', /\b(ru|rus|russian)\b/],
-        ['uk', /\b(uk|ukr|ukrainian)\b/],
-        ['cs', /\b(cs|cze|ces|czech)\b/],
-        ['el', /\b(el|gre|ell|greek)\b/],
-        ['hi', /\b(hi|hin|hindi)\b/],
-        ['id', /\b(id|ind|indonesian)\b/],
-        ['sv', /\b(sv|swe|swedish)\b/],
-        ['no', /\b(no|nor|norwegian)\b/],
-        ['da', /\b(da|dan|danish)\b/],
-        ['fi', /\b(fi|fin|finnish)\b/],
-        ['pl', /\b(pl|pol|polish)\b/],
-        ['tr', /\b(tr|tur|turkish)\b/],
-        ['ar', /\b(ar|ara|arabic)\b/],
-        ['ja', /\b(ja|jpn|japanese)\b/],
-        ['ko', /\b(ko|kor|korean)\b/],
-        ['zh', /\b(zh|chi|zho|chinese)\b/],
-    ];
-    const directTag = raw.match(/\b([a-z]{2})(?:[-_][a-z]{2})?\b/)?.[1];
-    if (directTag && languageMap.some(([tag]) => tag === directTag)) return directTag;
-    const found = languageMap.find(([, re]) => re.test(text));
-    return found?.[0] || (index === 0 ? 'en' : 'und');
-}
-
 // HLS proxy — manifests are rewritten, segments are piped (never buffered)
 app.get('/proxy/hls', async (req, res) => {
     const raw = req.query.url;
@@ -1883,29 +2155,7 @@ app.get('/proxy/subtitle', async (req, res) => {
             timeout: 15000,
         });
 
-        const raw2 = data.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        const isVtt = raw2.trimStart().startsWith('WEBVTT');
-
-        let body;
-        if (isVtt) {
-            // Strip any existing X-TIMESTAMP-MAP so we control it
-            body = raw2.replace(/^WEBVTT[^\n]*/i, 'WEBVTT').replace(/^X-TIMESTAMP-MAP=.*\n/im, '').trimEnd();
-        } else {
-            // SRT → VTT: strip sequence numbers and convert timestamp format
-            const converted = raw2
-                .replace(/^\d+\s*$/gm, '')                              // remove lone sequence numbers
-                .replace(/(\d{1,2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')   // comma → dot in timestamps
-                .replace(/^(\d):(\d{2}:\d{2}\.\d{3})/gm, '0$1:$2')    // pad single-digit hours
-                .trim();
-            body = `WEBVTT\n\n${converted}`;
-        }
-
-        // AVPlayer requires X-TIMESTAMP-MAP to sync subtitle times to video PTS.
-        // MPEGTS:0 works when the stream's initial PTS is near zero (typical for CDN HLS).
-        const header = forHls
-            ? 'WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000'
-            : 'WEBVTT';
-        res.send(body.replace(/^WEBVTT/i, header) + '\n');
+        res.send(normalizeToVtt(data, { forHls }));
     } catch (e) {
         const status = e.response?.status || 'no-response';
         const msg = e.message || 'unknown error';
@@ -1995,6 +2245,34 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
     }
 });
 
+// Resolve a playable LookMovie HLS stream (+ subtitles + a human title) for a
+// given content id / season / episode. Shared by the streaming endpoint and
+// the download endpoint.
+async function resolveLookmovieStream(id, season, episode, dbg) {
+    const mediaType = id.startsWith('t') ? 'tv' : 'movie';
+    const tmdbId    = id.slice(1);
+
+    const info   = await GetInfo(id);
+    const title  = info.title || info.name;
+    const year   = new Date(info.release_date || info.first_air_date || '2000').getFullYear();
+    dbg.push(`Content: "${title}" (${year}), mediaType: ${mediaType}, tmdbId: ${tmdbId}`);
+
+    const imdbId = await getIMDBId(tmdbId, mediaType);
+    dbg.push(`IMDB ID: ${imdbId}`);
+    if (!imdbId) throw new Error('No IMDB ID found for this title');
+
+    const lmId = await getOrFetchLookmovieId(id, imdbId, mediaType, title, year, dbg);
+    dbg.push(`LookMovie internal ID: ${lmId}`);
+
+    let targetId = lmId;
+    if (mediaType === 'tv') {
+        targetId = await getLookmovieEpisodeId(lmId, season || 1, episode || 1, dbg);
+    }
+
+    const { streamUrl, subtitles } = await getLookmovieStreamUrl(targetId, mediaType, dbg);
+    return { streamUrl, subtitles, title, year, mediaType };
+}
+
 app.post('/server/lookmovie', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -2003,33 +2281,66 @@ app.post('/server/lookmovie', async (request, response) => {
 
     const dbg = [];
     try {
-        const mediaType = id.startsWith('t') ? 'tv' : 'movie';
-        const tmdbId    = id.slice(1);
-
-        const info   = await GetInfo(id);
-        const title  = info.title || info.name;
-        const year   = new Date(info.release_date || info.first_air_date || '2000').getFullYear();
-        dbg.push(`Content: "${title}" (${year}), mediaType: ${mediaType}, tmdbId: ${tmdbId}`);
-
-        const imdbId = await getIMDBId(tmdbId, mediaType);
-        dbg.push(`IMDB ID: ${imdbId}`);
-        if (!imdbId) throw new Error('No IMDB ID found for this title');
-
-        const lmId = await getOrFetchLookmovieId(id, imdbId, mediaType, title, year, dbg);
-        dbg.push(`LookMovie internal ID: ${lmId}`);
-
-        let targetId = lmId;
-        if (mediaType === 'tv') {
-            targetId = await getLookmovieEpisodeId(lmId, season || 1, episode || 1, dbg);
-        }
-
-        const { streamUrl, subtitles } = await getLookmovieStreamUrl(targetId, mediaType, dbg);
+        const { streamUrl, subtitles } = await resolveLookmovieStream(id, season, episode, dbg);
         response.json({ success: true, url: streamUrl, subtitles, dbg });
     } catch (error) {
         logError(user, '/server/lookmovie', error).catch(() => {});
         dbg.push(`ERROR: ${error.message}`);
         response.status(200).json({ success: false, error: error.message, dbg });
     }
+});
+
+// Download a movie/episode as MP4. Resolves the LookMovie HLS stream, then
+// ffmpeg remuxes it (no re-encode — fast, lossless) and streams the fragmented
+// MP4 straight to the browser as an attachment. Auth is via query params so the
+// URL can be opened directly / via a download manager.
+app.get('/download/video', async (request, response) => {
+    const { user, token, id, season, episode } = request.query;
+    if (!await Authenticate(user, token)) return response.status(401).send('Unauthorized');
+    if (!id) return response.status(400).send('Missing id');
+
+    const dbg = [];
+    let streamUrl, title, mediaType;
+    try {
+        ({ streamUrl, title, mediaType } = await resolveLookmovieStream(id, season, episode, dbg));
+    } catch (error) {
+        logError(user, '/download/video', error).catch(() => {});
+        return response.status(502).send(`Could not resolve stream: ${error.message}`);
+    }
+
+    // Build a friendly filename: "Title.mp4" or "Title.S01E02.mp4"
+    const safeTitle = String(title || 'video').replace(/[/\\?%*:|"<>]/g, '-').trim() || 'video';
+    const pad = (n) => String(parseInt(n) || 1).padStart(2, '0');
+    const fileName = mediaType === 'tv'
+        ? `${safeTitle}.S${pad(season)}E${pad(episode)}.mp4`
+        : `${safeTitle}.mp4`;
+
+    response.setHeader('Content-Type', 'video/mp4');
+    response.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+    response.setHeader('Access-Control-Allow-Origin', '*');
+
+    console.log(`[download/video] ${id} S${season}E${episode} → "${fileName}"`);
+
+    // -c copy: remux only (no transcode). aac_adtstoasc fixes HLS AAC for MP4.
+    // frag_keyframe+empty_moov makes the MP4 streamable without seeking stdout.
+    const ffmpeg = spawn('ffmpeg', [
+        '-headers', `Referer: https://www.lookmovie2.to/\r\nUser-Agent: ${lookmovieHeaders['User-Agent']}\r\n`,
+        '-i', streamUrl,
+        '-c', 'copy',
+        '-bsf:a', 'aac_adtstoasc',
+        '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+        '-f', 'mp4', '-'
+    ]);
+
+    ffmpeg.stdout.pipe(response);
+    ffmpeg.stderr.on('data', () => {});
+    ffmpeg.on('error', (e) => {
+        console.error('[download/video] ffmpeg error:', e.message);
+        if (!response.headersSent) response.status(500).send('Conversion failed');
+    });
+    ffmpeg.on('close', code => console.log(`[download/video] done "${fileName}" code=${code}`));
+    // If the client aborts the download, kill ffmpeg so we don't leak processes.
+    request.on('close', () => { try { ffmpeg.kill('SIGKILL'); } catch {} });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

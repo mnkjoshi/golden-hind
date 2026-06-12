@@ -4,18 +4,8 @@ import axios from 'axios'
 import Authenticate  from "../components/authenticate.jsx";
 import Topbar from "../components/topbar"
 import { track } from '../utils/analytics.js'
-
-// TMDB Genre mapping
-const genreMap = {
-    // Movie genres
-    28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
-    99: "Documentary", 18: "Drama", 10751: "Family", 14: "Fantasy", 36: "History",
-    27: "Horror", 10402: "Music", 9648: "Mystery", 10749: "Romance", 
-    878: "Science Fiction", 10770: "TV Movie", 53: "Thriller", 10752: "War", 37: "Western",
-    // TV genres
-    10759: "Action & Adventure", 10762: "Kids", 10763: "News", 10764: "Reality",
-    10765: "Sci-Fi & Fantasy", 10766: "Soap", 10767: "Talk", 10768: "War & Politics"
-};
+import { genreMap, getGenreNames } from '../utils/genres.js'
+import { sortResults } from '../utils/sort.js'
 
 export default function Search() {
     const navigate = useNavigate();
@@ -27,6 +17,7 @@ export default function Search() {
     const [filterType, setFilterType] = useState('all');
     const [filterYear, setFilterYear] = useState('');
     const [filterGenre, setFilterGenre] = useState('');
+    const [sortBy, setSortBy] = useState('relevance');
     const [mobileQuery, setMobileQuery] = useState('');
     const { state } = useLocation();
     const searched = state?.searched || "";
@@ -48,6 +39,7 @@ export default function Search() {
             setFilterType('all');
             setFilterYear('');
             setFilterGenre('');
+            setSortBy('relevance');
             axios({
                 method: 'post',
                 url: 'https://goldenhind.tech/search',
@@ -118,13 +110,10 @@ export default function Search() {
 
     const setFilter = (setter) => (val) => { setter(val); setPage(0); };
 
-    const totalPages = Math.ceil(filteredResults.length / itemsPerPage);
-    const currentResults = filteredResults.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
+    const sortedResults = sortResults(filteredResults, sortBy);
 
-    const getGenreNames = (genreIds) => {
-        if (!genreIds || !Array.isArray(genreIds)) return [];
-        return genreIds.map(id => genreMap[id] || `Genre ${id}`).filter(Boolean);
-    };
+    const totalPages = Math.ceil(sortedResults.length / itemsPerPage);
+    const currentResults = sortedResults.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
 
     return (
         <div className="modern-search-page">
@@ -236,6 +225,22 @@ export default function Search() {
                                 ))}
                             </div>
                         )}
+                        <div className="filter-group filter-group-sort">
+                            <span className="filter-sort-label">Sort</span>
+                            {[
+                                { key: 'relevance', label: 'Relevance' },
+                                { key: 'rating', label: 'Rating' },
+                                { key: 'popularity', label: 'Popularity' },
+                                { key: 'newest', label: 'Newest' },
+                                { key: 'oldest', label: 'Oldest' },
+                            ].map(s => (
+                                <button
+                                    key={s.key}
+                                    className={`filter-chip ${sortBy === s.key ? 'active' : ''}`}
+                                    onClick={() => setFilter(setSortBy)(s.key)}
+                                >{s.label}</button>
+                            ))}
+                        </div>
                     </div>
                 )}
 

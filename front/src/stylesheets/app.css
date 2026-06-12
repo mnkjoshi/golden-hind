@@ -2322,3 +2322,74 @@ p {
     0%, 100% { transform: translate(-50%, 0); }
     50%      { transform: translate(-50%, -4px); }
 }
+
+/* ── Welcome / intro video popup ── */
+.intro-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(3, 5, 12, 0.9);
+    backdrop-filter: blur(8px);
+    animation: introFade 0.3s ease;
+    padding: 24px;
+}
+
+@keyframes introFade { from { opacity: 0; } to { opacity: 1; } }
+
+.intro-modal {
+    position: relative;
+    width: min(960px, 92vw);
+    aspect-ratio: 16 / 9;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(63, 163, 255, 0.25);
+    animation: introPop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@keyframes introPop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.intro-video { width: 100%; height: 100%; display: block; object-fit: cover; background: #000; }
+
+.intro-skip {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 3;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.intro-skip:hover { background: rgba(0, 0, 0, 0.8); border-color: rgba(255, 255, 255, 0.45); }
+
+.intro-unmute {
+    position: absolute;
+    left: 50%;
+    bottom: 56px;
+    transform: translateX(-50%);
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #3FA3FF;
+    color: #07101f;
+    border: none;
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(63, 163, 255, 0.5);
+    animation: introPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes introPulse { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.05); } }

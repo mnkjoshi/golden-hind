@@ -416,6 +416,32 @@
     color: #f0b429;
 }
 
+.chip-watchtime {
+    font-size: 11px;
+    color: #79c0ff;
+    background: rgba(121, 192, 255, 0.12);
+    border-radius: 10px;
+    padding: 1px 7px;
+}
+
+/* Event type pills in the activity feed */
+.event-pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border: 1px solid #21262d;
+    color: #adbac7;
+    background: #161b22;
+}
+
+.event-pill.event-session_start { color: #6fcf97; border-color: rgba(111, 207, 151, 0.4); }
+.event-pill.event-search { color: #79c0ff; border-color: rgba(121, 192, 255, 0.4); }
+.event-pill.event-watch { color: #f0b429; border-color: rgba(240, 180, 41, 0.4); }
+
 /* User Activity Modal */
 .admin-modal-backdrop {
     position: fixed;
@@ -621,3 +647,38 @@
         display: none;
     }
 }
+
+/* ── Intro / welcome video admin control ── */
+.intro-admin {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+}
+.intro-admin-info { display: flex; align-items: center; gap: 12px; }
+.intro-admin-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.intro-admin-dot.on { background: #3fb950; box-shadow: 0 0 8px rgba(63, 185, 80, 0.7); }
+.intro-admin-dot.off { background: #6e7681; }
+.intro-admin-title { color: #e6edf3; font-weight: 600; font-size: 15px; }
+.intro-admin-sub { color: #8b949e; font-size: 12px; margin-top: 2px; }
+.intro-admin-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.intro-admin-btn {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #e6edf3;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.intro-admin-btn:hover:not(:disabled) { border-color: #79c0ff; color: #79c0ff; }
+.intro-admin-btn.primary { background: rgba(63, 185, 80, 0.15); border-color: #3fb950; color: #3fb950; }
+.intro-admin-btn.danger { background: rgba(248, 81, 73, 0.12); border-color: #f85149; color: #f85149; }
+.intro-admin-btn:disabled { opacity: 0.5; cursor: default; }

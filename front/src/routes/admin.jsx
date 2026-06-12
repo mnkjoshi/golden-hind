@@ -2,8 +2,35 @@ import { useNavigate } from "react-router-dom";
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import Topbar from "../components/topbar.jsx";
+import { formatWatchTime } from '../utils/format.js';
 
 const BASE_URL = 'https://goldenhind.tech';
+
+// Friendly one-line summary of an analytics event for the activity feed.
+function describeEvent(evt) {
+    const d = evt.data || {};
+    switch (evt.event) {
+        case 'session_start':
+            return 'Logged on — fresh session';
+        case 'search':
+            return d.query ? `Searched "${d.query}"` : 'Searched';
+        case 'watch':
+            if (d.name) {
+                return d.type === 'tv' && d.season
+                    ? `Watched ${d.name} · S${d.season}E${d.episode}`
+                    : `Watched ${d.name}`;
+            }
+            return `Watched ${d.id || 'unknown title'}`;
+        default:
+            return JSON.stringify(d);
+    }
+}
+
+const EVENT_LABELS = {
+    session_start: 'Session',
+    search: 'Search',
+    watch: 'Watch',
+};
 
 export default function Admin() {
     const navigate = useNavigate();
@@ -16,9 +43,19 @@ export default function Admin() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [userActivity, setUserActivity] = useState(null);
     const [userActivityLoading, setUserActivityLoading] = useState(false);
+    const [introBusy, setIntroBusy] = useState(false);
 
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
+
+    const setIntro = async ({ enabled, bumpVersion }) => {
+        setIntroBusy(true);
+        try {
+            await axios.post(`${BASE_URL}/admin/intro/set`, { user, token, enabled, bumpVersion });
+            await fetchData();
+        } catch {}
+        setIntroBusy(false);
+    };
 
     useEffect(() => {
         document.title = 'Admin - The Golden Hind';
@@ -103,14 +140,19 @@ export default function Admin() {
     }
 
     const errors = data?.errors || [];
-    const analytics = data?.analytics || [];
+    // Drop legacy per-navigation page_view spam from the feed + stats.
+    const analytics = (data?.analytics || []).filter(e => e.event !== 'page_view');
     const users = data?.users || [];
+    const watchTotals = data?.watchTotals || {};
+    const watchTotalAll = data?.watchTotalAll || 0;
 
     const eventCounts = analytics.reduce((acc, e) => {
         acc[e.event] = (acc[e.event] || 0) + 1;
         return acc;
     }, {});
     const uniqueUsers = [...new Set(analytics.map(e => e.user))].length;
+    const introConfig = data?.introConfig || { enabled: true, version: 1 };
+    const introSeenCount = data?.introSeenCount || 0;
 
     return (
         <>
@@ -123,6 +165,36 @@ export default function Admin() {
                         <p className="admin-subtitle">Golden Hind — logged in as manav</p>
                     </div>
                     <button className="admin-refresh-btn" onClick={fetchData}>↺ Refresh</button>
+                </div>
+
+                {/* Welcome / intro video control */}
+                <div className="intro-admin">
+                    <div className="intro-admin-info">
+                        <span className={`intro-admin-dot ${introConfig.enabled ? 'on' : 'off'}`} />
+                        <div>
+                            <div className="intro-admin-title">Welcome Video</div>
+                            <div className="intro-admin-sub">
+                                {introConfig.enabled ? 'Showing to new viewers' : 'Disabled'} · v{introConfig.version} · seen by {introSeenCount} {introSeenCount === 1 ? 'user' : 'users'}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="intro-admin-actions">
+                        <button
+                            className={`intro-admin-btn ${introConfig.enabled ? 'danger' : 'primary'}`}
+                            onClick={() => setIntro({ enabled: !introConfig.enabled })}
+                            disabled={introBusy}
+                        >
+                            {introConfig.enabled ? 'Turn off' : 'Turn on'}
+                        </button>
+                        <button
+                            className="intro-admin-btn"
+                            onClick={() => setIntro({ bumpVersion: true })}
+                            disabled={introBusy}
+                            title="Bumps the version so everyone sees it again"
+                        >
+                            Re-show to everyone
+                        </button>
+                    </div>
                 </div>
 
                 <div className="admin-tabs">
@@ -192,24 +264,28 @@ export default function Admin() {
                         <div className="analytics-stats">
                             <div className="stat-card">
                                 <div className="stat-value">{analytics.length}</div>
-                                <div className="stat-label">Total Events</div>
+                                <div className="stat-label">Activity Events</div>
                             </div>
                             <div className="stat-card">
                                 <div className="stat-value">{uniqueUsers}</div>
-                                <div className="stat-label">Unique Users</div>
+                                <div className="stat-label">Active Users</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-value">{formatWatchTime(watchTotalAll)}</div>
+                                <div className="stat-label">Total Watch Time</div>
                             </div>
                             {Object.entries(eventCounts).map(([type, count]) => (
                                 <div className="stat-card" key={type}>
                                     <div className="stat-value">{count}</div>
-                                    <div className="stat-label">{type}</div>
+                                    <div className="stat-label">{EVENT_LABELS[type] || type}</div>
                                 </div>
                             ))}
                         </div>
 
-                        <h3 className="panel-section-title">Recent Events</h3>
+                        <h3 className="panel-section-title">Recent Activity</h3>
                         {analytics.length === 0 ? (
                             <div className="admin-empty">
-                                <p>No analytics events recorded yet.</p>
+                                <p>No activity recorded yet.</p>
                             </div>
                         ) : (
                             <div className="admin-table-wrap">
@@ -219,7 +295,7 @@ export default function Admin() {
                                             <th>Time</th>
                                             <th>User</th>
                                             <th>Event</th>
-                                            <th>Data</th>
+                                            <th>Details</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -227,8 +303,10 @@ export default function Admin() {
                                             <tr key={i}>
                                                 <td className="td-time">{new Date(evt.timestamp).toLocaleString()}</td>
                                                 <td className="td-user">{evt.user}</td>
-                                                <td className="td-endpoint">{evt.event}</td>
-                                                <td className="td-msg">{JSON.stringify(evt.data)}</td>
+                                                <td className="td-endpoint">
+                                                    <span className={`event-pill event-${evt.event}`}>{EVENT_LABELS[evt.event] || evt.event}</span>
+                                                </td>
+                                                <td className="td-msg">{describeEvent(evt)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -284,10 +362,11 @@ export default function Admin() {
 
                         <h3 className="panel-section-title">All Users ({users.length}) — tap to view activity</h3>
                         <div className="users-grid">
-                            {users.map(u => (
+                            {[...users].sort((a, b) => (watchTotals[b] || 0) - (watchTotals[a] || 0)).map(u => (
                                 <button key={u} className={`user-chip user-chip-btn ${u === 'manav' ? 'admin-chip' : ''}`} onClick={() => openUserActivity(u)}>
                                     {u === 'manav' && <span className="chip-crown">★</span>}
-                                    {u}
+                                    <span className="chip-name">{u}</span>
+                                    {watchTotals[u] > 0 && <span className="chip-watchtime">{formatWatchTime(watchTotals[u])}</span>}
                                 </button>
                             ))}
                         </div>
@@ -344,12 +423,4 @@ export default function Admin() {
             )}
         </>
     );
-}
-
-function formatWatchTime(seconds) {
-    if (!seconds || seconds < 1) return '0m';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
