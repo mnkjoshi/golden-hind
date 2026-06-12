@@ -38,33 +38,48 @@ export const API_ENDPOINTS = {
   UNCONTINUE: `${API_BASE_URL}/uncontinue`,
   PROGRESS_UPDATE: `${API_BASE_URL}/progress_update`,
   PROGRESS_RETRIEVE: `${API_BASE_URL}/progress_retrieve`,
+  // Parity with web
+  LOOKMOVIE: `${API_BASE_URL}/server/lookmovie`,
+  POSITION_UPDATE: `${API_BASE_URL}/position/update`,
+  POSITION_RETRIEVE: `${API_BASE_URL}/position/retrieve`,
+  PARTY_CREATE: `${API_BASE_URL}/party/create`,
+  PARTY_INFO: `${API_BASE_URL}/party/info`,
+  PARTY_UPDATE: `${API_BASE_URL}/party/update`,
+  PARTY_CHAT: `${API_BASE_URL}/party/chat`,
+  PARTY_REACT: `${API_BASE_URL}/party/react`,
+  PARTY_STREAM: `${API_BASE_URL}/party/stream`,
+  NOTIFICATIONS: `${API_BASE_URL}/notifications`,
+  NOTIFICATIONS_SEEN: `${API_BASE_URL}/notifications/seen`,
+  DOWNLOAD: `${API_BASE_URL}/download/video`,
 };
 
-// Video provider options
+// Video providers — mirrors the web app's numbering.
+// 1 = LookMovie (native HLS via hls.js in a WebView; supports AirPlay,
+// subtitles, resume, and watch-party sync). 2 = VidLink, 3 = VidSrc (iframes).
 export const VIDEO_PROVIDERS = {
-  VIDLINK: 1,
-  VIDSRC_ME: 2,
-  VIDSRC_ICU: 3
+  LOOKMOVIE: 1,
+  VIDLINK: 2,
+  VIDSRC: 3,
 };
 
+// iframe URL for the embed providers (2 and 3). Provider 1 is resolved
+// server-side and played through the HLS WebView player instead.
 export const getVideoUrl = (provider, type, vidID, season = 1, episode = 1, autoPlay = false) => {
   if (provider === VIDEO_PROVIDERS.VIDLINK) {
     if (type === 'movie') {
       return `https://vidlink.pro/${type}/${vidID}/?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=false&poster=true`;
-    } else {
-      return `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=${autoPlay ? "true" : "false"}&poster=true${autoPlay ? "&startAt=0" : ""}`;
     }
-  } else if (provider === VIDEO_PROVIDERS.VIDSRC_ME) {
+    return `https://vidlink.pro/${type}/${vidID}/${season}/${episode}?primaryColor=3FA3FF&secondaryColor=6db8ff&autoplay=${autoPlay ? "true" : "false"}&poster=true${autoPlay ? "&startAt=0" : ""}`;
+  } else if (provider === VIDEO_PROVIDERS.VIDSRC) {
     if (type === 'movie') {
       return `https://vidsrc.me/embed/${type}?tmdb=${vidID}`;
-    } else {
-      return `https://vidsrc.me/embed/${type}?tmdb=${vidID}&season=${season}&episode=${episode}&autoplay=${autoPlay}`;
     }
-  } else if (provider === VIDEO_PROVIDERS.VIDSRC_ICU) {
-    if (type === 'movie') {
-      return `https://vidsrc.icu/embed/${type}/${vidID}`;
-    } else {
-      return `https://vidsrc.icu/embed/${type}/${vidID}/${season}/${episode}`;
-    }
+    return `https://vidsrc.me/embed/${type}?tmdb=${vidID}&season=${season}&episode=${episode}&autoplay=${autoPlay}`;
   }
+  return '';
 };
+
+// Build a movie/episode posKey matching the web app's scheme so resume
+// positions are shared across web and mobile.
+export const buildPosKey = (id, type, season, episode) =>
+  type === 'tv' ? `playbackPos_${id}_s${season}_e${episode}` : `playbackPos_${id}`;

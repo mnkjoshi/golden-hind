@@ -26,6 +26,12 @@ jobs:
         working-directory: /root/golden-hind/back
         run: npm install --omit=dev
 
+      # Gate the deploy on the backend unit tests (node:test, no extra deps).
+      # If these fail the service is not restarted, so bad code never ships.
+      - name: Run tests
+        working-directory: /root/golden-hind/back
+        run: npm test
+
       - name: Restart service
         run: sudo /bin/systemctl restart golden-hind-back.service
 

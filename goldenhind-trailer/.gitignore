@@ -1,0 +1,8 @@
+renders/
+node_modules/
+# intermediate / raw media (final mixed assets referenced by index.html are kept)
+assets/*_src.wav
+assets/*_raw.wav
+assets/*_src.mp3
+assets/clearbell.mp3
+assets/script.txt
