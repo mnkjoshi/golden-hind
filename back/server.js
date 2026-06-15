@@ -2294,10 +2294,18 @@ app.post('/server/lookmovie', async (request, response) => {
 // ffmpeg remuxes it (no re-encode — fast, lossless) and streams the fragmented
 // MP4 straight to the browser as an attachment. Auth is via query params so the
 // URL can be opened directly / via a download manager.
+let activeVideoDownloads = 0;
+const MAX_VIDEO_DOWNLOADS = 2;
+
 app.get('/download/video', async (request, response) => {
     const { user, token, id, season, episode } = request.query;
     if (!await Authenticate(user, token)) return response.status(401).send('Unauthorized');
     if (!id) return response.status(400).send('Missing id');
+    // Each download is a full ffmpeg remux — cap concurrency so they can't pile up.
+    if (activeVideoDownloads >= MAX_VIDEO_DOWNLOADS) {
+        response.setHeader('Retry-After', '30');
+        return response.status(503).send('Server is preparing other downloads — please try again in a moment.');
+    }
 
     const dbg = [];
     let streamUrl, title, mediaType;
@@ -2315,32 +2323,66 @@ app.get('/download/video', async (request, response) => {
         ? `${safeTitle}.S${pad(season)}E${pad(episode)}.mp4`
         : `${safeTitle}.mp4`;
 
-    response.setHeader('Content-Type', 'video/mp4');
-    response.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
-    response.setHeader('Access-Control-Allow-Origin', '*');
+    // Remux HLS → a real MP4 file on disk (NOT a pipe). A fragmented/empty_moov
+    // MP4 streamed to stdout has no global duration, so players read one ~2s
+    // segment as the whole length (the "250 MB but 2 seconds" bug). Writing a
+    // seekable file lets +faststart lay down a correct moov with the real
+    // duration; we then stream the finished file with a Content-Length.
+    const tmpPath = path.join(os.tmpdir(), `ghdl-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);
+    activeVideoDownloads++;
+    let released = false;
+    const release = () => { if (released) return; released = true; activeVideoDownloads--; fs.unlink(tmpPath, () => {}); };
+    console.log(`[download/video] ${id} S${season}E${episode} → remuxing "${fileName}" (active=${activeVideoDownloads})`);
 
-    console.log(`[download/video] ${id} S${season}E${episode} → "${fileName}"`);
-
-    // -c copy: remux only (no transcode). aac_adtstoasc fixes HLS AAC for MP4.
-    // frag_keyframe+empty_moov makes the MP4 streamable without seeking stdout.
     const ffmpeg = spawn('ffmpeg', [
+        '-y',
         '-headers', `Referer: https://www.lookmovie2.to/\r\nUser-Agent: ${lookmovieHeaders['User-Agent']}\r\n`,
+        '-fflags', '+genpts',
         '-i', streamUrl,
         '-c', 'copy',
         '-bsf:a', 'aac_adtstoasc',
-        '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
-        '-f', 'mp4', '-'
+        '-movflags', '+faststart',
+        '-f', 'mp4',
+        tmpPath,
     ]);
 
-    ffmpeg.stdout.pipe(response);
-    ffmpeg.stderr.on('data', () => {});
-    ffmpeg.on('error', (e) => {
-        console.error('[download/video] ffmpeg error:', e.message);
-        if (!response.headersSent) response.status(500).send('Conversion failed');
+    let stderrTail = '';
+    ffmpeg.stderr.on('data', d => { stderrTail = (stderrTail + d).slice(-2000); });
+
+    // Client cancelled before we finished sending → kill ffmpeg + clean up.
+    request.on('close', () => {
+        if (!response.writableEnded) { try { ffmpeg.kill('SIGKILL'); } catch {} release(); }
     });
-    ffmpeg.on('close', code => console.log(`[download/video] done "${fileName}" code=${code}`));
-    // If the client aborts the download, kill ffmpeg so we don't leak processes.
-    request.on('close', () => { try { ffmpeg.kill('SIGKILL'); } catch {} });
+
+    ffmpeg.on('error', (e) => {
+        console.error('[download/video] ffmpeg spawn error:', e.message);
+        if (!response.headersSent) response.status(500).send('Conversion failed');
+        release();
+    });
+
+    ffmpeg.on('close', (code) => {
+        if (released) return; // aborted
+        if (code !== 0) {
+            console.error(`[download/video] ffmpeg exit ${code}: ${stderrTail.split('\n').slice(-2).join(' ')}`);
+            if (!response.headersSent) response.status(502).send('Could not prepare the video.');
+            return release();
+        }
+        fs.stat(tmpPath, (err, st) => {
+            if (err || !st || st.size === 0) {
+                if (!response.headersSent) response.status(502).send('Empty output.');
+                return release();
+            }
+            response.setHeader('Content-Type', 'video/mp4');
+            response.setHeader('Content-Length', st.size);
+            response.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+            response.setHeader('Access-Control-Allow-Origin', '*');
+            console.log(`[download/video] ready "${fileName}" ${(st.size / 1048576).toFixed(1)}MB`);
+            const fileStream = fs.createReadStream(tmpPath);
+            fileStream.pipe(response);
+            fileStream.on('end', release);
+            fileStream.on('error', release);
+        });
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
