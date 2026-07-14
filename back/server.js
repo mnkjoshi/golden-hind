@@ -993,6 +993,40 @@ app.post('/position/percentages', async (request, response) => {
     }
 });
 
+// ── Cross-device user preferences (e.g. autoNext) ────────────────────────────
+// Stored at users/{user}/prefs so a setting flipped on one device applies
+// everywhere on next load.
+app.post('/prefs/get', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const db = admin.database();
+        const snap = await db.ref(`users/${user}/prefs`).once('value');
+        response.status(200).json(snap.val() || {});
+    } catch (error) {
+        logError(user, '/prefs/get', error).catch(() => {});
+        response.status(200).json({});
+    }
+});
+
+app.post('/prefs/set', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, key, value } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    if (!key || typeof key !== 'string') return response.status(400).send("key required");
+    try {
+        const db = admin.database();
+        await db.ref(`users/${user}/prefs/${key}`).set(value);
+        response.status(200).send("OK");
+    } catch (error) {
+        logError(user, '/prefs/set', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
+
 // ── New-episode / new-season notifications ───────────────────────────────────
 // A daily job compares each followed TV show (from users' watchlists +
 // favourites) against TMDB and drops a notification into users/{user}/

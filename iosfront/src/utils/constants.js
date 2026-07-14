@@ -42,6 +42,8 @@ export const API_ENDPOINTS = {
   LOOKMOVIE: `${API_BASE_URL}/server/lookmovie`,
   POSITION_UPDATE: `${API_BASE_URL}/position/update`,
   POSITION_RETRIEVE: `${API_BASE_URL}/position/retrieve`,
+  PREFS_GET: `${API_BASE_URL}/prefs/get`,
+  PREFS_SET: `${API_BASE_URL}/prefs/set`,
   PARTY_CREATE: `${API_BASE_URL}/party/create`,
   PARTY_INFO: `${API_BASE_URL}/party/info`,
   PARTY_UPDATE: `${API_BASE_URL}/party/update`,

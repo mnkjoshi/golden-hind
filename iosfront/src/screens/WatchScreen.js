@@ -132,8 +132,18 @@ export default function WatchScreen({ navigation, route }) {
       if (bookmarks) {
         try { setBookmarked(JSON.parse(bookmarks).includes(id)); } catch {}
       }
-      const an = await Storage.getItem('autoNext');
-      setAutoNext(an === '1');
+      // Auto Next is a cross-device pref — server value wins; AsyncStorage is a cache.
+      try {
+        const prefs = await axios.post(API_ENDPOINTS.PREFS_GET, { user, token });
+        if (typeof prefs.data?.autoNext === 'boolean') {
+          setAutoNext(prefs.data.autoNext);
+          await Storage.setItem('autoNext', prefs.data.autoNext ? '1' : '0');
+        } else {
+          setAutoNext((await Storage.getItem('autoNext')) === '1');
+        }
+      } catch {
+        setAutoNext((await Storage.getItem('autoNext')) === '1');
+      }
       setLoading(false);
     } catch (error) {
       console.error('Error loading video data:', error);
@@ -310,6 +320,9 @@ export default function WatchScreen({ navigation, route }) {
     const next = !autoNext;
     setAutoNext(next);
     await Storage.setItem('autoNext', next ? '1' : '0');
+    axios.post(API_ENDPOINTS.PREFS_SET, {
+      user: userRef.current, token: tokenRef.current, key: 'autoNext', value: next,
+    }).catch(() => {});
   };
 
   const cycleProvider = () => {

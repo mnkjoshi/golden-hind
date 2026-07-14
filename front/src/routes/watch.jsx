@@ -955,14 +955,13 @@ export default function App() {
             });
             plyrRef.current = player;
 
-            // ── Heuristic title-screen / credits detector ─────────────────
+            // ── Heuristic fade-to-black / credits detector ────────────────
             // Samples a 32×18 offscreen canvas once a second during the last
-            // 20% of a TV episode. A frame counts as "credits-like" if it's
-            // either dark (scrolling credits) OR barely changing from the
-            // previous frame (static end-card / freeze-frame credits). Five
-            // such seconds in a row triggers up-next early. Runs regardless of
-            // the Auto-Next toggle so the popup appears; whether it auto-
-            // advances still respects the user's countdown / cancel.
+            // 20% of a TV episode. A frame counts only when the picture has
+            // truly FADED TO BLACK (near-black AND near-static) — the end-card /
+            // credits hold — not merely a dark scene, which used to false-fire.
+            // Five such seconds in a row triggers up-next early. Only active
+            // when Auto Next is enabled; the countdown still respects cancel.
             if (type === 'tv') {
                 const creditsCanvas = document.createElement('canvas');
                 creditsCanvas.width = 32;
@@ -975,17 +974,26 @@ export default function App() {
                 creditsIntervalRef.current = setInterval(() => {
                     if (!video || video.readyState < 2 || !isFinite(video.duration) || video.duration === 0) return;
                     const pct = video.currentTime / video.duration;
-                    const { episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
-                    // Credits detection drives the up-next countdown on its own,
-                    // independent of the Auto Next toggle — once we visually
-                    // detect the title/credits screen we always offer the skip.
+                    const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
                     const hasNext = parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe);
+                    // Only offer the auto-jump when Auto Next is ON and a next
+                    // episode exists — otherwise stay dormant (no popup).
+                    if (an !== 1 || !hasNext) {
+                        score = 0;
+                        if (creditsDebugEnabled) setCreditsDebug({ pct: +pct.toFixed(3), mean: null, motion: null, score: 0, hasNext, disabled: true });
+                        return;
+                    }
 
                     if (detectorTainted) {
                         if (creditsDebugEnabled) setCreditsDebug({ pct, mean: null, motion: null, score, tainted: true });
                         return;
                     }
 
+                    // Detect a genuine FADE TO BLACK (end card / credits / the black
+                    // hold text sits on) — NOT merely a dark scene. Requires a
+                    // near-black AND near-static frame, sustained ~5s.
+                    const FADE_BLACK = 12;    // avg luma 0–255; a "dark" show still sits well above this
+                    const STATIC_MOTION = 3;  // avg per-channel delta vs previous frame
                     let mean = null, motion = null, creditsLike = false;
                     try {
                         creditsCtx.drawImage(video, 0, 0, 32, 18);
@@ -1004,15 +1012,15 @@ export default function App() {
                         mean = sum / pixels;
                         motion = prevData ? diff / (pixels * 3) : 999;
                         prevData = data;
-                        // Dark frame OR a near-static scene while still playing.
-                        creditsLike = !video.paused && pct >= 0.80 && (mean < 60 || motion < 3.5);
+                        // Near-black AND near-static = a true fade to black.
+                        creditsLike = !video.paused && pct >= 0.80 && mean < FADE_BLACK && motion < STATIC_MOTION;
                     } catch {
                         detectorTainted = true;
                         if (creditsDebugEnabled) setCreditsDebug({ pct, mean: null, motion: null, score, tainted: true });
                         return;
                     }
 
-                    if (creditsLike && hasNext && !upNextInfoRef.current) score++;
+                    if (creditsLike && !upNextInfoRef.current) score++;
                     else if (!creditsLike) score = Math.max(0, score - 1);
 
                     if (creditsDebugEnabled) {
@@ -1024,7 +1032,7 @@ export default function App() {
                         });
                     }
 
-                    if (score >= 5 && hasNext && !upNextInfoRef.current) {
+                    if (score >= 5 && !upNextInfoRef.current) {
                         score = 0;
                         const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
                         const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
@@ -1482,6 +1490,34 @@ export default function App() {
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
     }, [provider]);
+
+    // Auto Next is a cross-device preference: load the server value on mount so
+    // enabling it on any device applies everywhere. (localStorage is just a
+    // fast local cache updated on toggle.)
+    useEffect(() => {
+        const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+        if (!u || !t) return;
+        axios.post('https://goldenhind.tech/prefs/get', { user: u, token: t })
+            .then(r => {
+                if (typeof r.data?.autoNext === 'boolean') {
+                    const n = r.data.autoNext ? 1 : 0;
+                    setAutoNext(n);
+                    localStorage.setItem('autoNext', String(n));
+                }
+            })
+            .catch(() => {});
+    }, []);
+
+    const toggleAutoNext = () => {
+        const n = autoNext === 1 ? 0 : 1;
+        setAutoNext(n);
+        localStorage.setItem('autoNext', String(n));
+        const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+        if (u && t) {
+            axios.post('https://goldenhind.tech/prefs/set', { user: u, token: t, key: 'autoNext', value: n === 1 })
+                .catch(() => {});
+        }
+    };
 
     // Keep a live snapshot of playback state so event handler closures never go stale
     useEffect(() => {
@@ -2110,7 +2146,7 @@ export default function App() {
                         {type === 'tv' && (
                             <button
                                 className={`wbar-btn${autoNext === 1 ? ' on' : ''}`}
-                                onClick={() => { const n = autoNext === 1 ? 0 : 1; setAutoNext(n); localStorage.setItem('autoNext', String(n)); }}
+                                onClick={toggleAutoNext}
                             >
                                 <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                                     <path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z"/>
@@ -2376,11 +2412,13 @@ export default function App() {
                         <div style={{ color: '#888' }}>(waiting for player…)</div>
                     ) : creditsDebug.tainted ? (
                         <div style={{ color: '#ff8a8a' }}>canvas TAINTED — pixel detection unavailable (CORS). Timestamp trigger only.</div>
+                    ) : creditsDebug.disabled ? (
+                        <div style={{ color: '#888' }}>dormant — Auto Next off or no next episode.</div>
                     ) : (
                         <>
                             <div>pct: {creditsDebug.pct} {creditsDebug.pct >= 0.8 ? '(armed)' : '(waiting ≥0.80)'}</div>
-                            <div>brightness: {creditsDebug.mean} {creditsDebug.mean != null && creditsDebug.mean < 60 ? '← dark' : ''}</div>
-                            <div>motion: {creditsDebug.motion} {creditsDebug.motion != null && creditsDebug.motion < 3.5 ? '← static' : ''}</div>
+                            <div>brightness: {creditsDebug.mean} {creditsDebug.mean != null && creditsDebug.mean < 12 ? '← FADED TO BLACK' : ''}</div>
+                            <div>motion: {creditsDebug.motion} {creditsDebug.motion != null && creditsDebug.motion < 3 ? '← static' : ''}</div>
                             <div>score: {creditsDebug.score} / 5</div>
                             <div>hasNext: {String(creditsDebug.hasNext)}</div>
                         </>
