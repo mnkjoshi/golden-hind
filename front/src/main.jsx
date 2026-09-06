@@ -26,6 +26,7 @@ import './stylesheets/admin.css'
 import './stylesheets/detail.css'
 import './stylesheets/music.css'
 import './stylesheets/person.css'
+import './stylesheets/remote.css'
 
 import {
   createBrowserRouter,

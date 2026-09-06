@@ -49,6 +49,11 @@
 ### Books
 - **Book search** — Google Books integration with download links
 
+### Remote Control
+- **Player mode** — any signed-in device (e.g. a TV) can expose itself via the remote button in the top bar; it then executes commands sent from other devices on the account
+- **Controller mode** — pick an exposed device from the same menu; from then on, pressing Watch on any title plays it there instead of locally, and the watch page becomes a remote with live transport controls (play/pause, seek bar, ±10s, volume, episode prev/next)
+- **Live status** — players report what they're doing every 5 seconds; controllers see it stream in over SSE (same transport as watch parties — no websockets)
+
 ---
 
 ## Backend API Endpoints
@@ -145,6 +150,15 @@ Returns `{ "key": "youtubeVideoKey" }` (key is `null` if no trailer found).
 | Method | Route | Description |
 |--------|-------|-------------|
 | GET | `/book-search?q=` | Google Books search; returns titles, authors, descriptions, and download links |
+
+### Remote Control
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/remote/devices` | Lists the account's exposed player devices with online status and current state |
+| POST | `/remote/command` | Sends a whitelisted command (`play`, `pause`, `resume`, `seek`, `seekBy`, `volume`, `episode`, `stop`) to a device |
+| POST | `/remote/state` | Player devices report their playback state (~5s cadence) |
+| GET | `/remote/stream` | SSE. `role=player` registers the device for the life of the connection and receives `command` events; `role=controller` receives the live device list |
 
 ---
 

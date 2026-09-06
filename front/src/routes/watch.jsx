@@ -7,9 +7,17 @@ import Plyr from 'plyr';
 import 'plyr/dist/plyr.css';
 import { track } from '../utils/analytics.js'
 import Topbar from "../components/topbar"
+import { RemotePlayback, getRemoteTarget } from "../components/remote.jsx"
 
 
-export default function App() {
+// While this browser is remote-controlling another device, the watch route
+// renders the remote transport UI instead of playing locally — so every
+// existing Watch button in the app becomes a "play on <device>" button.
+export default function Watch() {
+    return getRemoteTarget() ? <RemotePlayback /> : <LocalWatch />;
+}
+
+function LocalWatch() {
     // useParams must come first — id is needed to initialize progressReady
     const { id } = useParams();
     let type = id.slice(0, 1)
@@ -452,6 +460,91 @@ export default function App() {
         }).then(() => partyLog('episode push ok'))
           .catch(e => partyLog('episode push fail', e.message || 'err'));
     };
+
+    // ── Remote control (this device as the player) ──────────────────────────
+    // Commands arrive over the topbar's player SSE engine (components/remote.jsx)
+    // and are re-broadcast as `gh-remote` window events; apply them to Plyr.
+    // Only provider 4 (native HLS) is seekable from here — episode/play
+    // commands still work on the iframe providers via source changes.
+    useEffect(() => {
+        const onRemote = (ev) => {
+            const cmd = ev.detail || {};
+            const p = plyrRef.current;
+            switch (cmd.type) {
+                case 'pause': p?.pause(); break;
+                case 'resume': p?.play()?.catch?.(() => {}); break;
+                case 'seek':
+                    if (p && typeof cmd.position === 'number') {
+                        p.currentTime = isFinite(p.duration) && p.duration > 0 ? Math.min(cmd.position, p.duration) : cmd.position;
+                    }
+                    break;
+                case 'seekBy':
+                    if (p && typeof cmd.delta === 'number') p.currentTime = Math.max(0, p.currentTime + cmd.delta);
+                    break;
+                case 'volume':
+                    if (p && typeof cmd.level === 'number') {
+                        p.volume = cmd.level;
+                        localStorage.setItem('playerVolume', cmd.level);
+                    }
+                    break;
+                case 'episode': {
+                    if (id.slice(0, 1) !== 't') break;
+                    const s = Math.min(Math.max(1, parseInt(cmd.season) || 1), maxSe);
+                    const e = Math.min(Math.max(1, parseInt(cmd.episode) || 1), maxEp);
+                    if (s === parseInt(season) && e === parseInt(episode)) break;
+                    setSeason(s);
+                    setEpisode(e);
+                    localStorage.setItem('season' + id, s);
+                    localStorage.setItem('episode' + id, e);
+                    break;
+                }
+            }
+        };
+        window.addEventListener('gh-remote', onRemote);
+        return () => window.removeEventListener('gh-remote', onRemote);
+    }, [id, season, episode, maxSe, maxEp]);
+
+    // While exposed as a remote player, report playback state every 5s so
+    // controllers can render live transport UI.
+    useEffect(() => {
+        const snapshot = () => {
+            if (localStorage.getItem('remoteExpose') !== 'on') return;
+            const u = localStorage.getItem('user');
+            const t = localStorage.getItem('token');
+            const deviceId = localStorage.getItem('remoteDeviceId');
+            if (!u || !t || !deviceId) return;
+            const p = plyrRef.current;
+            axios.post('https://goldenhind.tech/remote/state', {
+                user: u, token: t, deviceId,
+                state: {
+                    contentId: id,
+                    title: contentNameRef.current || '',
+                    season: parseInt(season) || 1,
+                    episode: parseInt(episode) || 1,
+                    position: p && isFinite(p.currentTime) ? p.currentTime : 0,
+                    duration: p && isFinite(p.duration) ? p.duration : 0,
+                    paused: p ? !!p.paused : true,
+                    volume: p && isFinite(p.volume) ? p.volume : 1,
+                    provider: parseInt(provider) || 1,
+                },
+            }).catch(() => {});
+        };
+        snapshot();
+        const iv = setInterval(snapshot, 5000);
+        return () => clearInterval(iv);
+    }, [id, season, episode, provider]);
+
+    // Report idle once when the player leaves the watch page entirely, so the
+    // controller's device list drops back to "Idle" (not on every episode
+    // change — those re-run the effect above, not this one).
+    useEffect(() => () => {
+        if (localStorage.getItem('remoteExpose') !== 'on') return;
+        const u = localStorage.getItem('user');
+        const t = localStorage.getItem('token');
+        const deviceId = localStorage.getItem('remoteDeviceId');
+        if (!u || !t || !deviceId) return;
+        axios.post('https://goldenhind.tech/remote/state', { user: u, token: t, deviceId, state: {} }).catch(() => {});
+    }, []);
 
     const startWatchParty = async () => {
         const u = localStorage.getItem('user');

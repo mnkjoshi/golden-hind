@@ -22,6 +22,7 @@ import { slugify, rewriteHlsManifest, hlsLanguageCode } from './lib/hls.js';
 import { normalizeToVtt } from './lib/subtitles.js';
 import { generateToken as GenerateToken, generatePartyCode } from './lib/codes.js';
 import { detectShowChanges, collectShowFollowers } from './lib/notifications.js';
+import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, deviceSummary } from './lib/remote.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -1796,6 +1797,154 @@ app.get('/party/stream', async (request, response) => {
     };
     request.on('close', cleanup);
     request.on('error', cleanup);
+});
+
+// ── Remote control ──────────────────────────────────────────────────────────
+// A device (e.g. a TV) exposes itself as a controllable player by opening
+// /remote/stream with role=player: that registers it at remotes/{user}/{deviceId}
+// for exactly as long as the SSE connection lives, and commands pushed to
+// remotes/{user}/{deviceId}/commands are forwarded to it as `command` events
+// (then deleted, so the queue never accumulates). Controllers either poll
+// /remote/devices or hold their own role=controller stream, which re-emits the
+// device list on every change (state reports, connects, disconnects). Same
+// SSE-over-RTDB transport as watch parties — no websockets needed.
+
+app.post('/remote/devices', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const db = admin.database();
+        const snap = await db.ref(`remotes/${user}`).once('value');
+        const now = Date.now();
+        const devices = Object.entries(snap.val() || {}).map(([id, d]) => deviceSummary(id, d, now));
+        response.status(200).json({ devices });
+    } catch (error) {
+        logError(user, '/remote/devices', error).catch(() => {});
+        response.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/remote/command', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, deviceId, command } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    if (!isValidDeviceId(deviceId)) return response.status(400).json({ error: 'valid deviceId required' });
+    const cmd = sanitizeCommand(command);
+    if (!cmd) return response.status(400).json({ error: 'invalid command' });
+    try {
+        const db = admin.database();
+        const devRef = db.ref(`remotes/${user}/${deviceId}`);
+        const snap = await devRef.once('value');
+        if (!snap.exists()) return response.status(404).json({ error: 'Device not connected' });
+        await devRef.child('commands').push({ ...cmd, ts: Date.now() });
+        response.status(200).json({ ok: true });
+    } catch (error) {
+        logError(user, '/remote/command', error).catch(() => {});
+        response.status(500).json({ error: error.message });
+    }
+});
+
+// Players report what they're doing (~5s cadence while something is playing)
+// so controllers can render live transport UI. Whitelisted like /party/update.
+app.post('/remote/state', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, deviceId, state } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    if (!isValidDeviceId(deviceId)) return response.status(400).json({ error: 'valid deviceId required' });
+    try {
+        const db = admin.database();
+        const devRef = db.ref(`remotes/${user}/${deviceId}`);
+        const snap = await devRef.once('value');
+        if (!snap.exists()) return response.status(404).json({ error: 'Device not connected' });
+        await devRef.update({
+            lastSeen: Date.now(),
+            state: { ...sanitizeState(state), updatedAt: Date.now() },
+        });
+        response.status(200).json({ ok: true });
+    } catch (error) {
+        logError(user, '/remote/state', error).catch(() => {});
+        response.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/remote/stream', async (request, response) => {
+    const { user, token, deviceId, role, name } = request.query;
+    if (!await Authenticate(user, token)) return response.status(401).end();
+    const asPlayer = role !== 'controller';
+    if (asPlayer && !isValidDeviceId(deviceId)) return response.status(400).end();
+
+    response.setHeader('Content-Type', 'text/event-stream');
+    response.setHeader('Cache-Control', 'no-cache, no-transform');
+    response.setHeader('Connection', 'keep-alive');
+    response.setHeader('X-Accel-Buffering', 'no');
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.flushHeaders?.();
+    try { response.write(`: connected\n\n`); } catch {}
+
+    const db = admin.database();
+
+    if (asPlayer) {
+        const devRef = db.ref(`remotes/${user}/${deviceId}`);
+        // Registration IS the connection: (re)create the node now, remove it on
+        // disconnect. `set` (not update) wipes any stale command queue left by
+        // a previous connection that died without cleanup.
+        const prev = await devRef.child('state').once('value').catch(() => null);
+        await devRef.set({
+            name: sanitizeDeviceName(name),
+            since: Date.now(),
+            lastSeen: Date.now(),
+            ...(prev && prev.exists() ? { state: prev.val() } : {}),
+        }).catch(() => {});
+
+        // Heartbeat doubles as the online-ness signal (lastSeen drives
+        // deviceIsOnline, TTL ~3 beats).
+        const heartbeat = setInterval(() => {
+            try { response.write(':\n\n'); } catch {}
+            devRef.update({ lastSeen: Date.now() }).catch(() => {});
+        }, 25000);
+
+        const connectedAt = Date.now();
+        const cmdRef = devRef.child('commands');
+        const cmdCb = (snap) => {
+            const cmd = snap.val();
+            // Forward-then-delete; stale commands from before this connection
+            // are dropped so a TV doesn't replay yesterday's queue on boot.
+            snap.ref.remove().catch(() => {});
+            if (!cmd || (cmd.ts || 0) < connectedAt) return;
+            try { response.write(`event: command\ndata: ${JSON.stringify(cmd)}\n\n`); } catch {}
+        };
+        cmdRef.on('child_added', cmdCb);
+
+        const cleanup = () => {
+            clearInterval(heartbeat);
+            cmdRef.off('child_added', cmdCb);
+            devRef.remove().catch(() => {});
+        };
+        request.on('close', cleanup);
+        request.on('error', cleanup);
+    } else {
+        // Controller: live device list. Fires on every state report/connect/
+        // disconnect for this account (a handful of devices at most).
+        const heartbeat = setInterval(() => { try { response.write(':\n\n'); } catch {} }, 25000);
+        const listRef = db.ref(`remotes/${user}`);
+        const cb = (snap) => {
+            const now = Date.now();
+            const devices = Object.entries(snap.val() || {}).map(([id, d]) => deviceSummary(id, d, now));
+            try { response.write(`data: ${JSON.stringify(devices)}\n\n`); } catch {}
+        };
+        listRef.on('value', cb);
+
+        const cleanup = () => {
+            clearInterval(heartbeat);
+            listRef.off('value', cb);
+        };
+        request.on('close', cleanup);
+        request.on('error', cleanup);
+    }
 });
 
 //process.env.PORT

@@ -8,6 +8,7 @@ import TextLogoGlitch3 from '../assets/TextLogoGlitch3.png';
 import TextLogoGlitch4 from '../assets/TextLogoGlitch4.png';
 import TextLogoGlitch5 from '../assets/TextLogoGlitch5.png';
 import { formatWatchTime, formatRelativeTime } from '../utils/format.js';
+import RemoteControl from './remote.jsx';
 
 const GLITCH_FRAMES = [TextLogoGlitch1, TextLogoGlitch2, TextLogoGlitch3, TextLogoGlitch4, TextLogoGlitch5];
 
@@ -307,6 +308,7 @@ export default function Topbar() {
 
                     {/* Right Side */}
                     <div className="topbar-right">
+                        <RemoteControl />
                         <button
                             className={`tv-mode-toggle ${tvMode ? 'active' : ''}`}
                             type="button"

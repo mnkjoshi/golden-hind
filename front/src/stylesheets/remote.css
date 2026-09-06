@@ -1,0 +1,378 @@
+/* Remote control — topbar button, expose/control modal, and the RemotePlayback
+   controller page (rendered by /watch/:id while controlling another device).
+   Palette matches the watch-party modal: #131838 surfaces, #3FA3FF accent. */
+
+/* ── Topbar button ── */
+.remote-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 8px;
+    color: rgba(255,255,255,0.75);
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: color .2s, border-color .2s, background .2s;
+}
+.remote-toggle svg { width: 18px; height: 18px; }
+.remote-toggle:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
+.remote-toggle.active {
+    color: #3FA3FF;
+    border-color: rgba(63,163,255,0.6);
+    background: rgba(63,163,255,0.12);
+}
+.remote-toggle-label {
+    font-size: 12px;
+    font-family: 'Inter', system-ui, sans-serif;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── Modal ── */
+.remote-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+}
+.remote-modal {
+    background: #131838;
+    border: 1px solid rgba(63,163,255,0.25);
+    border-radius: 16px;
+    padding: 26px 28px;
+    max-width: 460px;
+    width: 100%;
+    color: #fff;
+    font-family: 'Inter', system-ui, sans-serif;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+}
+.remote-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+.remote-modal-header h2 {
+    font-family: Viga, sans-serif;
+    font-weight: 400;
+    font-size: 24px;
+    margin: 0;
+}
+.remote-modal-close {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+.remote-modal-close:hover { color: #fff; }
+
+.remote-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+.remote-tabs button {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: rgba(255,255,255,0.7);
+    padding: 9px 0;
+    font-size: 14px;
+    cursor: pointer;
+}
+.remote-tabs button.active {
+    background: rgba(63,163,255,0.15);
+    border-color: rgba(63,163,255,0.5);
+    color: #3FA3FF;
+}
+
+.remote-tab-body { display: flex; flex-direction: column; gap: 14px; }
+.remote-hint {
+    color: rgba(255,255,255,0.6);
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.remote-name-label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.7);
+}
+.remote-name-input {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    color: #fff;
+    padding: 10px 12px;
+    font-size: 15px;
+}
+.remote-name-input:disabled { opacity: 0.5; }
+
+.remote-expose-btn {
+    background: #3FA3FF;
+    border: none;
+    border-radius: 8px;
+    color: #0a0e27;
+    font-weight: 600;
+    font-size: 15px;
+    padding: 12px 0;
+    cursor: pointer;
+}
+.remote-expose-btn.on { background: #ff4d4d; color: #fff; }
+
+.remote-status { font-size: 13px; color: rgba(255,255,255,0.6); }
+.remote-status.connected { color: #3fb950; }
+.remote-status.error { color: #f85149; }
+
+.remote-controlling-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: rgba(63,163,255,0.12);
+    border: 1px solid rgba(63,163,255,0.4);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+}
+.remote-controlling-banner button {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 6px;
+    color: #fff;
+    padding: 4px 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.remote-devices-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.remote-refresh {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.6);
+    font-size: 17px;
+    cursor: pointer;
+}
+.remote-refresh:hover { color: #fff; }
+
+.remote-empty {
+    color: rgba(255,255,255,0.5);
+    font-size: 13px;
+    text-align: center;
+    padding: 18px 8px;
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 8px;
+    line-height: 1.5;
+}
+
+.remote-device-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+.remote-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.25);
+    flex-shrink: 0;
+}
+.remote-dot.online { background: #3fb950; box-shadow: 0 0 6px rgba(63,185,80,0.8); }
+
+.remote-device-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+.remote-device-name { font-size: 15px; font-weight: 600; }
+.remote-device-state {
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.remote-control-btn {
+    background: rgba(63,163,255,0.15);
+    border: 1px solid rgba(63,163,255,0.5);
+    border-radius: 6px;
+    color: #3FA3FF;
+    padding: 6px 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.remote-control-btn:disabled { opacity: 0.45; cursor: default; }
+
+/* ── Controller page (RemotePlayback) ── */
+.remote-playback-page {
+    min-height: 100vh;
+    background: #0a0e27;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 90px 20px 40px;
+    position: relative;
+}
+.remote-backdrop {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.22;
+    filter: blur(2px);
+}
+.remote-playback-card {
+    position: relative;
+    background: rgba(19,24,56,0.92);
+    border: 1px solid rgba(63,163,255,0.25);
+    border-radius: 20px;
+    padding: 34px 32px;
+    max-width: 520px;
+    width: 100%;
+    color: #fff;
+    font-family: 'Inter', system-ui, sans-serif;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+.remote-playback-target {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.65);
+}
+.remote-offline-note { color: #f85149; }
+.remote-playback-title {
+    font-family: Viga, sans-serif;
+    font-weight: 400;
+    font-size: 30px;
+    margin: 0;
+    line-height: 1.2;
+}
+.remote-playback-episode {
+    font-size: 14px;
+    color: #3FA3FF;
+    margin-top: -10px;
+}
+
+.remote-seek-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.remote-clock {
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+    font-variant-numeric: tabular-nums;
+    min-width: 42px;
+    text-align: center;
+}
+.remote-seek-row input[type="range"],
+.remote-volume-row input[type="range"] {
+    flex: 1;
+    accent-color: #3FA3FF;
+    cursor: pointer;
+}
+
+.remote-transport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+}
+.remote-transport button {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 50px;
+    color: #fff;
+    font-size: 15px;
+    padding: 12px 18px;
+    cursor: pointer;
+    transition: background .2s;
+}
+.remote-transport button:hover:not(:disabled) { background: rgba(255,255,255,0.18); }
+.remote-transport button:disabled { opacity: 0.4; cursor: default; }
+.remote-play-btn {
+    width: 74px;
+    height: 74px;
+    border-radius: 50% !important;
+    font-size: 26px !important;
+    padding: 0 !important;
+    background: #3FA3FF !important;
+    border: none !important;
+    color: #0a0e27 !important;
+}
+
+.remote-episode-row {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+}
+.remote-episode-row button {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    color: #fff;
+    padding: 9px 20px;
+    cursor: pointer;
+}
+.remote-episode-row button:disabled { opacity: 0.4; cursor: default; }
+
+.remote-volume-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 15px;
+}
+
+.remote-playback-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 18px;
+}
+.remote-playback-actions button {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 8px;
+    color: rgba(255,255,255,0.8);
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+}
+.remote-playback-actions button:hover:not(:disabled) { color: #fff; border-color: rgba(255,255,255,0.5); }
+.remote-playback-actions button:disabled { opacity: 0.4; cursor: default; }
+
+@media (max-width: 520px) {
+    .remote-playback-card { padding: 26px 20px; }
+    .remote-playback-title { font-size: 24px; }
+    .remote-transport { gap: 14px; }
+    .remote-toggle-label { display: none; }
+}
