@@ -498,11 +498,20 @@ function LocalWatch() {
                     localStorage.setItem('episode' + id, e);
                     break;
                 }
+                case 'provider': {
+                    // Remote play forces the native player — the only provider
+                    // whose playback the remote can drive.
+                    const target = parseInt(cmd.provider) || 1;
+                    if (parseInt(provider) === target) break;
+                    setProvider(target);
+                    localStorage.setItem('provider' + id.slice(1), target);
+                    break;
+                }
             }
         };
         window.addEventListener('gh-remote', onRemote);
         return () => window.removeEventListener('gh-remote', onRemote);
-    }, [id, season, episode, maxSe, maxEp]);
+    }, [id, season, episode, maxSe, maxEp, provider]);
 
     // While exposed as a remote player, report playback state every 5s so
     // controllers can render live transport UI.

@@ -1892,19 +1892,34 @@ app.get('/remote/stream', async (request, response) => {
         // Registration IS the connection: (re)create the node now, remove it on
         // disconnect. `set` (not update) wipes any stale command queue left by
         // a previous connection that died without cleanup.
+        //
+        // `conn` marks which connection owns the node. The player reconnects on
+        // every route change (its topbar remounts), and the OLD connection's
+        // close event can arrive AFTER the new connection has re-registered —
+        // an unguarded remove() there would delete the fresh registration and
+        // orphan the device (commands 404 until the next reconnect). Cleanup
+        // therefore only removes the node it still owns.
+        const connToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const prev = await devRef.child('state').once('value').catch(() => null);
         await devRef.set({
             name: sanitizeDeviceName(name),
             since: Date.now(),
             lastSeen: Date.now(),
+            conn: connToken,
             ...(prev && prev.exists() ? { state: prev.val() } : {}),
         }).catch(() => {});
 
         // Heartbeat doubles as the online-ness signal (lastSeen drives
-        // deviceIsOnline, TTL ~3 beats).
+        // deviceIsOnline, TTL ~3 beats). Ownership-checked so a lingering old
+        // connection can't recreate a node after its removal (a plain update()
+        // on a deleted path would resurrect a partial device).
         const heartbeat = setInterval(() => {
             try { response.write(':\n\n'); } catch {}
-            devRef.update({ lastSeen: Date.now() }).catch(() => {});
+            devRef.transaction(cur => {
+                if (!cur || cur.conn !== connToken) return; // abort — not ours
+                cur.lastSeen = Date.now();
+                return cur;
+            }).catch(() => {});
         }, 25000);
 
         const connectedAt = Date.now();
@@ -1922,7 +1937,9 @@ app.get('/remote/stream', async (request, response) => {
         const cleanup = () => {
             clearInterval(heartbeat);
             cmdRef.off('child_added', cmdCb);
-            devRef.remove().catch(() => {});
+            // Atomic ownership check — never delete a newer connection's registration.
+            devRef.transaction(cur => (cur && cur.conn === connToken) ? null : cur)
+                .catch(() => {});
         };
         request.on('close', cleanup);
         request.on('error', cleanup);

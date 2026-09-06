@@ -86,8 +86,15 @@ export default function RemoteControl() {
                     if (!cid) return;
                     if (cmd.season) localStorage.setItem('season' + cid, cmd.season);
                     if (cmd.episode) localStorage.setItem('episode' + cid, cmd.episode);
+                    // Force the native player (server 1) — it's the only provider
+                    // whose playback the remote can drive; the iframe embeds (2/3)
+                    // can't be scripted. The per-title key may hold a stale
+                    // fallback from a previous local session.
+                    localStorage.setItem('provider' + cid.slice(1), 1);
                     if (window.location.pathname === `/watch/${cid}`) {
-                        // Already on the title — sync episode + make sure it's playing.
+                        // Already on the title — sync provider/episode + make sure
+                        // it's playing.
+                        window.dispatchEvent(new CustomEvent('gh-remote', { detail: { type: 'provider', provider: 1 } }));
                         if (cmd.season && cmd.episode) {
                             window.dispatchEvent(new CustomEvent('gh-remote', { detail: { type: 'episode', season: cmd.season, episode: cmd.episode } }));
                         }
@@ -346,6 +353,7 @@ export function RemotePlayback() {
         if (!user || !token) return;
         let es = null;
         let reconnectTimer = null;
+        let missingTimer = null;
         let closed = false;
         const connect = () => {
             es = new EventSource(`${BASE_URL}/remote/stream?role=controller`
@@ -354,8 +362,16 @@ export function RemotePlayback() {
                 try {
                     const list = JSON.parse(ev.data) || [];
                     const dev = list.find(d => d.deviceId === target.deviceId) || null;
-                    setDevice(dev);
-                    receivedAtRef.current = Date.now();
+                    if (dev) {
+                        if (missingTimer) { clearTimeout(missingTimer); missingTimer = null; }
+                        setDevice(dev);
+                        receivedAtRef.current = Date.now();
+                    } else if (!missingTimer) {
+                        // The player re-registers on every route change, so it can
+                        // vanish from the list for a beat mid-navigation. Only mark
+                        // it gone if it stays gone.
+                        missingTimer = setTimeout(() => { missingTimer = null; setDevice(null); }, 4000);
+                    }
                 } catch { /* noop */ }
             };
             es.onerror = () => {
@@ -370,6 +386,7 @@ export function RemotePlayback() {
         return () => {
             closed = true;
             if (reconnectTimer) clearTimeout(reconnectTimer);
+            if (missingTimer) clearTimeout(missingTimer);
             try { es?.close(); } catch { /* noop */ }
         };
     }, [target]);
@@ -426,6 +443,12 @@ export function RemotePlayback() {
                 </div>
                 <h1 className="remote-playback-title">{title || '…'}</h1>
                 {isTv && <div className="remote-playback-episode">Season {season} · Episode {episode}</div>}
+                {current && current.provider > 1 && (
+                    <div className="remote-provider-note">
+                        {target.name} is on an embedded server (Server {current.provider}) — only play,
+                        episode, and stop work there. Playback controls need Server 1.
+                    </div>
+                )}
 
                 <div className="remote-seek-row">
                     <span className="remote-clock">{formatClock(position)}</span>

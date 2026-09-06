@@ -100,7 +100,9 @@ export default function App() {
     const [activeCardPreview, setActiveCardPreview] = useState(null)
     const [expandedCard, setExpandedCard] = useState(null)
     const [mobileCardSheet, setMobileCardSheet] = useState(null)
-    const [tvMode, setTvMode] = useState(() => localStorage.getItem('tvMode') === 'on' && window.innerWidth >= 1024)
+    // TV mode's topbar toggle was retired in favour of the remote-control
+    // feature; start off so devices that had it enabled aren't stuck in it.
+    const [tvMode, setTvMode] = useState(false)
     const [tvSelection, setTvSelection] = useState(null)
     // Welcome / intro video popup (shown once per user per version; admin-gated)
     const [introShow, setIntroShow] = useState(false)
