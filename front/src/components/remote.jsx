@@ -15,7 +15,10 @@
 //                    are re-broadcast as `gh-remote` window events; watch.jsx
 //                    applies them to its Plyr instance.
 import { useNavigate, useParams } from 'react-router-dom';
-import { useState, useRef, useEffect } from 'react';
+// eslint flags React as unused, but this project has no vite.config.js, so
+// JSX compiles with the classic runtime and needs React in scope (like every
+// other component file here).
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import Topbar from './topbar';
 import { defaultDeviceName, formatRemoteState, formatClock, estimatePosition } from '../utils/remote.js';
