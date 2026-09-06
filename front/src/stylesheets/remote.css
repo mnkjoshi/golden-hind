@@ -279,6 +279,18 @@
     color: #3FA3FF;
     margin-top: -10px;
 }
+/* CSS stand-in for native fullscreen when the browser refuses a gesture-less
+   request (remote 'fullscreen' command). Mirrors Plyr's own fallback styling. */
+.plyr.remote-fs-fallback {
+    position: fixed !important;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000000;
+    background: #000;
+    border-radius: 0 !important;
+}
+
 .remote-provider-note {
     font-size: 12.5px;
     line-height: 1.5;

@@ -507,6 +507,32 @@ function LocalWatch() {
                     localStorage.setItem('provider' + id.slice(1), target);
                     break;
                 }
+                case 'fullscreen': {
+                    // Exiting fullscreen is always allowed; entering natively
+                    // needs a user gesture, which an SSE-delivered command isn't.
+                    // Try native, and if the browser blocked it, fill the
+                    // viewport with CSS instead (indistinguishable on a TV).
+                    const el = p?.elements?.container;
+                    if (!el) break;
+                    if (document.fullscreenElement || document.webkitFullscreenElement) {
+                        (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+                        break;
+                    }
+                    if (el.classList.contains('remote-fs-fallback')) {
+                        el.classList.remove('remote-fs-fallback');
+                        break;
+                    }
+                    try {
+                        const req = el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen?.();
+                        Promise.resolve(req).catch(() => {});
+                    } catch { /* fall through to the CSS check below */ }
+                    setTimeout(() => {
+                        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                            el.classList.add('remote-fs-fallback');
+                        }
+                    }, 300);
+                    break;
+                }
             }
         };
         window.addEventListener('gh-remote', onRemote);

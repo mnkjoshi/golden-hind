@@ -20,7 +20,7 @@ export function sanitizeDeviceName(name) {
     return clean || 'Device';
 }
 
-export const REMOTE_COMMAND_TYPES = ['play', 'pause', 'resume', 'seek', 'seekBy', 'volume', 'episode', 'stop'];
+export const REMOTE_COMMAND_TYPES = ['play', 'pause', 'resume', 'seek', 'seekBy', 'volume', 'episode', 'stop', 'fullscreen'];
 
 // Validate + normalize a raw client command into exactly the shape the player
 // will execute. Returns null for anything malformed so /remote/command can
@@ -64,6 +64,7 @@ export function sanitizeCommand(raw) {
         case 'pause':
         case 'resume':
         case 'stop':
+        case 'fullscreen': // toggle — the player owns the actual state
             return { type };
         default:
             return null;

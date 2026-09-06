@@ -156,7 +156,7 @@ Returns `{ "key": "youtubeVideoKey" }` (key is `null` if no trailer found).
 | Method | Route | Description |
 |--------|-------|-------------|
 | POST | `/remote/devices` | Lists the account's exposed player devices with online status and current state |
-| POST | `/remote/command` | Sends a whitelisted command (`play`, `pause`, `resume`, `seek`, `seekBy`, `volume`, `episode`, `stop`) to a device |
+| POST | `/remote/command` | Sends a whitelisted command (`play`, `pause`, `resume`, `seek`, `seekBy`, `volume`, `episode`, `stop`, `fullscreen`) to a device |
 | POST | `/remote/state` | Player devices report their playback state (~5s cadence) |
 | GET | `/remote/stream` | SSE. `role=player` registers the device for the life of the connection and receives `command` events; `role=controller` receives the live device list |
 

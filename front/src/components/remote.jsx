@@ -492,6 +492,7 @@ export function RemotePlayback() {
                 </div>
 
                 <div className="remote-playback-actions">
+                    <button onClick={() => send({ type: 'fullscreen' })} disabled={!online}>⛶ Fullscreen</button>
                     <button onClick={() => send({ type: 'stop' })} disabled={!online}>Stop on {target.name}</button>
                     <button onClick={playHere}>Play here instead</button>
                     <button onClick={() => navigate('/app')}>Back to home</button>
