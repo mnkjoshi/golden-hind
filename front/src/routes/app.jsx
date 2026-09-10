@@ -342,33 +342,37 @@ export default function App() {
                     if (changed) setPctVersion(v => v + 1);
                 }).catch(() => {});
 
-                // Load AI recommendations with 4-hour localStorage cache
-                const REC_TTL = 48 * 60 * 60 * 1000;
+                // AI recommendations — stale-while-revalidate. Cached rows
+                // (however old) paint immediately with no skeleton; the cache
+                // age only decides whether to refresh in the background, and
+                // the "new recommendations" toast fires when the refreshed
+                // picks actually differ. The server keeps its own per-user
+                // cache too, so even a cold device usually gets instant rows.
+                const REC_TTL = 12 * 60 * 60 * 1000;
                 const now = Date.now();
-
-                const cachedLifetime     = localStorage.getItem('ghLifetimeRecs_v2');
-                const cachedLifetimeTime = localStorage.getItem('ghLifetimeRecsTime_v2');
-                const cachedLifetimeParsed = cachedLifetime ? (() => { try { return JSON.parse(cachedLifetime); } catch { return null; } })() : null;
-                const lifetimeCacheHit = Array.isArray(cachedLifetimeParsed) && cachedLifetimeParsed.length > 0
-                    && cachedLifetimeTime && now - parseInt(cachedLifetimeTime) < REC_TTL;
-                if (lifetimeCacheHit) {
-                    setLifetimeRecs(cachedLifetimeParsed);
-                } else {
-                    setLifetimeRecsLoading(true);
-                    axios({ method: 'post', url: 'https://goldenhind.tech/recommendations/lifetime', data: { user, token } })
+                const loadRecs = (kind, cacheKey, timeKey, setRecs, setLoading) => {
+                    let cached = null;
+                    try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch { cached = null; }
+                    const hasCache = Array.isArray(cached) && cached.length > 0;
+                    if (hasCache) setRecs(cached);
+                    const ts = parseInt(localStorage.getItem(timeKey)) || 0;
+                    if (hasCache && now - ts < REC_TTL) return;
+                    if (!hasCache) setLoading(true); // skeleton only on a true first load
+                    axios({ method: 'post', url: `https://goldenhind.tech/recommendations/${kind}`, data: { user, token } })
                         .then(r => {
                             const data = Array.isArray(r.data) ? r.data : [];
-                            setLifetimeRecs(data);
-                            if (data.length > 0) {
-                                localStorage.setItem('ghLifetimeRecs_v2', JSON.stringify(data));
-                                localStorage.setItem('ghLifetimeRecsTime_v2', now.toString());
-                                // Fresh recs arrived → nudge the user to scroll down
-                                setShowNewRecsToast(true);
-                            }
+                            if (data.length === 0) return; // keep showing stale rows
+                            const changed = JSON.stringify(data) !== JSON.stringify(cached);
+                            setRecs(data);
+                            localStorage.setItem(cacheKey, JSON.stringify(data));
+                            localStorage.setItem(timeKey, now.toString());
+                            if (changed) setShowNewRecsToast(true);
                         })
-                        .catch(() => {}) // silently fail — section just won't show
-                        .finally(() => setLifetimeRecsLoading(false));
-                }
+                        .catch(() => {}) // silently fail — stale rows (or nothing) stay up
+                        .finally(() => setLoading(false));
+                };
+                loadRecs('lifetime', 'ghLifetimeRecs_v2', 'ghLifetimeRecsTime_v2', setLifetimeRecs, setLifetimeRecsLoading);
+                loadRecs('recent', 'ghRecentRecs_v2', 'ghRecentRecsTime_v2', setRecentRecs, setRecentRecsLoading);
 
                 // Recently reviewed by users — no cache, always fresh
                 setRecentlyReviewedLoading(true);
@@ -376,29 +380,6 @@ export default function App() {
                     .then(r => setRecentlyReviewed(r.data.items || []))
                     .catch(() => setRecentlyReviewed([]))
                     .finally(() => setRecentlyReviewedLoading(false));
-
-                const cachedRecent     = localStorage.getItem('ghRecentRecs_v2');
-                const cachedRecentTime = localStorage.getItem('ghRecentRecsTime_v2');
-                const cachedRecentParsed = cachedRecent ? (() => { try { return JSON.parse(cachedRecent); } catch { return null; } })() : null;
-                const recentCacheHit = Array.isArray(cachedRecentParsed) && cachedRecentParsed.length > 0
-                    && cachedRecentTime && now - parseInt(cachedRecentTime) < REC_TTL;
-                if (recentCacheHit) {
-                    setRecentRecs(cachedRecentParsed);
-                } else {
-                    setRecentRecsLoading(true);
-                    axios({ method: 'post', url: 'https://goldenhind.tech/recommendations/recent', data: { user, token } })
-                        .then(r => {
-                            const data = Array.isArray(r.data) ? r.data : [];
-                            setRecentRecs(data);
-                            if (data.length > 0) {
-                                localStorage.setItem('ghRecentRecs_v2', JSON.stringify(data));
-                                localStorage.setItem('ghRecentRecsTime_v2', now.toString());
-                                setShowNewRecsToast(true);
-                            }
-                        })
-                        .catch(() => {})
-                        .finally(() => setRecentRecsLoading(false));
-                }
 
             }
         }

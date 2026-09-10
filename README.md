@@ -40,6 +40,7 @@
 ### Recommendations
 - **Lifetime recommendations** — based on full watch history
 - **Recent recommendations** — based on the last few titles watched
+- **Instant loading** — recs are cached per user on the server and in the client, served stale-while-revalidate: rows paint immediately and silently refresh in the background when they're older than 12h or the library changed
 
 ### Account & Activity
 - **Account settings** — view username/email, change password

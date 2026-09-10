@@ -23,6 +23,7 @@ import { normalizeToVtt } from './lib/subtitles.js';
 import { generateToken as GenerateToken, generatePartyCode } from './lib/codes.js';
 import { detectShowChanges, collectShowFollowers } from './lib/notifications.js';
 import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, deviceSummary } from './lib/remote.js';
+import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from './lib/recs.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -1459,7 +1460,73 @@ app.post('/account/change-password', async (request, response) => {
     }
 });
 
-app.post('/recommendations/lifetime', async (request, response) => {
+// AI recommendations are served stale-while-revalidate from a per-user cache
+// at users/{user}/recCache/{mode} ({ items: JSON string, ts, inputKey }):
+// cached rows return instantly, and a background recompute runs when the
+// cache is older than the TTL or the library that produced it changed
+// (inputKey mismatch — see lib/recs.js). Only a user's very first request
+// (no cache anywhere) waits on the live Gemini pipeline.
+const REC_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const recRefreshInFlight = new Set();
+
+async function computeRecommendations(user, mode) {
+    const db = admin.database();
+    const [favsSnap, contsSnap] = await Promise.all([
+        db.ref(`users/${user}/favourites`).once('value'),
+        db.ref(`users/${user}/continues`).once('value')
+    ]);
+    const favIds  = JSON.parse(favsSnap.val()  || '[]');
+    const contIds = JSON.parse(contsSnap.val() || '[]');
+
+    const ids = recSourceIds(favIds, contIds, mode);
+    const sourceKey = recSourceKey(favIds, contIds, mode);
+    if (ids.length === 0) return { items: [], sourceKey, hadSources: false };
+
+    const contentInfo = (await Promise.all(ids.map(id => GetInfo(id).catch(() => null)))).filter(Boolean);
+    if (contentInfo.length === 0) return { items: [], sourceKey, hadSources: false };
+
+    // Filter out anything already in favourites or continue-watching
+    const existingIdSet = new Set([...favIds, ...contIds].map(id => String(id.slice(1))));
+
+    const llmRecs = await getRecommendationsWithRetry(contentInfo, mode);
+
+    const recDetails = (await Promise.all(llmRecs.map(async rec => {
+        try {
+            const found = await searchTMDBByTitle(rec.title, rec.year, rec.type);
+            if (!found) return null;
+            const info = await GetInfo((found.type === 'tv' ? 't' : 'm') + found.id);
+            if (!info) return null;
+            info.logo_path = await getTMDBLogo(found.type, found.id);
+            return info;
+        } catch { return null; }
+    }))).filter(r => r && !existingIdSet.has(String(r.id)));
+
+    return { items: recDetails.slice(0, 5), sourceKey, hadSources: true };
+}
+
+// Recompute + store, deduped so concurrent requests (or several devices)
+// don't fan out into parallel Gemini calls for the same user+mode.
+async function refreshRecCache(user, mode) {
+    const key = `${user}:${mode}`;
+    if (recRefreshInFlight.has(key)) return null;
+    recRefreshInFlight.add(key);
+    try {
+        const { items, sourceKey, hadSources } = await computeRecommendations(user, mode);
+        // An empty result from real sources means the pipeline hiccuped
+        // (LLM/TMDB); keep whatever cache exists rather than blanking it.
+        if (items.length === 0 && hadSources) return items;
+        await admin.database().ref(`users/${user}/recCache/${mode}`).set({
+            items: JSON.stringify(items),
+            ts: Date.now(),
+            inputKey: sourceKey,
+        });
+        return items;
+    } finally {
+        recRefreshInFlight.delete(key);
+    }
+}
+
+async function handleRecommendations(request, response, mode) {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token } = request.body;
@@ -1467,89 +1534,39 @@ app.post('/recommendations/lifetime', async (request, response) => {
 
     try {
         const db = admin.database();
-        const [favsSnap, contsSnap] = await Promise.all([
-            db.ref(`users/${user}/favourites`).once('value'),
-            db.ref(`users/${user}/continues`).once('value')
-        ]);
+        const cached = (await db.ref(`users/${user}/recCache/${mode}`).once('value')).val();
+        const items = parseCachedRecItems(cached);
 
-        const favIds  = JSON.parse(favsSnap.val()  || '[]');
-        const contIds = JSON.parse(contsSnap.val() || '[]');
+        if (items) {
+            // Serve stale immediately; revalidate behind the response.
+            response.status(200).json(items);
+            const [favsSnap, contsSnap] = await Promise.all([
+                db.ref(`users/${user}/favourites`).once('value'),
+                db.ref(`users/${user}/continues`).once('value')
+            ]);
+            const sourceKey = recSourceKey(
+                JSON.parse(favsSnap.val() || '[]'),
+                JSON.parse(contsSnap.val() || '[]'),
+                mode
+            );
+            if (!recCacheIsFresh(cached, sourceKey, Date.now(), REC_CACHE_TTL_MS)) {
+                refreshRecCache(user, mode).catch(err => logError(user, `/recommendations/${mode} refresh`, err).catch(() => {}));
+            }
+            return;
+        }
 
-        // All bookmarks + last 5 continues; bookmarks are the emphasis
-        const ids = [...favIds, ...contIds.slice(-5)];
-        if (ids.length === 0) return response.status(200).json([]);
-
-        const contentInfo = (await Promise.all(ids.map(id => GetInfo(id).catch(() => null)))).filter(Boolean);
-        if (contentInfo.length === 0) return response.status(200).json([]);
-
-        // Build set of existing TMDB IDs so we can filter them out of recommendations
-        const existingIdSet = new Set([...favIds, ...contIds].map(id => String(id.slice(1))));
-
-        const llmRecs = await getRecommendationsWithRetry(contentInfo, 'lifetime');
-
-        const recDetails = (await Promise.all(llmRecs.map(async rec => {
-            try {
-                const found = await searchTMDBByTitle(rec.title, rec.year, rec.type);
-                if (!found) return null;
-                const info = await GetInfo((found.type === 'tv' ? 't' : 'm') + found.id);
-                if (!info) return null;
-                info.logo_path = await getTMDBLogo(found.type, found.id);
-                return info;
-            } catch { return null; }
-        }))).filter(r => r && !existingIdSet.has(String(r.id)));
-
-        response.status(200).json(recDetails.slice(0, 5));
+        // First request ever (or unusable cache) — compute inline.
+        const fresh = await refreshRecCache(user, mode);
+        response.status(200).json(fresh || []);
     } catch (error) {
-        console.error('[/recommendations/lifetime] error:', error?.response?.status, error?.response?.data ?? error?.message);
-        logError(user, '/recommendations/lifetime', error).catch(() => {});
+        console.error(`[/recommendations/${mode}] error:`, error?.response?.status, error?.response?.data ?? error?.message);
+        logError(user, `/recommendations/${mode}`, error).catch(() => {});
         response.status(200).json([]);
     }
-});
+}
 
-app.post('/recommendations/recent', async (request, response) => {
-    response.setHeader("Access-Control-Allow-Credentials", "true");
-    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    const { user, token } = request.body;
-    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
-
-    try {
-        const db = admin.database();
-        const [favsSnap2, contsSnap2] = await Promise.all([
-            db.ref(`users/${user}/favourites`).once('value'),
-            db.ref(`users/${user}/continues`).once('value')
-        ]);
-        const favIds2  = JSON.parse(favsSnap2.val()  || '[]');
-        const contIds2 = JSON.parse(contsSnap2.val() || '[]');
-        const recent5  = contIds2.slice(-5);
-
-        if (recent5.length === 0) return response.status(200).json([]);
-
-        const contentInfo = (await Promise.all(recent5.map(id => GetInfo(id).catch(() => null)))).filter(Boolean);
-        if (contentInfo.length === 0) return response.status(200).json([]);
-
-        // Filter out anything already in favourites or continue-watching
-        const existingIdSet2 = new Set([...favIds2, ...contIds2].map(id => String(id.slice(1))));
-
-        const llmRecs = await getRecommendationsWithRetry(contentInfo, 'recent');
-
-        const recDetails = (await Promise.all(llmRecs.map(async rec => {
-            try {
-                const found = await searchTMDBByTitle(rec.title, rec.year, rec.type);
-                if (!found) return null;
-                const info = await GetInfo((found.type === 'tv' ? 't' : 'm') + found.id);
-                if (!info) return null;
-                info.logo_path = await getTMDBLogo(found.type, found.id);
-                return info;
-            } catch { return null; }
-        }))).filter(r => r && !existingIdSet2.has(String(r.id)));
-
-        response.status(200).json(recDetails.slice(0, 5));
-    } catch (error) {
-        console.error('[/recommendations/recent] error:', error?.response?.status, error?.response?.data ?? error?.message);
-        logError(user, '/recommendations/recent', error).catch(() => {});
-        response.status(200).json([]);
-    }
-});
+app.post('/recommendations/lifetime', (request, response) => handleRecommendations(request, response, 'lifetime'));
+app.post('/recommendations/recent', (request, response) => handleRecommendations(request, response, 'recent'));
 
 app.post('/admin/create-user', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
