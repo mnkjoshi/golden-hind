@@ -1293,14 +1293,15 @@ function LocalWatch() {
                 }
                 const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
                 if (an === 1 && !upNextShown && player.duration > 0) {
-                    // For episodes over 20 min, end credits typically run ~60–90s.
-                    // Fire up-next 90s before the end so the viewer doesn't sit
-                    // through the entire credit roll. For short content (≤20min)
-                    // a fixed window would trigger too early, so fall back to 95%.
+                    // Fire up-next 60s before the end of long content so the
+                    // viewer doesn't sit through the credit roll; the live
+                    // fade-to-black detector usually catches the credits earlier
+                    // anyway. For short content (≤20min) a fixed window would
+                    // trigger too early, so fall back to 95%.
                     const remaining = player.duration - player.currentTime;
                     const longContent = player.duration > 1200;
                     const creditsReached = longContent
-                        ? remaining <= 90
+                        ? remaining <= 60
                         : player.currentTime / player.duration >= 0.95;
                     if (creditsReached) {
                         const hasNext = parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe);
