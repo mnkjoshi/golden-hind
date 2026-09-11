@@ -57,6 +57,25 @@ export default function Admin() {
         setIntroBusy(false);
     };
 
+    // Year in Review promo toast — reset re-issues it to every user by
+    // bumping the promo version.
+    const [promoBusy, setPromoBusy] = useState(false);
+    const [promoVersion, setPromoVersion] = useState(null);
+    useEffect(() => {
+        axios.post(`${BASE_URL}/stats/promo-status`, { user, token })
+            .then(r => setPromoVersion(r.data?.version || 1))
+            .catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    const resetStatsPromo = async () => {
+        setPromoBusy(true);
+        try {
+            const res = await axios.post(`${BASE_URL}/admin/stats-promo/reset`, { user, token });
+            setPromoVersion(res.data?.version || null);
+        } catch { /* surfaced by the unchanged version number */ }
+        setPromoBusy(false);
+    };
+
     useEffect(() => {
         document.title = 'Admin - The Golden Hind';
         if (user !== 'manav') {
@@ -193,6 +212,29 @@ export default function Admin() {
                             title="Bumps the version so everyone sees it again"
                         >
                             Re-show to everyone
+                        </button>
+                    </div>
+                </div>
+
+                {/* Year in Review promo toast control */}
+                <div className="intro-admin">
+                    <div className="intro-admin-info">
+                        <span className="intro-admin-dot on" />
+                        <div>
+                            <div className="intro-admin-title">Year in Review Toast</div>
+                            <div className="intro-admin-sub">
+                                Nudges users who have not seen their stats page yet{promoVersion ? ` · v${promoVersion}` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="intro-admin-actions">
+                        <button
+                            className="intro-admin-btn"
+                            onClick={resetStatsPromo}
+                            disabled={promoBusy}
+                            title="Forgets everyone's seen-state so the toast shows again"
+                        >
+                            Re-issue to everyone
                         </button>
                     </div>
                 </div>

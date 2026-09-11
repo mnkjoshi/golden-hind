@@ -28,6 +28,8 @@ export default function Stats() {
             .then(r => setData(r.data && typeof r.data === 'object' ? r.data : null))
             .catch(() => setData(null))
             .finally(() => setLoading(false));
+        // Seeing the page satisfies the promo toast, however the user got here.
+        axios.post(`${API}/stats/promo-seen`, { user, token }).catch(() => {});
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

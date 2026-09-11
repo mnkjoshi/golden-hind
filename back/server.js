@@ -1307,6 +1307,60 @@ app.post('/admin/intro/set', async (request, response) => {
     }
 });
 
+// "Year in Review" promo toast — same versioning scheme as the intro video:
+// each user sees the toast until they've acknowledged the current promo
+// version, and the admin reset bumps the version to re-issue it to everyone.
+async function getStatsPromoVersion() {
+    const snap = await admin.database().ref('config/statsPromo/version').once('value');
+    return parseInt(snap.val()) || 1;
+}
+
+app.post('/stats/promo-status', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const version = await getStatsPromoVersion();
+        const seenSnap = await admin.database().ref(`users/${user}/statsPromoSeenVersion`).once('value');
+        const seenVersion = parseInt(seenSnap.val()) || 0;
+        response.status(200).json({ show: seenVersion < version, version });
+    } catch (error) {
+        logError(user, '/stats/promo-status', error).catch(() => {});
+        response.status(200).json({ show: false, version: 1 });
+    }
+});
+
+app.post('/stats/promo-seen', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const version = await getStatsPromoVersion();
+        await admin.database().ref(`users/${user}`).update({ statsPromoSeenVersion: version });
+        response.status(200).send("OK");
+    } catch (error) {
+        logError(user, '/stats/promo-seen', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
+
+app.post('/admin/stats-promo/reset', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await AuthenticateAdmin(user, token)) return response.status(403).send("Forbidden");
+    try {
+        const version = (await getStatsPromoVersion()) + 1;
+        await admin.database().ref('config/statsPromo').set({ version });
+        response.status(200).json({ version });
+    } catch (error) {
+        logError(user, '/admin/stats-promo/reset', error).catch(() => {});
+        response.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/admin/data', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");

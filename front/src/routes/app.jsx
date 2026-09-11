@@ -82,6 +82,9 @@ export default function App() {
     // Bottom-center pill shown the first time fresh recommendations arrive in
     // a session. Dismissed by scrolling, clicking the pill, or after 10s.
     const [showNewRecsToast, setShowNewRecsToast] = useState(false)
+    // Year in Review promo — shown until the user opens the stats page (or
+    // dismisses), tracked server-side so it follows them across devices.
+    const [showStatsPromo, setShowStatsPromo] = useState(false)
     const newRecsToastTimerRef = useRef(null)
     const [trailerKey, setTrailerKey] = useState(null)
     const [trailerLoading, setTrailerLoading] = useState(false)
@@ -384,6 +387,25 @@ export default function App() {
             }
         }
     }, [])
+
+    // Year in Review promo status + handlers.
+    useEffect(() => {
+        const user = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
+        if (!user || !token) return;
+        axios.post('https://ghb.mnkjoshi.ca/stats/promo-status', { user, token })
+            .then(r => { if (r.data?.show) setShowStatsPromo(true); })
+            .catch(() => {});
+    }, []);
+
+    const markStatsPromoSeen = () => {
+        setShowStatsPromo(false);
+        const user = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
+        if (user && token) {
+            axios.post('https://ghb.mnkjoshi.ca/stats/promo-seen', { user, token }).catch(() => {});
+        }
+    };
 
     // Hide Christmas effects after 30 seconds
     useEffect(() => {
@@ -896,6 +918,21 @@ export default function App() {
                     </svg>
                     <span>New recommendations · scroll down</span>
                 </button>
+            )}
+
+            {showStatsPromo && !isLoading && (
+                <div className={`stats-promo-pill${showNewRecsToast ? ' raised' : ''}`}>
+                    <button
+                        className="stats-promo-main"
+                        onClick={() => { markStatsPromoSeen(); navigate('/stats'); }}
+                    >
+                        <svg viewBox="0 0 24 24" fill="none" width="14" height="14" aria-hidden="true">
+                            <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        <span>Your Year in Review is ready — take a look</span>
+                    </button>
+                    <button className="stats-promo-dismiss" onClick={markStatsPromoSeen} aria-label="Dismiss">×</button>
+                </div>
             )}
             
             {/* Loading skeleton — shimmering placeholders mirroring the real
