@@ -33,6 +33,32 @@ export default function Stats() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Top-3 showdown: cards reveal 3 → 2 → 1, each backed by its trailer
+    // playing muted once revealed (backdrop art until the key arrives).
+    const [trailerKeys, setTrailerKeys] = useState({});
+    const [revealedCount, setRevealedCount] = useState(0);
+    const reducedMotion = typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const top3 = data?.topTitles?.filter(t => t.contentId).slice(0, 3) || [];
+    const hasShowdown = top3.length === 3;
+
+    useEffect(() => {
+        if (!data || !hasShowdown) return;
+        const timers = [700, 2100, 3500].map((ms, i) =>
+            setTimeout(() => setRevealedCount(r => Math.max(r, i + 1)), reducedMotion ? 0 : ms));
+        top3.forEach(t => {
+            axios.post(`${API}/home-trailer`, {
+                user, token,
+                tmdbId: parseInt(t.contentId.slice(1)),
+                mediaType: t.contentId[0] === 't' ? 'tv' : 'movie',
+            }).then(r => {
+                if (r.data?.key) setTrailerKeys(prev => ({ ...prev, [t.contentId]: r.data.key }));
+            }).catch(() => {});
+        });
+        return () => timers.forEach(clearTimeout);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data]);
+
     useEffect(() => {
         if (!data) return;
         let raf = requestAnimationFrame(() => { raf = requestAnimationFrame(() => setMounted(true)); });
@@ -70,6 +96,54 @@ export default function Stats() {
 
                 {!loading && data && data.sessionCount > 0 && (
                     <>
+                        {hasShowdown && (
+                            <div className="stats-showdown">
+                                <h2 className="stats-showdown-heading">The podium</h2>
+                                {[2, 1, 0].map(idx => {
+                                    const t = top3[idx];
+                                    const rank = idx + 1;
+                                    const revealIndex = 2 - idx; // reveal order: #3 first, #1 last
+                                    const isRevealed = revealedCount > revealIndex;
+                                    const trailerKey = trailerKeys[t.contentId];
+                                    return (
+                                        <div
+                                            key={t.contentId}
+                                            className={`stats-showdown-card rank-${rank}${isRevealed ? ' revealed' : ''}`}
+                                            onClick={() => navigate(`/detail/${t.contentId}`)}
+                                        >
+                                            {isRevealed && trailerKey && !reducedMotion ? (
+                                                <iframe
+                                                    className="stats-showdown-video"
+                                                    src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=1&controls=0&loop=1&playlist=${trailerKey}&modestbranding=1&playsinline=1&rel=0&iv_load_policy=3&disablekb=1`}
+                                                    title=""
+                                                    tabIndex={-1}
+                                                    allow="autoplay; encrypted-media"
+                                                />
+                                            ) : t.backdrop_path ? (
+                                                <div
+                                                    className="stats-showdown-backdrop"
+                                                    style={{ backgroundImage: `url(https://image.tmdb.org/t/p/w1280${t.backdrop_path})` }}
+                                                />
+                                            ) : null}
+                                            <div className="stats-showdown-scrim" />
+                                            <div className="stats-showdown-content">
+                                                <span className="stats-showdown-rank">#{rank}</span>
+                                                {t.poster_path && (
+                                                    <img className="stats-showdown-poster" src={`https://image.tmdb.org/t/p/w185${t.poster_path}`} alt="" />
+                                                )}
+                                                <div className="stats-showdown-text">
+                                                    <span className="stats-showdown-name">{t.name}</span>
+                                                    <span className="stats-showdown-meta">
+                                                        {formatWatchTime(t.seconds)} · {t.sessions} session{t.sessions === 1 ? '' : 's'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
                         <div className="stats-hero">
                             <div className="stats-hero-card stats-hero-main stats-anim">
                                 <span className="stats-hero-number">{hours >= 100 ? Math.round(displayHours) : displayHours.toFixed(1)}</span>
