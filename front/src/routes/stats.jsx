@@ -46,10 +46,6 @@ export default function Stats() {
     // cases where the browser refuses.
     const [introSound, setIntroSound] = useState(true);
     const [introVideoFailed, setIntroVideoFailed] = useState(false);
-    // The iframe is kept invisible (backdrop art showing) until the player
-    // CONFIRMS it's playing — so no YouTube chrome (loading, paused, error
-    // screens) can ever be on screen, whatever the browser does to autoplay.
-    const [introPlaying, setIntroPlaying] = useState(false);
     const introSoundRef = useRef(true);
     const introIframeRef = useRef(null);
     const introPlayingRef = useRef(false);
@@ -103,10 +99,7 @@ export default function Stats() {
             if (typeof e.data !== 'string' || !String(e.origin).includes('youtube')) return;
             try {
                 const msg = JSON.parse(e.data);
-                if (msg?.info?.playerState === 1) {
-                    introPlayingRef.current = true;
-                    setIntroPlaying(true);
-                }
+                if (msg?.info?.playerState === 1) introPlayingRef.current = true;
             } catch { /* not player JSON */ }
         };
         window.addEventListener('message', onMessage);
@@ -142,7 +135,6 @@ export default function Stats() {
         const advance = setTimeout(() => {
             setIntroLeaving(false);
             setIntroVideoFailed(false); // fresh chance for the next card's trailer
-            setIntroPlaying(false);
             if (introStep >= 2) setIntroDone(true);
             else setIntroStep(introStep + 1);
         }, 6000);
@@ -185,23 +177,22 @@ export default function Stats() {
                 return (
                     <div className="stats-intro">
                         <div key={introStep} className={`stats-intro-card${introLeaving ? ' leaving' : ''}`}>
-                            {current.backdrop_path && (
-                                <div
-                                    className="stats-intro-backdrop"
-                                    style={{ backgroundImage: `url(https://image.tmdb.org/t/p/w1280${current.backdrop_path})` }}
-                                />
-                            )}
-                            {trailerKey && !introVideoFailed && (
+                            {trailerKey && !introVideoFailed ? (
                                 <iframe
                                     ref={introIframeRef}
-                                    className={`stats-intro-video${introPlaying ? ' live' : ''}`}
+                                    className="stats-intro-video"
                                     src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=1&controls=0&loop=1&playlist=${trailerKey}&playsinline=1&rel=0&iv_load_policy=3&disablekb=1&enablejsapi=1`}
                                     title=""
                                     tabIndex={-1}
                                     allow="autoplay; encrypted-media"
                                     onLoad={startIntroNudge}
                                 />
-                            )}
+                            ) : current.backdrop_path ? (
+                                <div
+                                    className="stats-intro-backdrop"
+                                    style={{ backgroundImage: `url(https://image.tmdb.org/t/p/w1280${current.backdrop_path})` }}
+                                />
+                            ) : null}
                             <div className="stats-intro-scrim" />
                             <div className="stats-intro-content">
                                 <span className="stats-intro-kicker">{kicker}</span>
