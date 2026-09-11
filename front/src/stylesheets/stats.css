@@ -18,6 +18,19 @@
     font-weight: 400;
     font-size: 34px;
     margin: 0 0 26px;
+    animation: stats-fade-up 0.6s ease both;
+}
+
+/* Entrance choreography — sections/cards/rows drift up in a stagger (delays
+   set inline), bars grow from zero once `mounted` flips. */
+@keyframes stats-fade-up {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.stats-anim { animation: stats-fade-up 0.6s ease both; }
+@media (prefers-reduced-motion: reduce) {
+    .stats-anim, .stats-title { animation: none; }
+    .stats-month-bar, .stats-genre-bar { transition: none !important; }
 }
 
 .stats-hint {
@@ -96,6 +109,7 @@
     background: linear-gradient(180deg, #6FB7FF, #3FA3FF);
     border-radius: 6px 6px 2px 2px;
     min-height: 2px;
+    transition: height 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .stats-month-label {
     font-size: 10.5px;
@@ -194,6 +208,7 @@
     height: 100%;
     background: linear-gradient(90deg, #3FA3FF, #6FB7FF);
     border-radius: 4px;
+    transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (max-width: 760px) {
