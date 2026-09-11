@@ -83,10 +83,14 @@ export default function Detail() {
     }, [id]);
 
     // If this browser is remote-controlling a device, mirror this detail view
-    // on its idle screen while we're here (cleared on leave).
+    // on its idle screen while we're here (cleared on leave). Re-broadcast
+    // every 10s — a one-shot command can be lost while the player is between
+    // pages (its command queue drops entries from before its reconnect), and
+    // the player also forgets the preview when its own page remounts.
     useEffect(() => {
         sendRemotePreview(id);
-        return () => sendRemotePreview(null);
+        const rebroadcast = setInterval(() => sendRemotePreview(id), 10000);
+        return () => { clearInterval(rebroadcast); sendRemotePreview(null); };
     }, [id]);
 
     const submitReview = () => {
