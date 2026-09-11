@@ -33,19 +33,21 @@ export default function Stats() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Top-3 showdown: cards reveal 3 → 2 → 1, each backed by its trailer
-    // playing muted once revealed (backdrop art until the key arrives).
+    // Opening reveal: the page starts dark and counts down the top 3 —
+    // each place gets a full-screen card with its trailer playing muted for
+    // ~5s, ending on #1, then the intro clears and the real page animates in.
     const [trailerKeys, setTrailerKeys] = useState({});
-    const [revealedCount, setRevealedCount] = useState(0);
+    const [introStep, setIntroStep] = useState(0);   // 0 → #3, 1 → #2, 2 → #1
+    const [introLeaving, setIntroLeaving] = useState(false);
+    const [introDone, setIntroDone] = useState(false);
     const reducedMotion = typeof window.matchMedia === 'function'
         && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const top3 = data?.topTitles?.filter(t => t.contentId).slice(0, 3) || [];
     const hasShowdown = top3.length === 3;
 
     useEffect(() => {
-        if (!data || !hasShowdown) return;
-        const timers = [700, 2100, 3500].map((ms, i) =>
-            setTimeout(() => setRevealedCount(r => Math.max(r, i + 1)), reducedMotion ? 0 : ms));
+        if (!data) return;
+        if (!hasShowdown || reducedMotion) { setIntroDone(true); return; }
         top3.forEach(t => {
             axios.post(`${API}/home-trailer`, {
                 user, token,
@@ -55,12 +57,24 @@ export default function Stats() {
                 if (r.data?.key) setTrailerKeys(prev => ({ ...prev, [t.contentId]: r.data.key }));
             }).catch(() => {});
         });
-        return () => timers.forEach(clearTimeout);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data]);
 
+    // Advance the countdown: ~5s of trailer per card, brief fade between.
     useEffect(() => {
-        if (!data) return;
+        if (!data || introDone || !hasShowdown || reducedMotion) return;
+        const leave = setTimeout(() => setIntroLeaving(true), 5400);
+        const advance = setTimeout(() => {
+            setIntroLeaving(false);
+            if (introStep >= 2) setIntroDone(true);
+            else setIntroStep(introStep + 1);
+        }, 6000);
+        return () => { clearTimeout(leave); clearTimeout(advance); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data, introStep, introDone]);
+
+    useEffect(() => {
+        if (!data || !introDone) return;
         let raf = requestAnimationFrame(() => { raf = requestAnimationFrame(() => setMounted(true)); });
         const target = data.totalSeconds / 3600;
         const t0 = performance.now();
@@ -74,7 +88,8 @@ export default function Stats() {
         };
         countRaf = requestAnimationFrame(tick);
         return () => { cancelAnimationFrame(raf); cancelAnimationFrame(countRaf); };
-    }, [data]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data, introDone]);
 
     const hours = data ? data.totalSeconds / 3600 : 0;
     const maxMonth = data ? Math.max(1, ...data.byMonth.map(m => m.seconds)) : 1;
@@ -83,6 +98,44 @@ export default function Stats() {
     return (
         <div className="stats-page">
             <Topbar />
+
+            {!loading && data && data.sessionCount > 0 && hasShowdown && !introDone && (() => {
+                const order = [top3[2], top3[1], top3[0]]; // countdown: #3 → #2 → #1
+                const current = order[introStep];
+                const rank = 3 - introStep;
+                const trailerKey = trailerKeys[current.contentId];
+                const kicker = ['Third place', 'Second place', 'Your most watched'][introStep];
+                return (
+                    <div className="stats-intro">
+                        <div key={introStep} className={`stats-intro-card${introLeaving ? ' leaving' : ''}`}>
+                            {trailerKey ? (
+                                <iframe
+                                    className="stats-intro-video"
+                                    src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=1&controls=0&loop=1&playlist=${trailerKey}&modestbranding=1&playsinline=1&rel=0&iv_load_policy=3&disablekb=1`}
+                                    title=""
+                                    tabIndex={-1}
+                                    allow="autoplay; encrypted-media"
+                                />
+                            ) : current.backdrop_path ? (
+                                <div
+                                    className="stats-intro-backdrop"
+                                    style={{ backgroundImage: `url(https://image.tmdb.org/t/p/w1280${current.backdrop_path})` }}
+                                />
+                            ) : null}
+                            <div className="stats-intro-scrim" />
+                            <div className="stats-intro-content">
+                                <span className="stats-intro-kicker">{kicker}</span>
+                                <span className={`stats-intro-rank rank-${rank}`}>#{rank}</span>
+                                <h2 className="stats-intro-name">{current.name}</h2>
+                                <span className="stats-intro-meta">
+                                    {formatWatchTime(current.seconds)} · {current.sessions} session{current.sessions === 1 ? '' : 's'}
+                                </span>
+                            </div>
+                        </div>
+                        <button className="stats-intro-skip" onClick={() => setIntroDone(true)}>Skip</button>
+                    </div>
+                );
+            })()}
             <div className="stats-content">
                 <h1 className="stats-title">Your Year on the Golden Hind</h1>
 
@@ -94,56 +147,8 @@ export default function Stats() {
                     </div>
                 )}
 
-                {!loading && data && data.sessionCount > 0 && (
+                {!loading && data && data.sessionCount > 0 && introDone && (
                     <>
-                        {hasShowdown && (
-                            <div className="stats-showdown">
-                                <h2 className="stats-showdown-heading">The podium</h2>
-                                {[2, 1, 0].map(idx => {
-                                    const t = top3[idx];
-                                    const rank = idx + 1;
-                                    const revealIndex = 2 - idx; // reveal order: #3 first, #1 last
-                                    const isRevealed = revealedCount > revealIndex;
-                                    const trailerKey = trailerKeys[t.contentId];
-                                    return (
-                                        <div
-                                            key={t.contentId}
-                                            className={`stats-showdown-card rank-${rank}${isRevealed ? ' revealed' : ''}`}
-                                            onClick={() => navigate(`/detail/${t.contentId}`)}
-                                        >
-                                            {isRevealed && trailerKey && !reducedMotion ? (
-                                                <iframe
-                                                    className="stats-showdown-video"
-                                                    src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=1&controls=0&loop=1&playlist=${trailerKey}&modestbranding=1&playsinline=1&rel=0&iv_load_policy=3&disablekb=1`}
-                                                    title=""
-                                                    tabIndex={-1}
-                                                    allow="autoplay; encrypted-media"
-                                                />
-                                            ) : t.backdrop_path ? (
-                                                <div
-                                                    className="stats-showdown-backdrop"
-                                                    style={{ backgroundImage: `url(https://image.tmdb.org/t/p/w1280${t.backdrop_path})` }}
-                                                />
-                                            ) : null}
-                                            <div className="stats-showdown-scrim" />
-                                            <div className="stats-showdown-content">
-                                                <span className="stats-showdown-rank">#{rank}</span>
-                                                {t.poster_path && (
-                                                    <img className="stats-showdown-poster" src={`https://image.tmdb.org/t/p/w185${t.poster_path}`} alt="" />
-                                                )}
-                                                <div className="stats-showdown-text">
-                                                    <span className="stats-showdown-name">{t.name}</span>
-                                                    <span className="stats-showdown-meta">
-                                                        {formatWatchTime(t.seconds)} · {t.sessions} session{t.sessions === 1 ? '' : 's'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
                         <div className="stats-hero">
                             <div className="stats-hero-card stats-hero-main stats-anim">
                                 <span className="stats-hero-number">{hours >= 100 ? Math.round(displayHours) : displayHours.toFixed(1)}</span>
