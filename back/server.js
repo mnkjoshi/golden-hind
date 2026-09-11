@@ -2666,6 +2666,10 @@ async function getRecommendations(contentList, mode) {
 }
 
 // Extract YouTube stream URL without downloading — browser fetches + converts client-side
+// yt-dlp cookie jar for the music endpoints. Overridable via .env so the
+// service can run from any user's home (the old box kept it at /root).
+const YT_COOKIES = process.env.YT_COOKIES || '/root/yt_cookies.txt';
+
 app.post('/music/url', async (req, res) => {
     const { user, token, url } = req.body;
     if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
@@ -2683,7 +2687,7 @@ app.post('/music/url', async (req, res) => {
         const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
         const env = { ...process.env, PATH: `/root/.deno/bin:${process.env.PATH}` };
         const { stdout } = await execAsync(
-            `yt-dlp --cookies /root/yt_cookies.txt --no-playlist -f "bestaudio[ext=webm]/bestaudio" --print "%(title)s" --print "%(url)s" "${ytUrl}"`,
+            `yt-dlp --cookies ${YT_COOKIES} --no-playlist -f "bestaudio[ext=webm]/bestaudio" --print "%(title)s" --print "%(url)s" "${ytUrl}"`,
             { timeout: 30000, env }
         );
         const lines = stdout.trim().split('\n');
@@ -2717,7 +2721,7 @@ app.post('/music/download', async (req, res) => {
 
     try {
         const { stdout } = await execAsync(
-            `yt-dlp --cookies /root/yt_cookies.txt --no-playlist -f "bestaudio[ext=webm]/bestaudio" --print "%(title)s" --print "%(uploader)s" --print "%(upload_date)s" --print "%(url)s" "${ytUrl}"`,
+            `yt-dlp --cookies ${YT_COOKIES} --no-playlist -f "bestaudio[ext=webm]/bestaudio" --print "%(title)s" --print "%(uploader)s" --print "%(upload_date)s" --print "%(url)s" "${ytUrl}"`,
             { timeout: 30000, env }
         );
         const lines = stdout.trim().split('\n');
