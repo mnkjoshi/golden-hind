@@ -45,8 +45,11 @@ export default function Stats() {
     // the navigation click is still fresh — and the sound button covers the
     // cases where the browser refuses.
     const [introSound, setIntroSound] = useState(true);
+    const [introVideoFailed, setIntroVideoFailed] = useState(false);
     const introSoundRef = useRef(true);
     const introIframeRef = useRef(null);
+    const introPlayingRef = useRef(false);
+    const introNudgeRef = useRef(null);
 
     const ytCommand = (func, args = []) => {
         try {
@@ -60,6 +63,51 @@ export default function Stats() {
         if (on) { ytCommand('unMute'); ytCommand('setVolume', [75]); }
         else ytCommand('mute');
     };
+
+    // YouTube's embed IGNORES postMessage commands until the parent sends the
+    // widget-API 'listening' handshake, and autoplay can fail silently. So:
+    // handshake + playVideo on a short interval until the player reports
+    // state 1 (playing) via message events — and if it never does, mark the
+    // video failed so the card falls back to backdrop art instead of showing
+    // a paused YouTube player with controls.
+    const startIntroNudge = () => {
+        introPlayingRef.current = false;
+        if (introNudgeRef.current) clearInterval(introNudgeRef.current);
+        let tries = 0;
+        introNudgeRef.current = setInterval(() => {
+            if (introPlayingRef.current) { clearInterval(introNudgeRef.current); return; }
+            if (++tries > 10) {
+                clearInterval(introNudgeRef.current);
+                setIntroVideoFailed(true);
+                return;
+            }
+            const w = introIframeRef.current?.contentWindow;
+            if (!w) return;
+            try {
+                w.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*');
+                w.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
+                if (introSoundRef.current) {
+                    w.postMessage(JSON.stringify({ event: 'command', func: 'unMute', args: [] }), '*');
+                    w.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [75] }), '*');
+                }
+            } catch { /* noop */ }
+        }, 650);
+    };
+
+    useEffect(() => {
+        const onMessage = (e) => {
+            if (typeof e.data !== 'string' || !String(e.origin).includes('youtube')) return;
+            try {
+                const msg = JSON.parse(e.data);
+                if (msg?.info?.playerState === 1) introPlayingRef.current = true;
+            } catch { /* not player JSON */ }
+        };
+        window.addEventListener('message', onMessage);
+        return () => {
+            window.removeEventListener('message', onMessage);
+            if (introNudgeRef.current) clearInterval(introNudgeRef.current);
+        };
+    }, []);
     const reducedMotion = typeof window.matchMedia === 'function'
         && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const top3 = data?.topTitles?.filter(t => t.contentId).slice(0, 3) || [];
@@ -86,6 +134,7 @@ export default function Stats() {
         const leave = setTimeout(() => setIntroLeaving(true), 5400);
         const advance = setTimeout(() => {
             setIntroLeaving(false);
+            setIntroVideoFailed(false); // fresh chance for the next card's trailer
             if (introStep >= 2) setIntroDone(true);
             else setIntroStep(introStep + 1);
         }, 6000);
@@ -128,7 +177,7 @@ export default function Stats() {
                 return (
                     <div className="stats-intro">
                         <div key={introStep} className={`stats-intro-card${introLeaving ? ' leaving' : ''}`}>
-                            {trailerKey ? (
+                            {trailerKey && !introVideoFailed ? (
                                 <iframe
                                     ref={introIframeRef}
                                     className="stats-intro-video"
@@ -136,18 +185,7 @@ export default function Stats() {
                                     title=""
                                     tabIndex={-1}
                                     allow="autoplay; encrypted-media"
-                                    onLoad={() => {
-                                        // Force playback (autoplay can silently fail and leave
-                                        // a paused player with visible controls), then unmute
-                                        // if sound is on and the browser permits it.
-                                        [400, 1400].forEach(ms => setTimeout(() => {
-                                            ytCommand('playVideo');
-                                            if (introSoundRef.current) {
-                                                ytCommand('unMute');
-                                                ytCommand('setVolume', [75]);
-                                            }
-                                        }, ms));
-                                    }}
+                                    onLoad={startIntroNudge}
                                 />
                             ) : current.backdrop_path ? (
                                 <div
