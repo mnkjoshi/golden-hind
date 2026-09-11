@@ -99,11 +99,7 @@
     min-width: 177.78vh;
     border: 0;
     pointer-events: none;
-    /* Invisible until the player confirms it's playing — chrome never shows */
-    opacity: 0;
-    transition: opacity 0.8s ease;
 }
-.stats-intro-video.live { opacity: 1; }
 .stats-intro-backdrop {
     position: absolute;
     inset: 0;
