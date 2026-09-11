@@ -20,7 +20,7 @@ export function sanitizeDeviceName(name) {
     return clean || 'Device';
 }
 
-export const REMOTE_COMMAND_TYPES = ['play', 'pause', 'resume', 'seek', 'seekBy', 'volume', 'episode', 'stop', 'fullscreen'];
+export const REMOTE_COMMAND_TYPES = ['play', 'pause', 'resume', 'seek', 'seekBy', 'volume', 'episode', 'stop', 'fullscreen', 'preview'];
 
 // Validate + normalize a raw client command into exactly the shape the player
 // will execute. Returns null for anything malformed so /remote/command can
@@ -60,6 +60,14 @@ export function sanitizeCommand(raw) {
             const episode = parseInt(raw.episode);
             if (!Number.isFinite(season) || !Number.isFinite(episode) || season < 1 || episode < 1) return null;
             return { type, season, episode };
+        }
+        case 'preview': {
+            // Controller is browsing a title's detail page — the player's idle
+            // screen mirrors it. No contentId clears the preview.
+            if (raw.contentId === undefined || raw.contentId === null || raw.contentId === '') return { type };
+            const contentId = String(raw.contentId);
+            if (!/^[mt]\d{1,12}$/.test(contentId)) return null;
+            return { type, contentId };
         }
         case 'pause':
         case 'resume':

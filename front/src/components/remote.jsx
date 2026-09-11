@@ -98,6 +98,21 @@ function sendRemoteCommand(deviceId, command) {
     return axios.post(`${BASE_URL}/remote/command`, { user, token, deviceId, command });
 }
 
+// Tell the controlled device what title the controller is looking at, so its
+// idle screen can mirror the detail view (null/undefined clears it). Used by
+// the detail route; no-op when this browser isn't controlling anything.
+export function sendRemotePreview(contentId) {
+    const target = getRemoteTarget();
+    if (!target) return;
+    sendRemoteCommand(target.deviceId, contentId ? { type: 'preview', contentId } : { type: 'preview' })
+        .catch(() => {});
+}
+
+// Last local input on this device, module-scoped so it survives the topbar
+// remounts that happen on every route change — without it the idle screen
+// would pop instantly after each navigation a human makes on the device.
+let lastRemoteActivityTs = 0;
+
 export default function RemoteControl() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -154,6 +169,13 @@ export default function RemoteControl() {
                 case 'stop':
                     navigate('/app');
                     break;
+                case 'preview':
+                    // Mirror the controller's detail view on the idle screen.
+                    setPreviewId(cmd.contentId || null);
+                    if (cmd.contentId && !window.location.pathname.startsWith('/watch/')) {
+                        setIdleVisible(true);
+                    }
+                    break;
                 default:
                     // Playback-level commands are the watch page's business.
                     window.dispatchEvent(new CustomEvent('gh-remote', { detail: cmd }));
@@ -193,29 +215,39 @@ export default function RemoteControl() {
     }, [exposeOn]);
 
     // ── TV idle screen ───────────────────────────────────────────────────────
-    // While exposed as a player and left untouched (not on a watch page), fade
-    // in an appliance-style screensaver: clock, ready state, and rotating
-    // Continue Watching art. Any input dismisses it; a play command navigates
-    // to /watch, which remounts this component and clears it naturally.
+    // While exposed as a player (and not on a watch page) the screensaver
+    // shows immediately — entering player mode IS the idle state for an
+    // appliance. Local input wakes the page for 60s at a time; a play command
+    // navigates to /watch, which remounts this component and clears it. When
+    // the controller browses a title's detail page, a `preview` command swaps
+    // the clock face for that title's art + details.
     const IDLE_AFTER_MS = 60 * 1000;
     const [idleVisible, setIdleVisible] = useState(false);
     const [idleClock, setIdleClock] = useState(() => new Date());
     const [idleArt, setIdleArt] = useState(null); // null = not fetched yet
     const [idleArtIndex, setIdleArtIndex] = useState(0);
-    const lastActivityRef = useRef(Date.now());
+    const [previewId, setPreviewId] = useState(null);
+    const [previewData, setPreviewData] = useState(null);
+    const previewCacheRef = useRef(new Map());
 
     useEffect(() => {
         if (!exposeOn) { setIdleVisible(false); return; }
-        lastActivityRef.current = Date.now();
         const bump = () => {
-            lastActivityRef.current = Date.now();
+            lastRemoteActivityTs = Date.now();
             setIdleVisible(v => (v ? false : v)); // no-op re-render when already hidden
         };
         const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel'];
         events.forEach(ev => window.addEventListener(ev, bump, { passive: true }));
+        // Show right away on entering player mode (or landing on a page while
+        // exposed) — unless a human just touched this device, in which case
+        // wait out the normal idle window.
+        if (!window.location.pathname.startsWith('/watch/')
+            && Date.now() - lastRemoteActivityTs > 5000) {
+            setIdleVisible(true);
+        }
         const checker = setInterval(() => {
             if (window.location.pathname.startsWith('/watch/')) return;
-            if (Date.now() - lastActivityRef.current > IDLE_AFTER_MS) {
+            if (Date.now() - lastRemoteActivityTs > IDLE_AFTER_MS) {
                 setIdleVisible(v => (v ? v : true));
             }
         }, 5000);
@@ -225,6 +257,28 @@ export default function RemoteControl() {
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [exposeOn]);
+
+    // Resolve preview commands to full TMDB details (cached per title).
+    useEffect(() => {
+        if (!previewId) { setPreviewData(null); return; }
+        const cached = previewCacheRef.current.get(previewId);
+        if (cached) { setPreviewData(cached); return; }
+        setPreviewData(null);
+        const user = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
+        if (!user || !token) return;
+        let stale = false;
+        axios.post(`${BASE_URL}/detail`, {
+            user, token,
+            tmdbId: previewId.slice(1),
+            mediaType: previewId[0] === 't' ? 'tv' : 'movie',
+        }).then(r => {
+            if (!r.data || typeof r.data !== 'object') return;
+            previewCacheRef.current.set(previewId, r.data);
+            if (!stale) setPreviewData(r.data);
+        }).catch(() => {});
+        return () => { stale = true; };
+    }, [previewId]);
 
     // Clock tick + art rotation + lazy art fetch, only while the screen shows.
     useEffect(() => {
@@ -410,29 +464,76 @@ export default function RemoteControl() {
 
             {idleVisible && (
                 <div className="remote-idle" onClick={() => setIdleVisible(false)}>
-                    {idleItem && (
-                        <div
-                            key={idleItem.id}
-                            className="remote-idle-backdrop"
-                            style={{ backgroundImage: `url(https://image.tmdb.org/t/p/original${idleItem.backdrop_path || idleItem.poster_path})` }}
-                        />
-                    )}
-                    <div className="remote-idle-center">
-                        <div className="remote-idle-clock">
-                            {idleClock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                        </div>
-                        <div className="remote-idle-date">
-                            {idleClock.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
-                        </div>
-                        <div className="remote-idle-ready">
-                            <span className="remote-dot online" />
-                            {deviceName} — ready to play
-                        </div>
-                    </div>
-                    {idleItem && (
-                        <div className="remote-idle-caption">
-                            Continue watching · {idleItem.name || idleItem.title}
-                        </div>
+                    {previewId && previewData ? (
+                        <>
+                            {/* Controller is browsing this title — mirror its detail view */}
+                            {previewData.backdrop_path && (
+                                <div
+                                    key={`preview-${previewId}`}
+                                    className="remote-idle-backdrop remote-idle-backdrop-preview"
+                                    style={{ backgroundImage: `url(https://image.tmdb.org/t/p/original${previewData.backdrop_path})` }}
+                                />
+                            )}
+                            <div className="remote-idle-detail">
+                                {previewData.poster_path && (
+                                    <img
+                                        className="remote-idle-poster"
+                                        src={`https://image.tmdb.org/t/p/w342${previewData.poster_path}`}
+                                        alt=""
+                                    />
+                                )}
+                                <div className="remote-idle-detail-info">
+                                    <h1 className="remote-idle-detail-title">{previewData.name || previewData.title}</h1>
+                                    <div className="remote-idle-detail-meta">
+                                        {(previewData.first_air_date || previewData.release_date || '').slice(0, 4)}
+                                        {previewData.vote_average > 0 && <span> · ★ {previewData.vote_average.toFixed(1)}</span>}
+                                        {previewId[0] === 't' && previewData.number_of_seasons
+                                            ? <span> · {previewData.number_of_seasons} season{previewData.number_of_seasons === 1 ? '' : 's'}</span>
+                                            : previewData.runtime ? <span> · {previewData.runtime} min</span> : null}
+                                    </div>
+                                    {previewData.genres?.length > 0 && (
+                                        <div className="remote-idle-detail-genres">
+                                            {previewData.genres.slice(0, 4).map(g => (
+                                                <span key={g.id} className="remote-idle-genre-chip">{g.name}</span>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {previewData.overview && (
+                                        <p className="remote-idle-detail-overview">{previewData.overview}</p>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="remote-idle-corner-clock">
+                                {idleClock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {idleItem && (
+                                <div
+                                    key={idleItem.id}
+                                    className="remote-idle-backdrop"
+                                    style={{ backgroundImage: `url(https://image.tmdb.org/t/p/original${idleItem.backdrop_path || idleItem.poster_path})` }}
+                                />
+                            )}
+                            <div className="remote-idle-center">
+                                <div className="remote-idle-clock">
+                                    {idleClock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                                </div>
+                                <div className="remote-idle-date">
+                                    {idleClock.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+                                </div>
+                                <div className="remote-idle-ready">
+                                    <span className="remote-dot online" />
+                                    {deviceName} — ready to play
+                                </div>
+                            </div>
+                            {idleItem && (
+                                <div className="remote-idle-caption">
+                                    Continue watching · {idleItem.name || idleItem.title}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             )}
