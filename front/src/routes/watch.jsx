@@ -1331,6 +1331,14 @@ function LocalWatch() {
                     axios.post('https://ghb.mnkjoshi.ca/position/update', {
                         user: u, token: t, posKey, contentId: id, position: 0, duration: 0, pct: 0,
                     }).catch(() => {});
+                    // Finishing an episode marks it watched on the detail page.
+                    if (id.slice(0, 1) === 't') {
+                        const { episode: wEp, season: wSe } = playbackStateRef.current;
+                        axios.post('https://ghb.mnkjoshi.ca/watched/update', {
+                            user: u, token: t, contentId: id,
+                            season: parseInt(wSe) || 1, episodes: [parseInt(wEp) || 1], watched: true,
+                        }).catch(() => {});
+                    }
                 }
                 const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
                 if (an !== 1) return;

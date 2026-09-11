@@ -145,6 +145,65 @@ export default function RemoteControl() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [exposeOn]);
 
+    // ── TV idle screen ───────────────────────────────────────────────────────
+    // While exposed as a player and left untouched (not on a watch page), fade
+    // in an appliance-style screensaver: clock, ready state, and rotating
+    // Continue Watching art. Any input dismisses it; a play command navigates
+    // to /watch, which remounts this component and clears it naturally.
+    const IDLE_AFTER_MS = 90 * 1000;
+    const [idleVisible, setIdleVisible] = useState(false);
+    const [idleClock, setIdleClock] = useState(() => new Date());
+    const [idleArt, setIdleArt] = useState(null); // null = not fetched yet
+    const [idleArtIndex, setIdleArtIndex] = useState(0);
+    const lastActivityRef = useRef(Date.now());
+
+    useEffect(() => {
+        if (!exposeOn) { setIdleVisible(false); return; }
+        lastActivityRef.current = Date.now();
+        const bump = () => {
+            lastActivityRef.current = Date.now();
+            setIdleVisible(v => (v ? false : v)); // no-op re-render when already hidden
+        };
+        const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel'];
+        events.forEach(ev => window.addEventListener(ev, bump, { passive: true }));
+        const checker = setInterval(() => {
+            if (window.location.pathname.startsWith('/watch/')) return;
+            if (Date.now() - lastActivityRef.current > IDLE_AFTER_MS) {
+                setIdleVisible(v => (v ? v : true));
+            }
+        }, 10000);
+        return () => {
+            events.forEach(ev => window.removeEventListener(ev, bump));
+            clearInterval(checker);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [exposeOn]);
+
+    // Clock tick + art rotation + lazy art fetch, only while the screen shows.
+    useEffect(() => {
+        if (!idleVisible) return;
+        setIdleClock(new Date());
+        const clock = setInterval(() => setIdleClock(new Date()), 15000);
+        const rotate = setInterval(() => setIdleArtIndex(i => i + 1), 12000);
+        if (idleArt === null) {
+            const user = localStorage.getItem('user');
+            const token = localStorage.getItem('token');
+            if (user && token) {
+                axios.post(`${BASE_URL}/home-continues`, { user, token })
+                    .then(r => setIdleArt((r.data?.continuesData || [])
+                        .filter(x => x && (x.backdrop_path || x.poster_path))
+                        .slice(0, 8)))
+                    .catch(() => setIdleArt([]));
+            } else {
+                setIdleArt([]);
+            }
+        }
+        return () => { clearInterval(clock); clearInterval(rotate); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [idleVisible]);
+
+    const idleItem = idleArt && idleArt.length > 0 ? idleArt[idleArtIndex % idleArt.length] : null;
+
     const toggleExpose = () => {
         setExposeOn(prev => {
             const next = !prev;
@@ -210,6 +269,35 @@ export default function RemoteControl() {
                 </svg>
                 {target && <span className="remote-toggle-label">{target.name}</span>}
             </button>
+
+            {idleVisible && (
+                <div className="remote-idle" onClick={() => setIdleVisible(false)}>
+                    {idleItem && (
+                        <div
+                            key={idleItem.id}
+                            className="remote-idle-backdrop"
+                            style={{ backgroundImage: `url(https://image.tmdb.org/t/p/original${idleItem.backdrop_path || idleItem.poster_path})` }}
+                        />
+                    )}
+                    <div className="remote-idle-center">
+                        <div className="remote-idle-clock">
+                            {idleClock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                        </div>
+                        <div className="remote-idle-date">
+                            {idleClock.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+                        </div>
+                        <div className="remote-idle-ready">
+                            <span className="remote-dot online" />
+                            {deviceName} — ready to play
+                        </div>
+                    </div>
+                    {idleItem && (
+                        <div className="remote-idle-caption">
+                            Continue watching · {idleItem.name || idleItem.title}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {modalOpen && (
                 <div className="remote-modal-overlay" onClick={() => setModalOpen(false)}>

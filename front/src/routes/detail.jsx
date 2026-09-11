@@ -27,6 +27,39 @@ export default function Detail() {
     const [seasonEpisodes, setSeasonEpisodes] = useState(null);
     const [seasonLoading, setSeasonLoading] = useState(false);
 
+    // Episode-level watched tracking: { "s<season>e<episode>": timestamp }.
+    // Toggles are optimistic; the server write is fire-and-forget like the
+    // rest of the app.
+    const [watchedMap, setWatchedMap] = useState({});
+    const epKey = (s, e) => `s${s}e${e}`;
+
+    useEffect(() => {
+        if (mediaType !== 'tv' || !user || !token) return;
+        axios.post(`${API}/watched/get`, { user, token, contentId: id })
+            .then(r => setWatchedMap(r.data?.watched || {}))
+            .catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
+
+    const setEpisodesWatched = (episodes, watched) => {
+        const ts = Date.now();
+        setWatchedMap(prev => {
+            const next = { ...prev };
+            for (const ep of episodes) {
+                if (watched) next[epKey(selectedSeason, ep)] = ts;
+                else delete next[epKey(selectedSeason, ep)];
+            }
+            return next;
+        });
+        axios.post(`${API}/watched/update`, {
+            user, token, contentId: id, season: selectedSeason, episodes, watched,
+        }).catch(() => {});
+    };
+
+    const seasonEpNumbers = seasonEpisodes?.episodes?.map(e => e.episode_number) || [];
+    const seasonWatchedCount = seasonEpNumbers.filter(n => watchedMap[epKey(selectedSeason, n)]).length;
+    const seasonAllWatched = seasonEpNumbers.length > 0 && seasonWatchedCount === seasonEpNumbers.length;
+
     const [resumeSeason, setResumeSeason] = useState(null);
     const [resumeEpisode, setResumeEpisode] = useState(null);
     const [overviewExpanded, setOverviewExpanded] = useState(false);
@@ -482,13 +515,32 @@ export default function Detail() {
                             </div>
                         </div>
 
+                        {!seasonLoading && seasonEpNumbers.length > 0 && (
+                            <div className="detail-season-progress">
+                                <span className="detail-season-progress-text">
+                                    {seasonWatchedCount}/{seasonEpNumbers.length} watched
+                                </span>
+                                <div className="detail-season-progress-track">
+                                    <div className="detail-season-progress-fill" style={{ width: `${(seasonWatchedCount / seasonEpNumbers.length) * 100}%` }} />
+                                </div>
+                                <button
+                                    className="detail-season-bulk-btn"
+                                    onClick={() => setEpisodesWatched(seasonEpNumbers, !seasonAllWatched)}
+                                >
+                                    {seasonAllWatched ? 'Unmark season' : 'Mark season watched'}
+                                </button>
+                            </div>
+                        )}
+
                         <div className="detail-episode-list">
                             {seasonLoading
                                 ? [...Array(5)].map((_, i) => <div key={i} className="detail-episode-skeleton" />)
-                                : seasonEpisodes?.episodes?.map(ep => (
+                                : seasonEpisodes?.episodes?.map(ep => {
+                                    const isWatched = !!watchedMap[epKey(selectedSeason, ep.episode_number)];
+                                    return (
                                     <div
                                         key={ep.episode_number}
-                                        className="detail-episode-row"
+                                        className={`detail-episode-row${isWatched ? ' watched' : ''}`}
                                         onClick={() => handleEpisodePlay(selectedSeason, ep.episode_number)}
                                     >
                                         <div className="detail-episode-thumb">
@@ -510,8 +562,17 @@ export default function Detail() {
                                             </div>
                                             {ep.overview && <p className="detail-episode-overview">{ep.overview}</p>}
                                         </div>
+                                        <button
+                                            className={`detail-ep-watched-btn${isWatched ? ' on' : ''}`}
+                                            title={isWatched ? 'Mark unwatched' : 'Mark watched'}
+                                            aria-label={isWatched ? 'Mark unwatched' : 'Mark watched'}
+                                            onClick={e => { e.stopPropagation(); setEpisodesWatched([ep.episode_number], !isWatched); }}
+                                        >
+                                            ✓
+                                        </button>
                                     </div>
-                                ))
+                                    );
+                                })
                             }
                         </div>
                     </div>

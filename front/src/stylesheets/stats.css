@@ -1,0 +1,205 @@
+/* Year in review page — dark blue surfaces + #3FA3FF accent to match the app. */
+
+.stats-page {
+    min-height: 100vh;
+    background: #0a0e27;
+    color: #fff;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+.stats-content {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 110px 24px 60px;
+}
+
+.stats-title {
+    font-family: Viga, sans-serif;
+    font-weight: 400;
+    font-size: 34px;
+    margin: 0 0 26px;
+}
+
+.stats-hint {
+    color: rgba(255,255,255,0.55);
+    font-size: 15px;
+    padding: 30px 0;
+}
+
+/* Hero numbers */
+.stats-hero {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 30px;
+}
+.stats-hero-card {
+    background: #131838;
+    border: 1px solid rgba(63,163,255,0.2);
+    border-radius: 16px;
+    padding: 26px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.stats-hero-number {
+    font-family: Viga, sans-serif;
+    font-size: 44px;
+    line-height: 1;
+    color: #3FA3FF;
+}
+.stats-hero-main .stats-hero-number { font-size: 64px; }
+.stats-hero-label {
+    color: rgba(255,255,255,0.6);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.stats-section { margin-bottom: 30px; }
+.stats-section h2 {
+    font-family: Viga, sans-serif;
+    font-weight: 400;
+    font-size: 20px;
+    margin: 0 0 14px;
+    color: rgba(255,255,255,0.85);
+}
+
+/* Month bars */
+.stats-months {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    background: #131838;
+    border: 1px solid rgba(63,163,255,0.2);
+    border-radius: 16px;
+    padding: 20px 18px 14px;
+}
+.stats-month {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+.stats-month-bar-wrap {
+    height: 110px;
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+.stats-month-bar {
+    width: 60%;
+    max-width: 26px;
+    background: linear-gradient(180deg, #6FB7FF, #3FA3FF);
+    border-radius: 6px 6px 2px 2px;
+    min-height: 2px;
+}
+.stats-month-label {
+    font-size: 10.5px;
+    color: rgba(255,255,255,0.45);
+}
+
+/* Two-column lower area */
+.stats-columns {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 24px;
+}
+.stats-side { display: flex; flex-direction: column; }
+
+/* Top titles */
+.stats-top-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.stats-top-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: #131838;
+    border: 1px solid rgba(63,163,255,0.15);
+    border-radius: 12px;
+    padding: 10px 14px;
+}
+.stats-top-row.clickable { cursor: pointer; transition: border-color .2s, transform .15s; }
+.stats-top-row.clickable:hover { border-color: rgba(63,163,255,0.5); transform: translateX(3px); }
+.stats-top-rank {
+    font-family: Viga, sans-serif;
+    font-size: 20px;
+    color: rgba(255,255,255,0.35);
+    width: 22px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.stats-top-poster {
+    width: 40px;
+    height: 60px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.stats-top-poster-empty { background: rgba(255,255,255,0.08); }
+.stats-top-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.stats-top-name {
+    font-size: 15px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.stats-top-meta { font-size: 12.5px; color: rgba(255,255,255,0.55); }
+
+/* Longest session */
+.stats-longest {
+    background: #131838;
+    border: 1px solid rgba(63,163,255,0.2);
+    border-radius: 16px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.stats-longest-time {
+    font-family: Viga, sans-serif;
+    font-size: 34px;
+    color: #f0b429;
+    line-height: 1;
+}
+.stats-longest-name { font-size: 15px; font-weight: 600; }
+.stats-longest-when { font-size: 12.5px; color: rgba(255,255,255,0.5); }
+
+/* Genre bars */
+.stats-genres {
+    background: #131838;
+    border: 1px solid rgba(63,163,255,0.2);
+    border-radius: 16px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.stats-genre-row { display: flex; flex-direction: column; gap: 5px; }
+.stats-genre-name { font-size: 13px; color: rgba(255,255,255,0.75); }
+.stats-genre-bar-wrap {
+    background: rgba(255,255,255,0.07);
+    border-radius: 4px;
+    height: 8px;
+    overflow: hidden;
+}
+.stats-genre-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #3FA3FF, #6FB7FF);
+    border-radius: 4px;
+}
+
+@media (max-width: 760px) {
+    .stats-hero { grid-template-columns: 1fr 1fr; }
+    .stats-hero-main { grid-column: 1 / -1; }
+    .stats-columns { grid-template-columns: 1fr; }
+    .stats-month-label { font-size: 9px; }
+    .stats-content { padding-top: 96px; }
+}

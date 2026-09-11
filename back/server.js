@@ -24,6 +24,8 @@ import { generateToken as GenerateToken, generatePartyCode } from './lib/codes.j
 import { detectShowChanges, collectShowFollowers } from './lib/notifications.js';
 import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, deviceSummary } from './lib/remote.js';
 import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from './lib/recs.js';
+import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
+import { buildWatchedUpdate } from './lib/watched.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -1414,6 +1416,79 @@ app.post('/user/stats', async (request, response) => {
     } catch (error) {
         logError(user, '/user/stats', error).catch(() => {});
         response.status(200).json({ sessions: [], totalSeconds: 0 });
+    }
+});
+
+// Year-in-review aggregation over the FULL session history (lib/stats.js does
+// the math; only the top titles get TMDB-enriched, so the expensive part is
+// bounded regardless of history size).
+app.post('/stats/wrapped', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    try {
+        const db = admin.database();
+        const snap = await db.ref(`users/${user}/watch_sessions`).once('value');
+        const sessions = snap.val() ? Object.values(snap.val()) : [];
+        const agg = aggregateWatchSessions(sessions);
+
+        // Enrich top titles with poster art + genres (cached TMDB lookups).
+        const enriched = await Promise.all(agg.topTitles.map(async t => {
+            if (!t.contentId) return { ...t, poster_path: null, genres: [] };
+            const info = await GetInfo(t.contentId).catch(() => null);
+            return {
+                ...t,
+                poster_path: info?.poster_path || null,
+                genres: (info?.genre_ids || []).map(id => GENRE_NAMES[id]).filter(Boolean),
+            };
+        }));
+
+        response.status(200).json({
+            ...agg,
+            topTitles: enriched,
+            genres: genreBreakdown(enriched),
+        });
+    } catch (error) {
+        logError(user, '/stats/wrapped', error).catch(() => {});
+        response.status(200).json(null);
+    }
+});
+
+// ── Episode-level watched tracking ──────────────────────────────────────────
+// users/{u}/watched/{contentId} = { "s<season>e<episode>": timestamp }.
+// Stored as a native RTDB object (not a JSON string) so bulk season updates
+// are one atomic multi-path write with no read-modify-write race.
+
+app.post('/watched/get', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, contentId } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    if (!/^[mt]\d{1,12}$/.test(String(contentId || ''))) return response.status(400).json({ error: 'valid contentId required' });
+    try {
+        const snap = await admin.database().ref(`users/${user}/watched/${contentId}`).once('value');
+        response.status(200).json({ watched: snap.val() || {} });
+    } catch (error) {
+        logError(user, '/watched/get', error).catch(() => {});
+        response.status(200).json({ watched: {} });
+    }
+});
+
+app.post('/watched/update', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token, contentId, season, episodes, watched } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    if (!/^[mt]\d{1,12}$/.test(String(contentId || ''))) return response.status(400).json({ error: 'valid contentId required' });
+    const update = buildWatchedUpdate(season, episodes, watched === true, Date.now());
+    if (!update) return response.status(400).json({ error: 'season + episodes[] required' });
+    try {
+        await admin.database().ref(`users/${user}/watched/${contentId}`).update(update);
+        response.status(200).json({ ok: true });
+    } catch (error) {
+        logError(user, '/watched/update', error).catch(() => {});
+        response.status(500).json({ error: error.message });
     }
 });
 

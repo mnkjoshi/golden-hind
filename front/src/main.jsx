@@ -21,12 +21,14 @@ import Test from './routes/test.jsx'
 import Detail from './routes/detail.jsx'
 import Person from './routes/person.jsx'
 import Collection from './routes/collection.jsx'
+import Stats from './routes/stats.jsx'
 import ErrorPage from './routes/error.jsx'
 import './stylesheets/admin.css'
 import './stylesheets/detail.css'
 import './stylesheets/music.css'
 import './stylesheets/person.css'
 import './stylesheets/remote.css'
+import './stylesheets/stats.css'
 
 import {
   createBrowserRouter,
@@ -97,6 +99,11 @@ const router = createBrowserRouter([
   {
     path: "/music",
     element: <Music/>,
+    errorElement: <ErrorPage/>
+  },
+  {
+    path: "/stats",
+    element: <Stats/>,
     errorElement: <ErrorPage/>
   },
   {

@@ -1061,3 +1061,71 @@
         font-size: 0.82rem;
     }
 }
+
+/* ── Episode watched tracking ── */
+.detail-season-progress {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 4px 1rem 12px;
+}
+.detail-season-progress-text {
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    white-space: nowrap;
+}
+.detail-season-progress-track {
+    flex: 1;
+    max-width: 220px;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.detail-season-progress-fill {
+    height: 100%;
+    background: #3fb950;
+    border-radius: 3px;
+    transition: width 0.25s;
+}
+.detail-season-bulk-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 6px;
+    color: rgba(255,255,255,0.75);
+    font-size: 12.5px;
+    padding: 5px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.detail-season-bulk-btn:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
+
+.detail-ep-watched-btn {
+    align-self: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.3);
+    background: none;
+    color: rgba(255,255,255,0.35);
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.15s;
+    opacity: 0;
+}
+.detail-episode-row:hover .detail-ep-watched-btn,
+.detail-ep-watched-btn.on { opacity: 1; }
+.detail-ep-watched-btn:hover { border-color: #3fb950; color: #3fb950; }
+.detail-ep-watched-btn.on {
+    background: #3fb950;
+    border-color: #3fb950;
+    color: #0a0e27;
+}
+.detail-episode-row.watched .detail-episode-thumb img { opacity: 0.45; }
+.detail-episode-row.watched .detail-episode-title { color: rgba(255,255,255,0.55); }
+
+@media (hover: none) {
+    /* Touch devices have no hover — keep the toggle always visible */
+    .detail-ep-watched-btn { opacity: 1; }
+}

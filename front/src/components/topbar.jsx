@@ -426,6 +426,12 @@ export default function Topbar() {
                                         </svg>
                                         Activity
                                     </button>
+                                    <button className="dropdown-item" onClick={() => { setDropdownOpen(false); navigate('/stats'); }}>
+                                        <svg viewBox="0 0 24 24" fill="none">
+                                            <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                        Year in Review
+                                    </button>
                                     <div className="dropdown-divider"></div>
                                     <button className="dropdown-item logout" onClick={handleLogout}>
                                         <svg viewBox="0 0 24 24" fill="none">

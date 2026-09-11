@@ -50,8 +50,13 @@
 ### Books
 - **Book search** — Google Books integration with download links
 
+### Stats & Tracking
+- **Year in Review** (`/stats`) — lifetime hours, sessions, days watched, last-12-months chart, most-watched titles, longest session, weighted genre breakdown; reachable from the account dropdown
+- **Episode watched tracking** — per-episode checkmarks and mark-season-watched on TV detail pages, with a season progress bar; finishing an episode in the player marks it automatically
+
 ### Remote Control
 - **Player mode** — any signed-in device (e.g. a TV) can expose itself via the remote button in the top bar; it then executes commands sent from other devices on the account
+- **TV idle screen** — an exposed device left untouched for 90s shows an appliance-style screensaver: clock, ready status, rotating Continue Watching art
 - **Controller mode** — pick an exposed device from the same menu; from then on, pressing Watch on any title plays it there instead of locally, and the watch page becomes a remote with live transport controls (play/pause, seek bar, ±10s, volume, episode prev/next)
 - **Live status** — players report what they're doing every 5 seconds; controllers see it stream in over SSE (same transport as watch parties — no websockets)
 
@@ -151,6 +156,14 @@ Returns `{ "key": "youtubeVideoKey" }` (key is `null` if no trailer found).
 | Method | Route | Description |
 |--------|-------|-------------|
 | GET | `/book-search?q=` | Google Books search; returns titles, authors, descriptions, and download links |
+
+### Stats & Watched
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/stats/wrapped` | Aggregated lifetime watch statistics (totals, top titles, monthly chart, genres) |
+| POST | `/watched/get` | Watched-episode map for a title (`{ "s<season>e<episode>": timestamp }`) |
+| POST | `/watched/update` | Mark/unmark a set of episodes in one season (single atomic write) |
 
 ### Remote Control
 
