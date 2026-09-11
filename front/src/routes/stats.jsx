@@ -1,7 +1,7 @@
 // Year in review — lifetime watch statistics rendered from /stats/wrapped
 // (aggregation lives in back/lib/stats.js; this page only formats).
 import { useNavigate } from 'react-router-dom';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import Topbar from '../components/topbar';
 import { formatWatchTime, formatRelativeTime } from '../utils/format.js';
@@ -40,6 +40,26 @@ export default function Stats() {
     const [introStep, setIntroStep] = useState(0);   // 0 → #3, 1 → #2, 2 → #1
     const [introLeaving, setIntroLeaving] = useState(false);
     const [introDone, setIntroDone] = useState(false);
+    // Trailers must START muted (browsers only guarantee muted autoplay);
+    // we unmute through the YT iframe API right after load — allowed while
+    // the navigation click is still fresh — and the sound button covers the
+    // cases where the browser refuses.
+    const [introSound, setIntroSound] = useState(true);
+    const introSoundRef = useRef(true);
+    const introIframeRef = useRef(null);
+
+    const ytCommand = (func, args = []) => {
+        try {
+            introIframeRef.current?.contentWindow?.postMessage(
+                JSON.stringify({ event: 'command', func, args }), '*');
+        } catch { /* iframe not ready */ }
+    };
+    const applyIntroSound = (on) => {
+        setIntroSound(on);
+        introSoundRef.current = on;
+        if (on) { ytCommand('unMute'); ytCommand('setVolume', [75]); }
+        else ytCommand('mute');
+    };
     const reducedMotion = typeof window.matchMedia === 'function'
         && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const top3 = data?.topTitles?.filter(t => t.contentId).slice(0, 3) || [];
@@ -88,7 +108,7 @@ export default function Stats() {
         };
         countRaf = requestAnimationFrame(tick);
         return () => { cancelAnimationFrame(raf); cancelAnimationFrame(countRaf); };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [data, introDone]);
 
     const hours = data ? data.totalSeconds / 3600 : 0;
@@ -110,11 +130,24 @@ export default function Stats() {
                         <div key={introStep} className={`stats-intro-card${introLeaving ? ' leaving' : ''}`}>
                             {trailerKey ? (
                                 <iframe
+                                    ref={introIframeRef}
                                     className="stats-intro-video"
-                                    src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=1&controls=0&loop=1&playlist=${trailerKey}&modestbranding=1&playsinline=1&rel=0&iv_load_policy=3&disablekb=1`}
+                                    src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=1&controls=0&loop=1&playlist=${trailerKey}&playsinline=1&rel=0&iv_load_policy=3&disablekb=1&enablejsapi=1`}
                                     title=""
                                     tabIndex={-1}
                                     allow="autoplay; encrypted-media"
+                                    onLoad={() => {
+                                        // Force playback (autoplay can silently fail and leave
+                                        // a paused player with visible controls), then unmute
+                                        // if sound is on and the browser permits it.
+                                        [400, 1400].forEach(ms => setTimeout(() => {
+                                            ytCommand('playVideo');
+                                            if (introSoundRef.current) {
+                                                ytCommand('unMute');
+                                                ytCommand('setVolume', [75]);
+                                            }
+                                        }, ms));
+                                    }}
                                 />
                             ) : current.backdrop_path ? (
                                 <div
@@ -132,7 +165,27 @@ export default function Stats() {
                                 </span>
                             </div>
                         </div>
-                        <button className="stats-intro-skip" onClick={() => setIntroDone(true)}>Skip</button>
+                        <div className="stats-intro-buttons">
+                            <button
+                                className="stats-intro-skip"
+                                onClick={() => applyIntroSound(!introSound)}
+                                aria-label={introSound ? 'Mute trailers' : 'Unmute trailers'}
+                            >
+                                {introSound ? (
+                                    <svg viewBox="0 0 24 24" fill="none" width="15" height="15" aria-hidden="true">
+                                        <path d="M4.5 9.5v5H8l4.5 4v-13L8 9.5H4.5z" fill="currentColor" />
+                                        <path d="M15.5 9.2a4.2 4.2 0 0 1 0 5.6M18 6.8a7.6 7.6 0 0 1 0 10.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                                    </svg>
+                                ) : (
+                                    <svg viewBox="0 0 24 24" fill="none" width="15" height="15" aria-hidden="true">
+                                        <path d="M4.5 9.5v5H8l4.5 4v-13L8 9.5H4.5z" fill="currentColor" />
+                                        <path d="M15.5 9.5l5 5m0-5-5 5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                                    </svg>
+                                )}
+                                {introSound ? 'Sound on' : 'Muted'}
+                            </button>
+                            <button className="stats-intro-skip" onClick={() => setIntroDone(true)}>Skip</button>
+                        </div>
                     </div>
                 );
             })()}
