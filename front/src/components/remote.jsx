@@ -14,7 +14,7 @@
 //   Command hand-off: page-level playback commands (pause/seek/volume/...)
 //                    are re-broadcast as `gh-remote` window events; watch.jsx
 //                    applies them to its Plyr instance.
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 // eslint flags React as unused, but this project has no vite.config.js, so
 // JSX compiles with the classic runtime and needs React in scope (like every
 // other component file here).
@@ -24,6 +24,52 @@ import Topbar from './topbar';
 import { defaultDeviceName, formatRemoteState, formatClock, estimatePosition } from '../utils/remote.js';
 
 const BASE_URL = 'https://ghb.mnkjoshi.ca';
+
+// Shared inline icon set — stroke-based like the topbar's icons, sized by CSS.
+const Icons = {
+    play: (
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M8.5 5.14a.7.7 0 0 1 1.06-.6l11 6.86a.7.7 0 0 1 0 1.2l-11 6.86a.7.7 0 0 1-1.06-.6V5.14z" />
+        </svg>
+    ),
+    pause: (
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="4.5" width="4.2" height="15" rx="1.2" />
+            <rect x="13.8" y="4.5" width="4.2" height="15" rx="1.2" />
+        </svg>
+    ),
+    stop: (
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="5.5" y="5.5" width="13" height="13" rx="2" />
+        </svg>
+    ),
+    skipBack: (
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 6.5V3L7.5 7 12 11V7.5c3.04 0 5.5 2.46 5.5 5.5A5.5 5.5 0 1 1 6.5 13" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
+    ),
+    skipForward: (
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 6.5V3L16.5 7 12 11V7.5A5.5 5.5 0 1 0 17.5 13" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
+    ),
+    volume: (
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4.5 9.5v5H8l4.5 4v-13L8 9.5H4.5z" fill="currentColor" />
+            <path d="M15.5 9.2a4.2 4.2 0 0 1 0 5.6M18 6.8a7.6 7.6 0 0 1 0 10.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        </svg>
+    ),
+    fullscreen: (
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+        </svg>
+    ),
+    close: (
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+    ),
+};
 
 // Stable per-browser device id, generated once. Path-safe (RTDB key).
 export function getDeviceId() {
@@ -54,6 +100,7 @@ function sendRemoteCommand(deviceId, command) {
 
 export default function RemoteControl() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [modalOpen, setModalOpen] = useState(false);
     const [tab, setTab] = useState('control');
     const [exposeOn, setExposeOn] = useState(() => localStorage.getItem('remoteExpose') === 'on');
@@ -150,7 +197,7 @@ export default function RemoteControl() {
     // in an appliance-style screensaver: clock, ready state, and rotating
     // Continue Watching art. Any input dismisses it; a play command navigates
     // to /watch, which remounts this component and clears it naturally.
-    const IDLE_AFTER_MS = 90 * 1000;
+    const IDLE_AFTER_MS = 60 * 1000;
     const [idleVisible, setIdleVisible] = useState(false);
     const [idleClock, setIdleClock] = useState(() => new Date());
     const [idleArt, setIdleArt] = useState(null); // null = not fetched yet
@@ -171,7 +218,7 @@ export default function RemoteControl() {
             if (Date.now() - lastActivityRef.current > IDLE_AFTER_MS) {
                 setIdleVisible(v => (v ? v : true));
             }
-        }, 10000);
+        }, 5000);
         return () => {
             events.forEach(ev => window.removeEventListener(ev, bump));
             clearInterval(checker);
@@ -203,6 +250,61 @@ export default function RemoteControl() {
     }, [idleVisible]);
 
     const idleItem = idleArt && idleArt.length > 0 ? idleArt[idleArtIndex % idleArt.length] : null;
+
+    // ── Mini remote bar ──────────────────────────────────────────────────────
+    // While controlling a device from any page EXCEPT the full remote (the
+    // watch route), keep a live now-playing bar so navigating home never
+    // strands the user without transport controls.
+    const [targetDevice, setTargetDevice] = useState(null);
+    const miniReceivedAtRef = useRef(0);
+    const [, setMiniTick] = useState(0);
+    const onWatchPage = location.pathname.startsWith('/watch/');
+
+    useEffect(() => {
+        if (!target || onWatchPage) { setTargetDevice(null); return; }
+        const user = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
+        if (!user || !token) return;
+        let es = null;
+        let reconnectTimer = null;
+        let closed = false;
+        // Slow re-render tick so freshness-based online state decays even
+        // when no RTDB events arrive (a crashed player emits nothing).
+        const tick = setInterval(() => setMiniTick(t => t + 1), 10000);
+        const connect = () => {
+            es = new EventSource(`${BASE_URL}/remote/stream?role=controller`
+                + `&user=${encodeURIComponent(user)}&token=${encodeURIComponent(token)}`);
+            es.onmessage = (ev) => {
+                try {
+                    const list = JSON.parse(ev.data) || [];
+                    const dev = list.find(d => d.deviceId === target.deviceId) || null;
+                    if (dev) miniReceivedAtRef.current = Date.now();
+                    setTargetDevice(dev);
+                } catch { /* noop */ }
+            };
+            es.onerror = () => {
+                if (es.readyState === EventSource.CLOSED && !closed) {
+                    try { es.close(); } catch { /* noop */ }
+                    if (reconnectTimer) clearTimeout(reconnectTimer);
+                    reconnectTimer = setTimeout(connect, 3000);
+                }
+            };
+        };
+        connect();
+        return () => {
+            closed = true;
+            clearInterval(tick);
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            try { es?.close(); } catch { /* noop */ }
+        };
+    }, [target, onWatchPage]);
+
+    const miniState = targetDevice?.state;
+    const miniOnline = !!targetDevice?.online && Date.now() - miniReceivedAtRef.current < 65000;
+    const miniSend = (command) => {
+        if (!target) return;
+        sendRemoteCommand(target.deviceId, command).catch(() => {});
+    };
 
     const toggleExpose = () => {
         setExposeOn(prev => {
@@ -269,6 +371,42 @@ export default function RemoteControl() {
                 </svg>
                 {target && <span className="remote-toggle-label">{target.name}</span>}
             </button>
+
+            {target && !onWatchPage && miniState?.contentId && (
+                <div className="remote-mini-bar">
+                    <span className={`remote-dot ${miniOnline ? 'online' : ''}`} />
+                    <button
+                        className="remote-mini-info"
+                        onClick={() => navigate(`/watch/${miniState.contentId}`)}
+                        title="Open remote"
+                    >
+                        <span className="remote-mini-title">{miniState.title || 'Now playing'}</span>
+                        <span className="remote-mini-sub">
+                            on {target.name}
+                            {miniState.contentId[0] === 't' && miniState.season ? ` · S${miniState.season} E${miniState.episode}` : ''}
+                        </span>
+                    </button>
+                    <button
+                        className="remote-mini-btn"
+                        disabled={!miniOnline}
+                        onClick={() => miniSend({ type: miniState.paused === false ? 'pause' : 'resume' })}
+                        aria-label={miniState.paused === false ? 'Pause' : 'Play'}
+                    >
+                        {miniState.paused === false ? Icons.pause : Icons.play}
+                    </button>
+                    <button
+                        className="remote-mini-btn"
+                        disabled={!miniOnline}
+                        onClick={() => miniSend({ type: 'stop' })}
+                        aria-label="Stop"
+                    >
+                        {Icons.stop}
+                    </button>
+                    <button className="remote-mini-btn remote-mini-close" onClick={stopControlling} aria-label="Stop controlling" title="Stop controlling">
+                        {Icons.close}
+                    </button>
+                </div>
+            )}
 
             {idleVisible && (
                 <div className="remote-idle" onClick={() => setIdleVisible(false)}>
@@ -495,7 +633,11 @@ export function RemotePlayback() {
     if (!target) return null;
 
     const st = device?.state || null;
-    const online = !!device?.online;
+    // Liveness is freshness-based: a hard-crashed player stops producing RTDB
+    // events entirely, so the last snapshot's `online` flag would otherwise
+    // stick forever. A live player refreshes lastSeen at least every 25s, so
+    // silence past ~65s means it's gone (the 1s ticker keeps this current).
+    const online = !!device?.online && Date.now() - receivedAtRef.current < 65000;
     // Only trust the state once the player reports the title we asked for.
     const current = st && st.contentId === id ? st : null;
     const duration = current?.duration || 0;
@@ -555,11 +697,17 @@ export function RemotePlayback() {
                 </div>
 
                 <div className="remote-transport">
-                    <button onClick={() => send({ type: 'seekBy', delta: -10 })} disabled={!online} aria-label="Back 10 seconds">⟲ 10</button>
-                    <button className="remote-play-btn" onClick={() => send({ type: paused ? 'resume' : 'pause' })} disabled={!online}>
-                        {paused ? '▶' : '⏸'}
+                    <button className="remote-skip-btn" onClick={() => send({ type: 'seekBy', delta: -10 })} disabled={!online} aria-label="Back 10 seconds">
+                        {Icons.skipBack}
+                        <span className="remote-skip-num">10</span>
                     </button>
-                    <button onClick={() => send({ type: 'seekBy', delta: 10 })} disabled={!online} aria-label="Forward 10 seconds">10 ⟳</button>
+                    <button className="remote-play-btn" onClick={() => send({ type: paused ? 'resume' : 'pause' })} disabled={!online} aria-label={paused ? 'Play' : 'Pause'}>
+                        {paused ? Icons.play : Icons.pause}
+                    </button>
+                    <button className="remote-skip-btn" onClick={() => send({ type: 'seekBy', delta: 10 })} disabled={!online} aria-label="Forward 10 seconds">
+                        {Icons.skipForward}
+                        <span className="remote-skip-num">10</span>
+                    </button>
                 </div>
 
                 {isTv && (
@@ -570,7 +718,7 @@ export function RemotePlayback() {
                 )}
 
                 <div className="remote-volume-row">
-                    <span aria-hidden="true">🔊</span>
+                    <span className="remote-volume-icon" aria-hidden="true">{Icons.volume}</span>
                     <input
                         type="range" min={0} max={1} step={0.05} value={volume} disabled={!online}
                         onChange={e => setDragVolume(Number(e.target.value))}
@@ -580,10 +728,10 @@ export function RemotePlayback() {
                 </div>
 
                 <div className="remote-playback-actions">
-                    <button onClick={() => send({ type: 'fullscreen' })} disabled={!online}>⛶ Fullscreen</button>
-                    <button onClick={() => send({ type: 'stop' })} disabled={!online}>Stop on {target.name}</button>
-                    <button onClick={playHere}>Play here instead</button>
-                    <button onClick={() => navigate('/app')}>Back to home</button>
+                    <button onClick={() => send({ type: 'fullscreen' })} disabled={!online}>{Icons.fullscreen}<span>Fullscreen</span></button>
+                    <button onClick={() => send({ type: 'stop' })} disabled={!online}>{Icons.stop}<span>Stop on {target.name}</span></button>
+                    <button onClick={playHere}><span>Play here instead</span></button>
+                    <button onClick={() => navigate('/app')}><span>Back to home</span></button>
                 </div>
             </div>
         </div>

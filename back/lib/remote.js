@@ -104,6 +104,22 @@ export function deviceIsOnline(device, now, ttlMs = DEVICE_ONLINE_TTL_MS) {
     return !!device && typeof device.lastSeen === 'number' && now - device.lastSeen < ttlMs;
 }
 
+// Registration nodes normally die with their SSE connection, but a server
+// crash/restart or a proxy hard-drop can leak them (close handlers never
+// run). The sweeper walks the whole remotes tree and returns [user, deviceId]
+// pairs whose lastSeen is older than the removal TTL — malformed nodes count
+// as stale too, so junk can't survive indefinitely.
+export function collectStaleDevices(remotesTree, now, ttlMs) {
+    const stale = [];
+    for (const [user, devices] of Object.entries(remotesTree || {})) {
+        if (!devices || typeof devices !== 'object') continue;
+        for (const [deviceId, device] of Object.entries(devices)) {
+            if (!deviceIsOnline(device, now, ttlMs)) stale.push([user, deviceId]);
+        }
+    }
+    return stale;
+}
+
 // Public listing shape sent to controllers — strips the command queue and
 // anything else that might live on the node.
 export function deviceSummary(deviceId, device, now) {

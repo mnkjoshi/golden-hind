@@ -22,7 +22,7 @@ import { slugify, rewriteHlsManifest, hlsLanguageCode } from './lib/hls.js';
 import { normalizeToVtt } from './lib/subtitles.js';
 import { generateToken as GenerateToken, generatePartyCode } from './lib/codes.js';
 import { detectShowChanges, collectShowFollowers } from './lib/notifications.js';
-import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, deviceSummary } from './lib/remote.js';
+import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, deviceSummary, collectStaleDevices } from './lib/remote.js';
 import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from './lib/recs.js';
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
 import { buildWatchedUpdate } from './lib/watched.js';
@@ -2055,6 +2055,32 @@ app.get('/remote/stream', async (request, response) => {
         request.on('error', cleanup);
     }
 });
+
+// Remote-registry hygiene. Registrations are supposed to die with their SSE
+// connection, but a server restart or a proxy hard-drop can leak nodes (the
+// close handlers never run). Two backstops:
+//  1. Boot purge — every registration in the DB belonged to the previous
+//     process, whose connections are gone; clients auto-reconnect and
+//     re-register within seconds.
+//  2. Periodic sweep — removes anything unseen for 10 minutes. The removal
+//     also fires the controllers' list streams, so stale devices disappear
+//     from their UIs too.
+const REMOTE_STALE_TTL_MS = 10 * 60 * 1000;
+admin.database().ref('remotes').remove().catch(() => {});
+setInterval(async () => {
+    try {
+        const db = admin.database();
+        const snap = await db.ref('remotes').once('value');
+        const stale = collectStaleDevices(snap.val(), Date.now(), REMOTE_STALE_TTL_MS);
+        if (stale.length > 0) {
+            const update = {};
+            for (const [user, deviceId] of stale) update[`${user}/${deviceId}`] = null;
+            await db.ref('remotes').update(update);
+        }
+    } catch (error) {
+        logError('system', 'remote-sweep', error).catch(() => {});
+    }
+}, 5 * 60 * 1000);
 
 //process.env.PORT
 const listener = app.listen(3001, (error) => {
