@@ -274,6 +274,7 @@ export default function RemoteControl() {
     // strands the user without transport controls.
     const [targetDevice, setTargetDevice] = useState(null);
     const miniReceivedAtRef = useRef(0);
+    const miniMissingSinceRef = useRef(null);
     const [, setMiniTick] = useState(0);
     const onWatchPage = location.pathname.startsWith('/watch/');
 
@@ -285,9 +286,18 @@ export default function RemoteControl() {
         let es = null;
         let reconnectTimer = null;
         let closed = false;
-        // Slow re-render tick so freshness-based online state decays even
-        // when no RTDB events arrive (a crashed player emits nothing).
-        const tick = setInterval(() => setMiniTick(t => t + 1), 10000);
+        // Slow tick: decays freshness-based online state (a crashed player
+        // emits nothing), and dissolves the pairing when the device has been
+        // GONE from the registry for a while — that means it left player
+        // mode, so this side stops controlling too. Brief absences are just
+        // the player re-registering between pages.
+        const tick = setInterval(() => {
+            setMiniTick(t => t + 1);
+            if (miniMissingSinceRef.current && Date.now() - miniMissingSinceRef.current > 8000) {
+                setRemoteTargetStorage(null);
+                setTarget(null);
+            }
+        }, 5000);
         const connect = () => {
             es = new EventSource(`${BASE_URL}/remote/stream?role=controller`
                 + `&user=${encodeURIComponent(user)}&token=${encodeURIComponent(token)}`);
@@ -295,7 +305,12 @@ export default function RemoteControl() {
                 try {
                     const list = JSON.parse(ev.data) || [];
                     const dev = list.find(d => d.deviceId === target.deviceId) || null;
-                    if (dev) miniReceivedAtRef.current = Date.now();
+                    if (dev) {
+                        miniReceivedAtRef.current = Date.now();
+                        miniMissingSinceRef.current = null;
+                    } else if (!miniMissingSinceRef.current) {
+                        miniMissingSinceRef.current = Date.now();
+                    }
                     setTargetDevice(dev);
                 } catch { /* noop */ }
             };
@@ -311,6 +326,7 @@ export default function RemoteControl() {
         return () => {
             closed = true;
             clearInterval(tick);
+            miniMissingSinceRef.current = null;
             if (reconnectTimer) clearTimeout(reconnectTimer);
             try { es?.close(); } catch { /* noop */ }
         };
@@ -366,6 +382,9 @@ export default function RemoteControl() {
     };
 
     const stopControlling = () => {
+        // Clear any mirrored preview on the player before dropping the
+        // pairing — it stays exposed/connectable, just back to its own idle.
+        if (target) sendRemoteCommand(target.deviceId, { type: 'preview' }).catch(() => {});
         setRemoteTargetStorage(null);
         setTarget(null);
     };
@@ -642,6 +661,7 @@ export function RemotePlayback() {
         let es = null;
         let reconnectTimer = null;
         let missingTimer = null;
+        let goneTimer = null;
         let closed = false;
         const connect = () => {
             es = new EventSource(`${BASE_URL}/remote/stream?role=controller`
@@ -652,13 +672,23 @@ export function RemotePlayback() {
                     const dev = list.find(d => d.deviceId === target.deviceId) || null;
                     if (dev) {
                         if (missingTimer) { clearTimeout(missingTimer); missingTimer = null; }
+                        if (goneTimer) { clearTimeout(goneTimer); goneTimer = null; }
                         setDevice(dev);
                         receivedAtRef.current = Date.now();
-                    } else if (!missingTimer) {
+                    } else {
                         // The player re-registers on every route change, so it can
                         // vanish from the list for a beat mid-navigation. Only mark
-                        // it gone if it stays gone.
-                        missingTimer = setTimeout(() => { missingTimer = null; setDevice(null); }, 4000);
+                        // it gone if it stays gone — and if it stays gone for good,
+                        // it left player mode: dissolve the pairing and go home.
+                        if (!missingTimer) {
+                            missingTimer = setTimeout(() => { missingTimer = null; setDevice(null); }, 4000);
+                        }
+                        if (!goneTimer) {
+                            goneTimer = setTimeout(() => {
+                                setRemoteTargetStorage(null);
+                                navigate('/app');
+                            }, 10000);
+                        }
                     }
                 } catch { /* noop */ }
             };
@@ -675,6 +705,7 @@ export function RemotePlayback() {
             closed = true;
             if (reconnectTimer) clearTimeout(reconnectTimer);
             if (missingTimer) clearTimeout(missingTimer);
+            if (goneTimer) clearTimeout(goneTimer);
             try { es?.close(); } catch { /* noop */ }
         };
     }, [target]);
@@ -686,6 +717,8 @@ export function RemotePlayback() {
     }, []);
 
     const playHere = () => {
+        // The player stays connectable — just clear any mirrored preview.
+        if (target) sendRemoteCommand(target.deviceId, { type: 'preview' }).catch(() => {});
         setRemoteTargetStorage(null);
         window.location.reload();
     };
