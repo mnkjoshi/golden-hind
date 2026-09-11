@@ -15,6 +15,10 @@ export default function Stats() {
     const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    // Entrance choreography: `mounted` flips one frame after data arrives so
+    // bars transition from zero, and the hero number counts up via rAF.
+    const [mounted, setMounted] = useState(false);
+    const [displayHours, setDisplayHours] = useState(0);
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
 
@@ -26,6 +30,23 @@ export default function Stats() {
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        if (!data) return;
+        let raf = requestAnimationFrame(() => { raf = requestAnimationFrame(() => setMounted(true)); });
+        const target = data.totalSeconds / 3600;
+        const t0 = performance.now();
+        const DURATION = 1600;
+        let countRaf;
+        const tick = (t) => {
+            const p = Math.min(1, (t - t0) / DURATION);
+            const eased = 1 - Math.pow(1 - p, 3);
+            setDisplayHours(target * eased);
+            if (p < 1) countRaf = requestAnimationFrame(tick);
+        };
+        countRaf = requestAnimationFrame(tick);
+        return () => { cancelAnimationFrame(raf); cancelAnimationFrame(countRaf); };
+    }, [data]);
 
     const hours = data ? data.totalSeconds / 3600 : 0;
     const maxMonth = data ? Math.max(1, ...data.byMonth.map(m => m.seconds)) : 1;
@@ -48,27 +69,33 @@ export default function Stats() {
                 {!loading && data && data.sessionCount > 0 && (
                     <>
                         <div className="stats-hero">
-                            <div className="stats-hero-card stats-hero-main">
-                                <span className="stats-hero-number">{hours >= 100 ? Math.round(hours) : hours.toFixed(1)}</span>
+                            <div className="stats-hero-card stats-hero-main stats-anim">
+                                <span className="stats-hero-number">{hours >= 100 ? Math.round(displayHours) : displayHours.toFixed(1)}</span>
                                 <span className="stats-hero-label">hours watched</span>
                             </div>
-                            <div className="stats-hero-card">
+                            <div className="stats-hero-card stats-anim" style={{ animationDelay: '120ms' }}>
                                 <span className="stats-hero-number">{data.sessionCount}</span>
                                 <span className="stats-hero-label">sessions</span>
                             </div>
-                            <div className="stats-hero-card">
+                            <div className="stats-hero-card stats-anim" style={{ animationDelay: '240ms' }}>
                                 <span className="stats-hero-number">{data.distinctDays}</span>
                                 <span className="stats-hero-label">days aboard</span>
                             </div>
                         </div>
 
-                        <div className="stats-section">
+                        <div className="stats-section stats-anim" style={{ animationDelay: '320ms' }}>
                             <h2>Last 12 months</h2>
                             <div className="stats-months">
-                                {data.byMonth.map(m => (
+                                {data.byMonth.map((m, i) => (
                                     <div key={m.month} className="stats-month">
                                         <div className="stats-month-bar-wrap" title={`${monthLabel(m.month)}: ${formatWatchTime(m.seconds)}`}>
-                                            <div className="stats-month-bar" style={{ height: `${Math.max(2, (m.seconds / maxMonth) * 100)}%` }} />
+                                            <div
+                                                className="stats-month-bar"
+                                                style={{
+                                                    height: mounted ? `${Math.max(2, (m.seconds / maxMonth) * 100)}%` : '0%',
+                                                    transitionDelay: `${400 + i * 45}ms`,
+                                                }}
+                                            />
                                         </div>
                                         <span className="stats-month-label">{monthLabel(m.month)}</span>
                                     </div>
@@ -77,13 +104,14 @@ export default function Stats() {
                         </div>
 
                         <div className="stats-columns">
-                            <div className="stats-section">
+                            <div className="stats-section stats-anim" style={{ animationDelay: '420ms' }}>
                                 <h2>Most watched</h2>
                                 <div className="stats-top-list">
                                     {data.topTitles.map((t, i) => (
                                         <div
                                             key={t.contentId || t.name}
-                                            className={`stats-top-row${t.contentId ? ' clickable' : ''}`}
+                                            className={`stats-top-row stats-anim${t.contentId ? ' clickable' : ''}`}
+                                            style={{ animationDelay: `${520 + i * 90}ms` }}
                                             onClick={() => t.contentId && navigate(`/detail/${t.contentId}`)}
                                         >
                                             <span className="stats-top-rank">{i + 1}</span>
@@ -101,7 +129,7 @@ export default function Stats() {
 
                             <div className="stats-side">
                                 {data.longestSession && (
-                                    <div className="stats-section">
+                                    <div className="stats-section stats-anim" style={{ animationDelay: '520ms' }}>
                                         <h2>Longest voyage</h2>
                                         <div className="stats-longest">
                                             <span className="stats-longest-time">{formatWatchTime(data.longestSession.seconds)}</span>
@@ -112,14 +140,20 @@ export default function Stats() {
                                 )}
 
                                 {data.genres?.length > 0 && (
-                                    <div className="stats-section">
+                                    <div className="stats-section stats-anim" style={{ animationDelay: '640ms' }}>
                                         <h2>Your genres</h2>
                                         <div className="stats-genres">
-                                            {data.genres.map(g => (
+                                            {data.genres.map((g, i) => (
                                                 <div key={g.name} className="stats-genre-row">
                                                     <span className="stats-genre-name">{g.name}</span>
                                                     <div className="stats-genre-bar-wrap">
-                                                        <div className="stats-genre-bar" style={{ width: `${Math.max(4, (g.seconds / maxGenre) * 100)}%` }} />
+                                                        <div
+                                                            className="stats-genre-bar"
+                                                            style={{
+                                                                width: mounted ? `${Math.max(4, (g.seconds / maxGenre) * 100)}%` : '0%',
+                                                                transitionDelay: `${750 + i * 110}ms`,
+                                                            }}
+                                                        />
                                                     </div>
                                                 </div>
                                             ))}
