@@ -1487,13 +1487,14 @@ app.post('/stats/wrapped', async (request, response) => {
         const sessions = snap.val() ? Object.values(snap.val()) : [];
         const agg = aggregateWatchSessions(sessions);
 
-        // Enrich top titles with poster art + genres (cached TMDB lookups).
+        // Enrich top titles with art + genres (cached TMDB lookups).
         const enriched = await Promise.all(agg.topTitles.map(async t => {
-            if (!t.contentId) return { ...t, poster_path: null, genres: [] };
+            if (!t.contentId) return { ...t, poster_path: null, backdrop_path: null, genres: [] };
             const info = await GetInfo(t.contentId).catch(() => null);
             return {
                 ...t,
                 poster_path: info?.poster_path || null,
+                backdrop_path: info?.backdrop_path || null,
                 genres: (info?.genre_ids || []).map(id => GENRE_NAMES[id]).filter(Boolean),
             };
         }));

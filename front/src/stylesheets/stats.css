@@ -5,12 +5,166 @@
     background: #0a0e27;
     color: #fff;
     font-family: 'Inter', system-ui, sans-serif;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* Aurora backdrop — two slow-drifting blurred blobs in the brand colors. */
+.stats-page::before,
+.stats-page::after {
+    content: '';
+    position: fixed;
+    width: 65vmax;
+    height: 65vmax;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+}
+.stats-page::before {
+    background: radial-gradient(circle, rgba(63,163,255,0.55), transparent 62%);
+    top: -22vmax;
+    left: -14vmax;
+    opacity: 0.28;
+    filter: blur(70px);
+    animation: stats-drift-a 26s ease-in-out infinite alternate;
+}
+.stats-page::after {
+    background: radial-gradient(circle, rgba(240,180,41,0.5), transparent 62%);
+    bottom: -26vmax;
+    right: -16vmax;
+    opacity: 0.14;
+    filter: blur(80px);
+    animation: stats-drift-b 34s ease-in-out infinite alternate;
+}
+@keyframes stats-drift-a {
+    from { transform: translate(0, 0) scale(1); }
+    to { transform: translate(9vmax, 7vmax) scale(1.18); }
+}
+@keyframes stats-drift-b {
+    from { transform: translate(0, 0) scale(1.1); }
+    to { transform: translate(-8vmax, -6vmax) scale(0.95); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .stats-page::before, .stats-page::after { animation: none; }
 }
 
 .stats-content {
     max-width: 960px;
     margin: 0 auto;
     padding: 110px 24px 60px;
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Top-3 showdown ── */
+.stats-showdown {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 34px;
+}
+.stats-showdown-heading {
+    font-family: Viga, sans-serif;
+    font-weight: 400;
+    font-size: 20px;
+    color: rgba(255,255,255,0.85);
+    margin: 0;
+    animation: stats-fade-up 0.6s ease both;
+}
+.stats-showdown-card {
+    position: relative;
+    height: 150px;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid rgba(63,163,255,0.2);
+    background: #131838;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(34px) scale(0.98);
+    transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s;
+}
+.stats-showdown-card.revealed { opacity: 1; transform: translateY(0) scale(1); }
+.stats-showdown-card:hover { border-color: rgba(63,163,255,0.55); }
+.stats-showdown-card.rank-1 {
+    height: 210px;
+    border-color: rgba(240,180,41,0.45);
+}
+.stats-showdown-card.rank-1.revealed { box-shadow: 0 14px 50px rgba(240,180,41,0.16); }
+
+.stats-showdown-video,
+.stats-showdown-backdrop {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    min-height: 100%;
+    transform: translate(-50%, -50%) scale(1.45);
+    border: 0;
+    pointer-events: none;
+}
+.stats-showdown-backdrop {
+    background-size: cover;
+    background-position: center 25%;
+    transform: translate(-50%, -50%);
+    width: 102%;
+    min-height: 102%;
+}
+.stats-showdown-scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(10,14,39,0.92) 0%, rgba(10,14,39,0.55) 45%, rgba(10,14,39,0.25) 100%);
+}
+.stats-showdown-content {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 26px;
+}
+.stats-showdown-rank {
+    font-family: Viga, sans-serif;
+    font-size: 40px;
+    color: rgba(255,255,255,0.45);
+    width: 64px;
+    flex-shrink: 0;
+    text-shadow: 0 2px 14px rgba(0,0,0,0.5);
+}
+.rank-1 .stats-showdown-rank { color: #f0b429; font-size: 56px; }
+.rank-2 .stats-showdown-rank { color: rgba(220,225,235,0.8); }
+.rank-3 .stats-showdown-rank { color: rgba(205,150,95,0.85); }
+.stats-showdown-poster {
+    height: 72%;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+    flex-shrink: 0;
+}
+.stats-showdown-text {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+}
+.stats-showdown-name {
+    font-family: Viga, sans-serif;
+    font-size: 24px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.rank-1 .stats-showdown-name { font-size: 32px; }
+.stats-showdown-meta { font-size: 13.5px; color: rgba(255,255,255,0.7); }
+
+@media (max-width: 640px) {
+    .stats-showdown-card { height: 120px; }
+    .stats-showdown-card.rank-1 { height: 160px; }
+    .stats-showdown-rank { width: 44px; font-size: 30px; }
+    .rank-1 .stats-showdown-rank { font-size: 40px; }
+    .stats-showdown-name { font-size: 18px; }
+    .rank-1 .stats-showdown-name { font-size: 23px; }
+    .stats-showdown-content { padding: 0 16px; }
 }
 
 .stats-title {
