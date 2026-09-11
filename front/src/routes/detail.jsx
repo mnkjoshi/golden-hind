@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import React, { useEffect, useState, useRef } from 'react';
 import Topbar from '../components/topbar';
+import { sendRemotePreview } from '../components/remote.jsx';
 
 const API = 'https://ghb.mnkjoshi.ca';
 
@@ -79,6 +80,13 @@ export default function Detail() {
         axios.get(`${API}/reviews?contentId=${id}`)
             .then(r => setReviews(r.data.reviews || []))
             .catch(() => {});
+    }, [id]);
+
+    // If this browser is remote-controlling a device, mirror this detail view
+    // on its idle screen while we're here (cleared on leave).
+    useEffect(() => {
+        sendRemotePreview(id);
+        return () => sendRemotePreview(null);
     }, [id]);
 
     const submitReview = () => {
