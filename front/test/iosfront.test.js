@@ -35,7 +35,7 @@ describe('iosfront getVideoUrl', () => {
 });
 
 describe('iosfront buildPlayerHtml', () => {
-    const stream = 'https://goldenhind.tech/proxy/hls?url=enc';
+    const stream = 'https://ghb.mnkjoshi.ca/proxy/hls?url=enc';
 
     it('embeds the stream url and resume point', () => {
         const html = buildPlayerHtml({ streamUrl: stream, startAt: 42 });
@@ -55,10 +55,10 @@ describe('iosfront buildPlayerHtml', () => {
         const html = buildPlayerHtml({
             streamUrl: stream,
             startAt: 0,
-            party: { roomId: 'ABC234', user: 'u', token: 't', clientId: 'c', api: 'https://goldenhind.tech' },
+            party: { roomId: 'ABC234', user: 'u', token: 't', clientId: 'c', api: 'https://ghb.mnkjoshi.ca' },
         });
         expect(html).toContain('"roomId":"ABC234"');
-        expect(html).toContain('"api":"https://goldenhind.tech"');
+        expect(html).toContain('"api":"https://ghb.mnkjoshi.ca"');
         // The SSE/update wiring is present in the template and runs when PARTY is set.
         expect(html).toContain('/party/stream');
         expect(html).toContain('/party/update');

@@ -91,7 +91,7 @@ iosfront/
 ## API Integration
 
 The app connects to the Golden Hind backend API at:
-- Base URL: `https://goldenhind.tech`
+- Base URL: `https://ghb.mnkjoshi.ca`
 
 ### Key Endpoints
 

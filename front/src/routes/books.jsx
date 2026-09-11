@@ -31,7 +31,7 @@ export default function Books() {
             setLoading(true);
             axios({
                 method: 'get',
-                url: `https://goldenhind.tech/book-search?q=${encodeURIComponent(searched)}`
+                url: `https://ghb.mnkjoshi.ca/book-search?q=${encodeURIComponent(searched)}`
             }).then((response) => {
                 setCurrentSearch(searched);
                 setPage(0);

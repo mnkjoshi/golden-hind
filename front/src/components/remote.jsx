@@ -23,7 +23,7 @@ import axios from 'axios';
 import Topbar from './topbar';
 import { defaultDeviceName, formatRemoteState, formatClock, estimatePosition } from '../utils/remote.js';
 
-const BASE_URL = 'https://goldenhind.tech';
+const BASE_URL = 'https://ghb.mnkjoshi.ca';
 
 // Stable per-browser device id, generated once. Path-safe (RTDB key).
 export function getDeviceId() {

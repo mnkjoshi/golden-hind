@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'https://goldenhind.tech';
+const BASE_URL = 'https://ghb.mnkjoshi.ca';
 
 export function track(event, data = {}) {
     const user = localStorage.getItem('user');

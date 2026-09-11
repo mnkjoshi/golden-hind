@@ -123,7 +123,7 @@ export default function App() {
     useEffect(() => {
         if (!user || !token) return;
         let active = true;
-        axios.post('https://goldenhind.tech/intro/status', { user, token })
+        axios.post('https://ghb.mnkjoshi.ca/intro/status', { user, token })
             .then(r => {
                 if (!active || !r.data?.show) return;
                 setIntroVersion(r.data.version || 1);
@@ -148,7 +148,7 @@ export default function App() {
 
     const finishIntro = () => {
         setIntroShow(false);
-        axios.post('https://goldenhind.tech/intro/seen', { user, token, version: introVersion }).catch(() => {});
+        axios.post('https://ghb.mnkjoshi.ca/intro/seen', { user, token, version: introVersion }).catch(() => {});
     };
 
     const unmuteIntro = () => {
@@ -163,7 +163,7 @@ export default function App() {
         if (trailerLoading) return;
         setTrailerLoading(true);
         try {
-            const res = await axios.post('https://goldenhind.tech/home-trailer', {
+            const res = await axios.post('https://ghb.mnkjoshi.ca/home-trailer', {
                 user, token,
                 tmdbId: item.id,
                 mediaType: item.media_type === 'movie' ? 'movie' : 'tv',
@@ -182,7 +182,7 @@ export default function App() {
             const item = trendingData.results[heroIndex];
             if (!heroInlineTrailerCacheRef.current[item.id]) {
                 try {
-                    const res = await axios.post('https://goldenhind.tech/home-trailer', {
+                    const res = await axios.post('https://ghb.mnkjoshi.ca/home-trailer', {
                         user, token,
                         tmdbId: item.id,
                         mediaType: item.media_type === 'movie' ? 'movie' : 'tv',
@@ -221,7 +221,7 @@ export default function App() {
             return;
         }
         setCurrentHeroTrailerKey(null);
-        axios.post('https://goldenhind.tech/home-trailer', {
+        axios.post('https://ghb.mnkjoshi.ca/home-trailer', {
             user, token, tmdbId: item.id,
             mediaType: item.media_type === 'movie' ? 'movie' : 'tv',
         }).then(res => {
@@ -255,7 +255,7 @@ export default function App() {
                 // Call mini endpoint first for fast initial load (last 10 items)
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/home-mini',
+                    url: 'https://ghb.mnkjoshi.ca/home-mini',
                     data: { user: user, token: token }
                 }).then((response) => {
                     localStorage.setItem("bookmarks", response.data.favourites)
@@ -271,7 +271,7 @@ export default function App() {
                     // Load full favourites data in background
                     axios({
                         method: 'post',
-                        url: 'https://goldenhind.tech/home-favourites',
+                        url: 'https://ghb.mnkjoshi.ca/home-favourites',
                         data: { user: user, token: token }
                     }).then((response) => {
                         const validBookmarks = (response.data.favouritesData || []).filter(item => item && item.id)
@@ -283,7 +283,7 @@ export default function App() {
                     // Load full continues data in background
                     axios({
                         method: 'post',
-                        url: 'https://goldenhind.tech/home-continues',
+                        url: 'https://ghb.mnkjoshi.ca/home-continues',
                         data: { user: user, token: token }
                     }).then((response) => {
                         const validContinues = (response.data.continuesData || []).filter(item => item && item.id)
@@ -295,7 +295,7 @@ export default function App() {
                     // Load My List (watchlist) data in background
                     axios({
                         method: 'post',
-                        url: 'https://goldenhind.tech/home-mylist',
+                        url: 'https://ghb.mnkjoshi.ca/home-mylist',
                         data: { user: user, token: token }
                     }).then((response) => {
                         const validMyList = (response.data.watchlistData || []).filter(item => item && item.id)
@@ -313,7 +313,7 @@ export default function App() {
                 // Load trending data in parallel
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/home-trending',
+                    url: 'https://ghb.mnkjoshi.ca/home-trending',
                     data: { user: user, token: token }
                 }).then((response) => {
                     setTrendingData(response.data.trendingData)
@@ -326,7 +326,7 @@ export default function App() {
                 // bars reflect viewing on any device, then force a re-render.
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/position/percentages',
+                    url: 'https://ghb.mnkjoshi.ca/position/percentages',
                     data: { user, token }
                 }).then((response) => {
                     const map = response.data || {};
@@ -358,7 +358,7 @@ export default function App() {
                     const ts = parseInt(localStorage.getItem(timeKey)) || 0;
                     if (hasCache && now - ts < REC_TTL) return;
                     if (!hasCache) setLoading(true); // skeleton only on a true first load
-                    axios({ method: 'post', url: `https://goldenhind.tech/recommendations/${kind}`, data: { user, token } })
+                    axios({ method: 'post', url: `https://ghb.mnkjoshi.ca/recommendations/${kind}`, data: { user, token } })
                         .then(r => {
                             const data = Array.isArray(r.data) ? r.data : [];
                             if (data.length === 0) return; // keep showing stale rows
@@ -376,7 +376,7 @@ export default function App() {
 
                 // Recently reviewed by users — no cache, always fresh
                 setRecentlyReviewedLoading(true);
-                axios.get('https://goldenhind.tech/recently-reviewed')
+                axios.get('https://ghb.mnkjoshi.ca/recently-reviewed')
                     .then(r => setRecentlyReviewed(r.data.items || []))
                     .catch(() => setRecentlyReviewed([]))
                     .finally(() => setRecentlyReviewedLoading(false));
@@ -525,7 +525,7 @@ export default function App() {
 
             if (cardTrailerCacheRef.current[cid] === undefined) {
                 try {
-                    const res = await axios.post('https://goldenhind.tech/home-trailer', {
+                    const res = await axios.post('https://ghb.mnkjoshi.ca/home-trailer', {
                         user, token,
                         tmdbId: result.id,
                         mediaType: result.media_type === 'movie' || result.number_of_episodes == null ? 'movie' : 'tv',
@@ -802,7 +802,7 @@ export default function App() {
         // Send request to backend but don't wait for response
         axios({
             method: 'post',
-            url: 'https://goldenhind.tech/' + (isBookmark == true ? "unfavourite" : "uncontinue"),
+            url: 'https://ghb.mnkjoshi.ca/' + (isBookmark == true ? "unfavourite" : "uncontinue"),
             data: {
                 user: user,
                 token: token,
@@ -821,7 +821,7 @@ export default function App() {
 
     function removeFromMyList(isMovie, ID) {
         const itemId = (isMovie ? "m" : "t") + ID;
-        axios.post('https://goldenhind.tech/mylist/remove', { user, token, itemId }).catch(() => {});
+        axios.post('https://ghb.mnkjoshi.ca/mylist/remove', { user, token, itemId }).catch(() => {});
         setMyListData(prevData => prevData.filter(item => item.id !== ID));
         try {
             const raw = localStorage.getItem("mylist");

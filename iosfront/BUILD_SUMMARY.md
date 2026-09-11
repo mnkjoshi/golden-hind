@@ -172,7 +172,7 @@ npm start
 
 ## API Integration
 
-The app connects to: `https://goldenhind.tech`
+The app connects to: `https://ghb.mnkjoshi.ca`
 
 ### Endpoints Used
 - `/login` - User authentication

@@ -12,7 +12,7 @@ import RemoteControl from './remote.jsx';
 
 const GLITCH_FRAMES = [TextLogoGlitch1, TextLogoGlitch2, TextLogoGlitch3, TextLogoGlitch4, TextLogoGlitch5];
 
-const BASE_URL = 'https://goldenhind.tech';
+const BASE_URL = 'https://ghb.mnkjoshi.ca';
 
 export default function Topbar() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -169,7 +169,7 @@ export default function Topbar() {
         suggestDebounceRef.current = setTimeout(async () => {
             setSuggestionsLoading(true);
             try {
-                const res = await axios.post('https://goldenhind.tech/search', { query: val.trim() });
+                const res = await axios.post('https://ghb.mnkjoshi.ca/search', { query: val.trim() });
                 const raw = res.data;
                 const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
                 setSuggestions((list || []).slice(0, 5));

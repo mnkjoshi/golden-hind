@@ -17,7 +17,7 @@ export const getGenreNames = (genreIds) => {
 };
 
 // API endpoints
-export const API_BASE_URL = 'https://goldenhind.tech';
+export const API_BASE_URL = 'https://ghb.mnkjoshi.ca';
 
 export const API_ENDPOINTS = {
   LOGIN: `${API_BASE_URL}/login`,

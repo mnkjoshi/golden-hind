@@ -55,7 +55,7 @@ export default function Music() {
                 setStatusLabel(`Downloading: ${item.url}`);
 
                 const response = await axios.post(
-                    'https://goldenhind.tech/music/download',
+                    'https://ghb.mnkjoshi.ca/music/download',
                     { user, token, url: item.url },
                     { responseType: 'blob', timeout: 180000 }
                 );

@@ -3,7 +3,7 @@ import axios from 'axios'
 export default function Authenticate(user, token, navigate) {
     axios({
         method: 'post',
-        url: 'https://goldenhind.tech/home',
+        url: 'https://ghb.mnkjoshi.ca/home',
         data: {
             user: user,
             token: token,

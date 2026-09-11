@@ -42,10 +42,7 @@ app.use(cors({
     "http://localhost:5173",
     "https://ghind.tech",
     "http://ghind.tech",
-    "https://goldenhind.tech",
-    "http://goldenhind.tech",
-    "https://www.goldenhind.tech",
-    "http://www.goldenhind.tech",
+    "https://ghb.mnkjoshi.ca",
   ],
   credentials: true,
   exposedHeaders: ['X-Title'],
@@ -70,7 +67,10 @@ const firebaseApp = admin.initializeApp(firebaseConfig)
 
 
 const mailerSend = new MailerSend({ apiKey: process.env.MAILERSEND_API_KEY });
-const verifyEmailSender = new Sender("verify@goldenhind.tech", "Francis Drake");
+// Sender domain must be verified in MailerSend — mnkjoshi.ca needs DNS
+// records added there before verification emails will deliver again
+// (goldenhind.tech was dropped along with the old box).
+const verifyEmailSender = new Sender("verify@mnkjoshi.ca", "Francis Drake");
 
 app.get('/', (request, response) => {
     response.status(200);
@@ -2390,7 +2390,7 @@ app.get('/proxy/subtitle-playlist', (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     // hls=1 tells /proxy/subtitle to include X-TIMESTAMP-MAP for AVPlayer sync
-    const proxied = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(url)}&hls=1`;
+    const proxied = `https://ghb.mnkjoshi.ca/proxy/subtitle?url=${encodeURIComponent(url)}&hls=1`;
     res.send([
         '#EXTM3U',
         '#EXT-X-VERSION:3',
@@ -2430,7 +2430,7 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
             .map((sub, i) => {
                 const rawSub = String(sub.file || sub.url || '');
                 const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
-                const playlistUri = `https://goldenhind.tech/proxy/subtitle-playlist?url=${encodeURIComponent(absSubUrl)}`;
+                const playlistUri = `https://ghb.mnkjoshi.ca/proxy/subtitle-playlist?url=${encodeURIComponent(absSubUrl)}`;
                 const name = (sub.language || sub.lang || `Track ${i + 1}`).replace(/"/g, "'");
                 const lang = hlsLanguageCode(sub, i);
                 return `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 ? 'YES' : 'NO'},AUTOSELECT=${i === 0 ? 'YES' : 'NO'},FORCED=NO,URI="${playlistUri}",LANGUAGE="${lang}"`;

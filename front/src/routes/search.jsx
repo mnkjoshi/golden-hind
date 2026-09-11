@@ -42,7 +42,7 @@ export default function Search() {
             setSortBy('relevance');
             axios({
                 method: 'post',
-                url: 'https://goldenhind.tech/search',
+                url: 'https://ghb.mnkjoshi.ca/search',
                 data: { query: searched }
             }).then((response) => {
                 setCurrentSearch(searched);

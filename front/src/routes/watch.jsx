@@ -215,9 +215,9 @@ function LocalWatch() {
         addSubtitleDebugLine(`${event} t=${payload.currentTime ?? 'n/a'} mode=${payload.presentationMode || 'n/a'}`);
         try {
             const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-            if (navigator.sendBeacon && navigator.sendBeacon('https://goldenhind.tech/debug/subtitle-trace', blob)) return;
+            if (navigator.sendBeacon && navigator.sendBeacon('https://ghb.mnkjoshi.ca/debug/subtitle-trace', blob)) return;
         } catch {}
-        fetch('https://goldenhind.tech/debug/subtitle-trace', {
+        fetch('https://ghb.mnkjoshi.ca/debug/subtitle-trace', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -268,7 +268,7 @@ function LocalWatch() {
             }
             partyLastSentRef.current = state;
             partyLog('push', state);
-            axios.post('https://goldenhind.tech/party/update', {
+            axios.post('https://ghb.mnkjoshi.ca/party/update', {
                 user: u, token: t, roomId, state,
                 clientId: partyClientIdRef.current,
             }).then(() => partyLog('push ok'))
@@ -359,7 +359,7 @@ function LocalWatch() {
         let closed = false;
 
         const connect = () => {
-            const url = `https://goldenhind.tech/party/stream`
+            const url = `https://ghb.mnkjoshi.ca/party/stream`
                 + `?roomId=${encodeURIComponent(partyRoomId)}`
                 + `&user=${encodeURIComponent(u)}`
                 + `&token=${encodeURIComponent(t)}`
@@ -454,7 +454,7 @@ function LocalWatch() {
         };
         partyLastSentRef.current = state;
         partyLog('push EPISODE', state);
-        axios.post('https://goldenhind.tech/party/update', {
+        axios.post('https://ghb.mnkjoshi.ca/party/update', {
             user: u, token: t, roomId, state,
             clientId: partyClientIdRef.current,
         }).then(() => partyLog('episode push ok'))
@@ -549,7 +549,7 @@ function LocalWatch() {
             const deviceId = localStorage.getItem('remoteDeviceId');
             if (!u || !t || !deviceId) return;
             const p = plyrRef.current;
-            axios.post('https://goldenhind.tech/remote/state', {
+            axios.post('https://ghb.mnkjoshi.ca/remote/state', {
                 user: u, token: t, deviceId,
                 state: {
                     contentId: id,
@@ -578,7 +578,7 @@ function LocalWatch() {
         const t = localStorage.getItem('token');
         const deviceId = localStorage.getItem('remoteDeviceId');
         if (!u || !t || !deviceId) return;
-        axios.post('https://goldenhind.tech/remote/state', { user: u, token: t, deviceId, state: {} }).catch(() => {});
+        axios.post('https://ghb.mnkjoshi.ca/remote/state', { user: u, token: t, deviceId, state: {} }).catch(() => {});
     }, []);
 
     const startWatchParty = async () => {
@@ -586,7 +586,7 @@ function LocalWatch() {
         const t = localStorage.getItem('token');
         if (!u || !t) return;
         try {
-            const r = await axios.post('https://goldenhind.tech/party/create', {
+            const r = await axios.post('https://ghb.mnkjoshi.ca/party/create', {
                 user: u, token: t,
                 contentId: id,
                 season: parseInt(season) || 1,
@@ -612,7 +612,7 @@ function LocalWatch() {
         const u = localStorage.getItem('user');
         const t = localStorage.getItem('token');
         try {
-            const r = await axios.post('https://goldenhind.tech/party/info', { user: u, token: t, roomId: code });
+            const r = await axios.post('https://ghb.mnkjoshi.ca/party/info', { user: u, token: t, roomId: code });
             const info = r.data;
             if (!info?.contentId) {
                 setPartyJoinError('Room not found.');
@@ -649,7 +649,7 @@ function LocalWatch() {
         if (!u || !t) return;
         setPartyChatInput('');
         // Message echoes back to us over the chat SSE channel, so no optimistic add.
-        axios.post('https://goldenhind.tech/party/chat', { user: u, token: t, roomId: partyRoomId, text })
+        axios.post('https://ghb.mnkjoshi.ca/party/chat', { user: u, token: t, roomId: partyRoomId, text })
             .catch(() => {});
     };
 
@@ -668,7 +668,7 @@ function LocalWatch() {
         if (!partyRoomId) return;
         const u = localStorage.getItem('user'), t = localStorage.getItem('token');
         if (!u || !t) return;
-        axios.post('https://goldenhind.tech/party/react', { user: u, token: t, roomId: partyRoomId, emoji })
+        axios.post('https://ghb.mnkjoshi.ca/party/react', { user: u, token: t, roomId: partyRoomId, emoji })
             .catch(() => {});
     };
 
@@ -721,10 +721,10 @@ function LocalWatch() {
             let beaconed = false;
             try {
                 beaconed = navigator.sendBeacon
-                    && navigator.sendBeacon('https://goldenhind.tech/watch-time', new Blob([payload], { type: 'application/json' }));
+                    && navigator.sendBeacon('https://ghb.mnkjoshi.ca/watch-time', new Blob([payload], { type: 'application/json' }));
             } catch { /* fall through to fetch */ }
             if (!beaconed) {
-                fetch('https://goldenhind.tech/watch-time', {
+                fetch('https://ghb.mnkjoshi.ca/watch-time', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     keepalive: true,
@@ -761,7 +761,7 @@ function LocalWatch() {
                 localStorage.setItem('continues', JSON.stringify(continues));
             }
             localStorage.setItem('lastWatched_' + id, Date.now());
-            axios({ method: 'post', url: 'https://goldenhind.tech/continue', data: { user: trackUser, token: trackToken, favId: id } });
+            axios({ method: 'post', url: 'https://ghb.mnkjoshi.ca/continue', data: { user: trackUser, token: trackToken, favId: id } });
         }, 30000);
         return () => clearTimeout(timer);
     }, []);
@@ -850,7 +850,7 @@ function LocalWatch() {
         setLmLoading(true);
         axios({
             method: 'post',
-            url: 'https://goldenhind.tech/server/lookmovie',
+            url: 'https://ghb.mnkjoshi.ca/server/lookmovie',
             data: { user, token, id, season, episode }
         }).then(r => {
             // if (r.data.dbg) console.group('[LookMovie Debug]'), r.data.dbg.forEach(l => console.log(l)), console.groupEnd();
@@ -858,9 +858,9 @@ function LocalWatch() {
                 const subs = r.data.subtitles || [];
                 setLmSubtitles(subs);
                 if (!Hls.isSupported() && subs.length > 0) {
-                    setLmUrl(`https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}`);
+                    setLmUrl(`https://ghb.mnkjoshi.ca/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}`);
                 } else {
-                    setLmUrl(`https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
+                    setLmUrl(`https://ghb.mnkjoshi.ca/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
                 }
             } else {
                 setProvider(3);
@@ -888,7 +888,7 @@ function LocalWatch() {
             : `playbackPos_${id}`;
         const u = localStorage.getItem('user'), t = localStorage.getItem('token');
         if (!u || !t) return;
-        axios.post('https://goldenhind.tech/position/retrieve', { user: u, token: t, posKey })
+        axios.post('https://ghb.mnkjoshi.ca/position/retrieve', { user: u, token: t, posKey })
             .then(r => {
                 const serverPos = Number(r.data?.position) || 0;
                 resumePosRef.current = serverPos;
@@ -917,13 +917,13 @@ function LocalWatch() {
         const u = localStorage.getItem('user'), t = localStorage.getItem('token');
         if (!u || !t) return;
         const timer = setTimeout(() => {
-            axios.post('https://goldenhind.tech/server/lookmovie', { user: u, token: t, id, season: nextSe, episode: nextEp })
+            axios.post('https://ghb.mnkjoshi.ca/server/lookmovie', { user: u, token: t, id, season: nextSe, episode: nextEp })
                 .then(r => {
                     if (r.data?.success && r.data.url) {
                         const subs = r.data.subtitles || [];
                         const url = (!Hls.isSupported() && subs.length > 0)
-                            ? `https://goldenhind.tech/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}`
-                            : `https://goldenhind.tech/proxy/hls?url=${encodeURIComponent(r.data.url)}`;
+                            ? `https://ghb.mnkjoshi.ca/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}`
+                            : `https://ghb.mnkjoshi.ca/proxy/hls?url=${encodeURIComponent(r.data.url)}`;
                         prefetchRef.current = { key, url, subtitles: subs };
                     }
                 })
@@ -1040,7 +1040,7 @@ function LocalWatch() {
                 trackEl.kind = 'subtitles';
                 trackEl.label = sub.language || sub.lang || `Track ${trackIndex + 1}`;
                 trackEl.srclang = subtitleLangCode(sub, trackIndex);
-                trackEl.src = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
+                trackEl.src = `https://ghb.mnkjoshi.ca/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
                 if (trackIndex === 0) trackEl.default = true;
                 const isDefaultTrack = trackIndex === 0;
                 trackEl.addEventListener('load', () => {
@@ -1284,7 +1284,7 @@ function LocalWatch() {
                     lastServerSaved = now;
                     const u = localStorage.getItem('user'), t = localStorage.getItem('token');
                     if (u && t) {
-                        axios.post('https://goldenhind.tech/position/update', {
+                        axios.post('https://ghb.mnkjoshi.ca/position/update', {
                             user: u, token: t, posKey, contentId: id,
                             position: player.currentTime, duration: player.duration,
                             pct: Math.min(1, Math.max(0, player.currentTime / player.duration)),
@@ -1328,7 +1328,7 @@ function LocalWatch() {
                 resumePosRef.current = 0;
                 const u = localStorage.getItem('user'), t = localStorage.getItem('token');
                 if (u && t) {
-                    axios.post('https://goldenhind.tech/position/update', {
+                    axios.post('https://ghb.mnkjoshi.ca/position/update', {
                         user: u, token: t, posKey, contentId: id, position: 0, duration: 0, pct: 0,
                     }).catch(() => {});
                 }
@@ -1445,7 +1445,7 @@ function LocalWatch() {
                     const raw = String(sub.file || sub.url || '');
                     if (!raw.startsWith('/') && !raw.startsWith('http')) return;
                     const abs = raw.startsWith('http') ? raw : `https://www.lookmovie2.to${raw}`;
-                    const proxied = `https://goldenhind.tech/proxy/subtitle?url=${encodeURIComponent(abs)}`;
+                    const proxied = `https://ghb.mnkjoshi.ca/proxy/subtitle?url=${encodeURIComponent(abs)}`;
                     const t = new cm.Track(idx + 1, cm.TrackType.TEXT);
                     t.trackContentId = proxied;
                     t.trackContentType = 'text/vtt';
@@ -1490,7 +1490,7 @@ function LocalWatch() {
         const params = new URLSearchParams({ user: u, token: t, id });
         if (type === 'tv') { params.set('season', season); params.set('episode', episode); }
         const a = document.createElement('a');
-        a.href = `https://goldenhind.tech/download/video?${params.toString()}`;
+        a.href = `https://ghb.mnkjoshi.ca/download/video?${params.toString()}`;
         a.download = '';
         document.body.appendChild(a);
         a.click();
@@ -1531,7 +1531,7 @@ function LocalWatch() {
         // episode advances and leave nextEpData pointing at the wrong one.
         if (type === 'tv') {
             const u = localStorage.getItem('user'), t = localStorage.getItem('token');
-            axios.post('https://goldenhind.tech/eretrieve', {
+            axios.post('https://ghb.mnkjoshi.ca/eretrieve', {
                 user: u, token: t, series: vidID,
                 season: targetSeason, episode: targetEpisode,
             }).then(r => setNextEpData({ name: r.data.name, still_path: r.data.still_path }))
@@ -1626,7 +1626,7 @@ function LocalWatch() {
     useEffect(() => {
         const u = localStorage.getItem('user'), t = localStorage.getItem('token');
         if (!u || !t) return;
-        axios.post('https://goldenhind.tech/prefs/get', { user: u, token: t })
+        axios.post('https://ghb.mnkjoshi.ca/prefs/get', { user: u, token: t })
             .then(r => {
                 if (typeof r.data?.autoNext === 'boolean') {
                     const n = r.data.autoNext ? 1 : 0;
@@ -1643,7 +1643,7 @@ function LocalWatch() {
         localStorage.setItem('autoNext', String(n));
         const u = localStorage.getItem('user'), t = localStorage.getItem('token');
         if (u && t) {
-            axios.post('https://goldenhind.tech/prefs/set', { user: u, token: t, key: 'autoNext', value: n === 1 })
+            axios.post('https://ghb.mnkjoshi.ca/prefs/set', { user: u, token: t, key: 'autoNext', value: n === 1 })
                 .catch(() => {});
         }
     };
@@ -1685,7 +1685,7 @@ function LocalWatch() {
             setMaxEp(cur.episode_count);
         } else if (vidID && type === 'tv') {
             const u = localStorage.getItem('user'), t = localStorage.getItem('token');
-            axios.post('https://goldenhind.tech/season', { user: u, token: t, seriesId: vidID, seasonNumber: parseInt(season) })
+            axios.post('https://ghb.mnkjoshi.ca/season', { user: u, token: t, seriesId: vidID, seasonNumber: parseInt(season) })
                 .then(res => { const c = res.data?.episodes?.length; if (c) setMaxEp(c); })
                 .catch(() => {});
         }
@@ -1766,7 +1766,7 @@ function LocalWatch() {
             if (!(vidID == movID) && !(vidID == null) && !(vidID == "")) {
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/mretrieve',
+                    url: 'https://ghb.mnkjoshi.ca/mretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -1784,7 +1784,7 @@ function LocalWatch() {
 
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/similar',
+                    url: 'https://ghb.mnkjoshi.ca/similar',
                     data: {
                         user: user,
                         token: token,
@@ -1799,7 +1799,7 @@ function LocalWatch() {
             if (!((vidID + episode + season) == episodeID) && !(vidID == null) && !(vidID == "")) {
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/eretrieve',
+                    url: 'https://ghb.mnkjoshi.ca/eretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -1818,7 +1818,7 @@ function LocalWatch() {
             if (!(vidID == seriesID)  && !(vidID == null) && !(vidID == "")){
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/sretrieve',
+                    url: 'https://ghb.mnkjoshi.ca/sretrieve',
                     data: {
                         user: user,
                         token: token,
@@ -1837,7 +1837,7 @@ function LocalWatch() {
                     if (curSeason?.episode_count) {
                         setMaxEp(curSeason.episode_count);
                     } else {
-                        axios.post('https://goldenhind.tech/season', { user, token, seriesId: vidID, seasonNumber: parseInt(season) })
+                        axios.post('https://ghb.mnkjoshi.ca/season', { user, token, seriesId: vidID, seasonNumber: parseInt(season) })
                             .then(res => { const c = res.data?.episodes?.length; if (c) setMaxEp(c); })
                             .catch(() => {});
                     }
@@ -1845,7 +1845,7 @@ function LocalWatch() {
 
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/similar',
+                    url: 'https://ghb.mnkjoshi.ca/similar',
                     data: {
                         user: user,
                         token: token,
@@ -1860,7 +1860,7 @@ function LocalWatch() {
                 console.log("Retrieving data")
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/progress_retrieve',
+                    url: 'https://ghb.mnkjoshi.ca/progress_retrieve',
                     data: {
                         user: user,
                         token: token,
@@ -1890,7 +1890,7 @@ function LocalWatch() {
             } else {
                 axios({
                     method: 'post',
-                    url: 'https://goldenhind.tech/progress_update',
+                    url: 'https://ghb.mnkjoshi.ca/progress_update',
                     data: {
                         user: user,
                         token: token,
@@ -1953,7 +1953,7 @@ function LocalWatch() {
 
             axios({
                 method: 'post',
-                url: 'https://goldenhind.tech/favourite',
+                url: 'https://ghb.mnkjoshi.ca/favourite',
                 data: {
                     user: user,
                     token: token,
@@ -1968,7 +1968,7 @@ function LocalWatch() {
 
             axios({
                 method: 'post',
-                url: 'https://goldenhind.tech/unfavourite',
+                url: 'https://ghb.mnkjoshi.ca/unfavourite',
                 data: {
                     user: user,
                     token: token,
@@ -1986,12 +1986,12 @@ function LocalWatch() {
             if (!arr.includes(id)) {
                 arr.push(id);
                 localStorage.setItem("mylist", JSON.stringify(arr));
-                axios.post('https://goldenhind.tech/mylist/add', { user, token, itemId: id });
+                axios.post('https://ghb.mnkjoshi.ca/mylist/add', { user, token, itemId: id });
                 setMyListed(1);
             } else {
                 const filtered = arr.filter(x => x !== id);
                 localStorage.setItem("mylist", JSON.stringify(filtered));
-                axios.post('https://goldenhind.tech/mylist/remove', { user, token, itemId: id });
+                axios.post('https://ghb.mnkjoshi.ca/mylist/remove', { user, token, itemId: id });
                 setMyListed(-1);
             }
         } catch {}
@@ -2017,7 +2017,7 @@ function LocalWatch() {
                 pushPartyEpisodeNow(prevSe, lastEp);
             } else {
                 const u = localStorage.getItem('user'), t = localStorage.getItem('token');
-                axios.post('https://goldenhind.tech/season', { user: u, token: t, seriesId: vidID, seasonNumber: prevSe })
+                axios.post('https://ghb.mnkjoshi.ca/season', { user: u, token: t, seriesId: vidID, seasonNumber: prevSe })
                     .then(res => {
                         const lastEp = res.data?.episodes?.length || 1;
                         localStorage.setItem('season' + id, prevSe);
@@ -2092,7 +2092,7 @@ function LocalWatch() {
         const nextEp = parseInt(episode) < parseInt(maxEp) ? parseInt(episode) + 1 : 1;
         const nextSe = parseInt(episode) < parseInt(maxEp) ? parseInt(season) : parseInt(season) + 1;
         if (nextSe > parseInt(maxSe)) { setNextEpData(null); return; }
-        axios.post('https://goldenhind.tech/eretrieve', { user, token, series: vidID, season: nextSe, episode: nextEp })
+        axios.post('https://ghb.mnkjoshi.ca/eretrieve', { user, token, series: vidID, season: nextSe, episode: nextEp })
             .then(r => setNextEpData({ name: r.data.name, still_path: r.data.still_path }))
             .catch(() => setNextEpData(null));
     }, [episode, season, maxEp, maxSe]);

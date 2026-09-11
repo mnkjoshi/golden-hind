@@ -41,7 +41,7 @@ export default function Auth() {
 function Verify(Token, navigate) {
   axios({
     method: 'post',
-    url: 'https://goldenhind.tech/verify',
+    url: 'https://ghb.mnkjoshi.ca/verify',
     data: {
       token: Token,
     }
@@ -79,7 +79,7 @@ function Attempt(Which, Username, Password, Email, navigate) {
     }
     axios({
       method: 'post',
-      url: 'https://goldenhind.tech/login',
+      url: 'https://ghb.mnkjoshi.ca/login',
       data: {
         username: Username,
         password: Password
@@ -116,7 +116,7 @@ function Attempt(Which, Username, Password, Email, navigate) {
       }
       axios({
         method: 'post',
-        url: 'https://goldenhind.tech/register',
+        url: 'https://ghb.mnkjoshi.ca/register',
         data: {
           username: Username,
           password: Password,

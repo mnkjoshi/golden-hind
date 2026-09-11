@@ -3,7 +3,7 @@ import axios from 'axios';
 import React, { useEffect, useState, useRef } from 'react';
 import Topbar from '../components/topbar';
 
-const API = 'https://goldenhind.tech';
+const API = 'https://ghb.mnkjoshi.ca';
 
 export default function Detail() {
     const { id } = useParams();

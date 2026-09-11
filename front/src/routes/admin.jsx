@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Topbar from "../components/topbar.jsx";
 import { formatWatchTime } from '../utils/format.js';
 
-const BASE_URL = 'https://goldenhind.tech';
+const BASE_URL = 'https://ghb.mnkjoshi.ca';
 
 // Friendly one-line summary of an analytics event for the activity feed.
 function describeEvent(evt) {

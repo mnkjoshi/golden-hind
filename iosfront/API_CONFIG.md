@@ -1,7 +1,7 @@
 # API Configuration
 
 The app is currently configured to use the production API at:
-`https://goldenhind.tech`
+`https://ghb.mnkjoshi.ca`
 
 If you need to change the API endpoint (for development or testing), update the file:
 `src/utils/constants.js`
@@ -9,7 +9,7 @@ If you need to change the API endpoint (for development or testing), update the 
 ## Changing the API URL
 
 1. Open `src/utils/constants.js`
-2. Find the line: `export const API_BASE_URL = 'https://goldenhind.tech';`
+2. Find the line: `export const API_BASE_URL = 'https://ghb.mnkjoshi.ca';`
 3. Replace with your API URL
 4. Restart the development server
 
