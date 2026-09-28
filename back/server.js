@@ -13,9 +13,10 @@ import ytdl from '@distube/ytdl-core';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import { exec, spawn } from 'child_process';
+import { exec, execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Pure helpers extracted for unit testing (see back/lib + back/test).
 import { slugify, rewriteHlsManifest, hlsLanguageCode } from './lib/hls.js';
@@ -26,6 +27,7 @@ import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, de
 import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from './lib/recs.js';
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
 import { buildWatchedUpdate } from './lib/watched.js';
+import { sanitizeSearchQuery, parseYtSearchOutput } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -2825,6 +2827,41 @@ async function getRecommendations(contentList, mode) {
 // yt-dlp cookie jar for the music endpoints. Overridable via .env so the
 // service can run from any user's home (the old box kept it at /root).
 const YT_COOKIES = process.env.YT_COOKIES || '/root/yt_cookies.txt';
+
+// Song lookup for the music page: top YouTube matches for a free-text query.
+// The query is passed to yt-dlp as its own argv entry via execFile — never
+// interpolated into a shell string. Recent results are cached briefly since
+// a search costs a few seconds of yt-dlp time.
+const musicSearchCache = new Map(); // query -> { ts, results }
+const MUSIC_SEARCH_TTL_MS = 10 * 60 * 1000;
+
+app.post('/music/search', async (req, res) => {
+    const { user, token, query } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    const q = sanitizeSearchQuery(query);
+    if (!q) return res.status(400).json({ error: 'Enter something to search for' });
+
+    const cacheKey = q.toLowerCase();
+    const cached = musicSearchCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < MUSIC_SEARCH_TTL_MS) return res.json({ results: cached.results });
+
+    try {
+        const env = { ...process.env, PATH: `/root/.deno/bin:${process.env.PATH}` };
+        const { stdout } = await execFileAsync(
+            'yt-dlp',
+            ['--cookies', YT_COOKIES, '--flat-playlist', '--dump-json', '--no-warnings', `ytsearch8:${q}`],
+            { timeout: 25000, env, maxBuffer: 10 * 1024 * 1024 }
+        );
+        const results = parseYtSearchOutput(stdout);
+        if (musicSearchCache.size >= 200) musicSearchCache.delete(musicSearchCache.keys().next().value);
+        musicSearchCache.set(cacheKey, { ts: Date.now(), results });
+        res.json({ results });
+    } catch (e) {
+        console.error('[music/search] failed:', e.message.split('\n')[0]);
+        logError(user, '/music/search', e).catch(() => {});
+        res.status(500).json({ error: 'Search failed. Try again in a moment.' });
+    }
+});
 
 app.post('/music/url', async (req, res) => {
     const { user, token, url } = req.body;
