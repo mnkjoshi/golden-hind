@@ -9,6 +9,12 @@ import { track } from '../utils/analytics.js'
 import Topbar from "../components/topbar"
 import { RemotePlayback, getRemoteTarget } from "../components/remote.jsx"
 
+const SERVERS = [
+    { n: 1, desc: 'Built-in player - subtitles, casting, downloads' },
+    { n: 2, desc: 'Embedded player (VidLink)' },
+    { n: 3, desc: 'Embedded player (VidSrc)' },
+];
+
 
 // While this browser is remote-controlling another device, the watch route
 // renders the remote transport UI instead of playing locally — so every
@@ -37,6 +43,14 @@ function LocalWatch() {
     const [autoPlay, setAutoPlay] = useState(0);
 
     const [provider, setProvider] = useState(1);
+    // Server picker. Server 1 auto-falls back to 3 when it can't load, but a
+    // MANUAL pick of Server 1 never bounces — it shows the error with
+    // one-tap alternatives instead (otherwise the fallback fights the user).
+    const [serverMenu, setServerMenu] = useState(null); // { top, right } while open
+    const [lmFailedFor, setLmFailedFor] = useState(null); // "<season>_<episode>" Server 1 failed on
+    const [lmRetry, setLmRetry] = useState(0);
+    const manualServerPickRef = useRef(false);
+    const serverBtnRef = useRef(null);
 
     // For TV shows, block the LookMovie request until progress_retrieve has responded
     // so we don't fire with season=1/episode=1 before the saved position loads.
@@ -836,6 +850,8 @@ function LocalWatch() {
     useEffect(() => {
         if (parseInt(provider) !== 1) return;
         if (!progressReady) return;
+        const manual = manualServerPickRef.current;
+        manualServerPickRef.current = false;
         // If we warmed this exact episode's stream while the previous one
         // played, use it directly and skip the network round-trip.
         const epKey = `${parseInt(season)}_${parseInt(episode)}`;
@@ -850,6 +866,16 @@ function LocalWatch() {
         setLmUrl(null);
         setLmError(null);
         setLmLoading(true);
+        const fail = () => {
+            setLmFailedFor(epKey);
+            if (manual) {
+                setLmError("Server 1 couldn't load this one. Try another server.");
+                return;
+            }
+            setProvider(3);
+            localStorage.setItem("provider" + vidID, 3);
+            showProviderToast('Server 1 unavailable - switched to Server 3');
+        };
         axios({
             method: 'post',
             url: 'https://ghb.mnkjoshi.ca/server/lookmovie',
@@ -857,6 +883,7 @@ function LocalWatch() {
         }).then(r => {
             // if (r.data.dbg) console.group('[LookMovie Debug]'), r.data.dbg.forEach(l => console.log(l)), console.groupEnd();
             if (r.data.success) {
+                setLmFailedFor(k => (k === epKey ? null : k));
                 const subs = r.data.subtitles || [];
                 setLmSubtitles(subs);
                 if (!Hls.isSupported() && subs.length > 0) {
@@ -865,16 +892,10 @@ function LocalWatch() {
                     setLmUrl(`https://ghb.mnkjoshi.ca/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
                 }
             } else {
-                setProvider(3);
-                localStorage.setItem("provider" + vidID, 3);
-                showProviderToast('LookMovie unavailable - switched to Server 3');
+                fail();
             }
-        }).catch(() => {
-            setProvider(3);
-            localStorage.setItem("provider" + vidID, 3);
-            showProviderToast('LookMovie unavailable - switched to Server 3');
-        }).finally(() => setLmLoading(false));
-    }, [provider, season, episode, progressReady]);
+        }).catch(fail).finally(() => setLmLoading(false));
+    }, [provider, season, episode, progressReady, lmRetry]);
 
     // Fetch the cross-device resume position for the current episode/movie.
     // Runs alongside the stream fetch; the quick POST almost always resolves
@@ -1575,6 +1596,37 @@ function LocalWatch() {
         providerToastTimerRef.current = setTimeout(() => setProviderToast(null), 4000);
     };
 
+    const pickServer = (n) => {
+        setServerMenu(null);
+        if (n === 1) {
+            manualServerPickRef.current = true;
+            // Already on Server 1 (e.g. after an error) → re-fetch.
+            if (parseInt(provider) === 1) setLmRetry(r => r + 1);
+        }
+        if (parseInt(provider) !== n) setProvider(n);
+        localStorage.setItem('provider' + vidID, n);
+    };
+
+    const toggleServerMenu = () => {
+        if (serverMenu) { setServerMenu(null); return; }
+        const r = serverBtnRef.current?.getBoundingClientRect();
+        if (r) setServerMenu({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    };
+
+    useEffect(() => {
+        if (!serverMenu) return;
+        const close = () => setServerMenu(null);
+        const onKey = (e) => { if (e.key === 'Escape') close(); };
+        window.addEventListener('keydown', onKey);
+        window.addEventListener('resize', close);
+        window.addEventListener('scroll', close, true);
+        return () => {
+            window.removeEventListener('keydown', onKey);
+            window.removeEventListener('resize', close);
+            window.removeEventListener('scroll', close, true);
+        };
+    }, [serverMenu]);
+
     useEffect(() => { upNextCountingRef.current = upNextCounting; }, [upNextCounting]);
     useEffect(() => { upNextDismissedRef.current = false; }, [id, season, episode]);
 
@@ -2169,6 +2221,11 @@ function LocalWatch() {
                             {lmError && !lmLoading && (
                                 <div className="watch-lm-state watch-lm-error" style={{position:'absolute',inset:0,zIndex:5}}>
                                     <p>⚠ {lmError}</p>
+                                    <div className="watch-lm-error-actions">
+                                        <button onClick={() => pickServer(2)}>Try Server 2</button>
+                                        <button onClick={() => pickServer(3)}>Try Server 3</button>
+                                        <button className="secondary" onClick={() => pickServer(1)}>Retry Server 1</button>
+                                    </div>
                                 </div>
                             )}
                             {(() => {
@@ -2336,16 +2393,48 @@ function LocalWatch() {
                             </svg>
                             <span>{partyRoomId ? `Party ${partyRoomId}` : 'Party'}</span>
                         </button>
-                        <button className="wbar-btn wbar-btn-server" onClick={() => {
-                            const next = parseInt(provider) >= 3 ? 1 : parseInt(provider) + 1;
-                            setProvider(next);
-                            localStorage.setItem('provider' + vidID, next);
-                        }}>
+                        <button
+                            ref={serverBtnRef}
+                            className={`wbar-btn wbar-btn-server${serverMenu ? ' on' : ''}`}
+                            onClick={toggleServerMenu}
+                            aria-haspopup="menu"
+                            aria-expanded={!!serverMenu}
+                        >
                             <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                                 <path d="M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zm-2 6c-.83 0-1.5-.67-1.5-1.5S17.17 16 18 16s1.5.67 1.5 1.5S18.83 19 18 19zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zm-2 6c-.83 0-1.5-.67-1.5-1.5S17.17 7 18 7s1.5.67 1.5 1.5S18.83 9 18 9z"/>
                             </svg>
-                            <span>Server {provider}</span>
+                            <span>Server {provider} ▾</span>
                         </button>
+                        {/* Portaled: .watch-options clips overflow at a fixed height */}
+                        {serverMenu && createPortal(
+                            <>
+                                <div className="server-menu-backdrop" onClick={() => setServerMenu(null)} />
+                                <div className="server-menu" role="menu" style={{ top: serverMenu.top, right: serverMenu.right }}>
+                                    {SERVERS.map(s => {
+                                        const active = parseInt(provider) === s.n;
+                                        const failed = s.n === 1 && lmFailedFor === `${parseInt(season)}_${parseInt(episode)}`;
+                                        return (
+                                            <button
+                                                key={s.n}
+                                                role="menuitemradio"
+                                                aria-checked={active}
+                                                className={`server-menu-item${active ? ' active' : ''}${failed ? ' failed' : ''}`}
+                                                onClick={() => pickServer(s.n)}
+                                            >
+                                                <span className="server-menu-name">Server {s.n}</span>
+                                                <span className="server-menu-desc">{failed ? "Didn't load this episode - tap to retry" : s.desc}</span>
+                                                {active && (
+                                                    <svg className="server-menu-check" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                        <path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </>,
+                            document.body
+                        )}
                         {parseInt(provider) === 1 && lmSubtitles.length > 0 && (
                             <div className="wbar-sub-offset">
                                 <span className="wbar-sub-offset-label">Subtitle Offset</span>
