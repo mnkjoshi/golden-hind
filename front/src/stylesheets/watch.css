@@ -1605,3 +1605,84 @@ p {
     .party-modal-join { flex-direction: column; }
     .party-modal-action-secondary { width: 100%; }
 }
+
+/* ── Server picker (portaled to body; see .watch-options overflow) ── */
+.server-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 998;
+}
+.server-menu {
+    position: fixed;
+    z-index: 999;
+    min-width: 260px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: #131838;
+    border: 1px solid rgba(63,163,255,0.3);
+    border-radius: 12px;
+    box-shadow: 0 14px 40px rgba(0,0,0,0.55);
+    font-family: 'Inter', system-ui, sans-serif;
+    animation: server-menu-in 0.14s ease;
+}
+@keyframes server-menu-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.server-menu-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 9px 12px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: #fff;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.server-menu-item:hover { background: rgba(255,255,255,0.06); }
+.server-menu-item.active {
+    background: rgba(63,163,255,0.12);
+    border-color: rgba(63,163,255,0.4);
+}
+.server-menu-name { grid-column: 1; font-size: 14px; font-weight: 600; }
+.server-menu-desc { grid-column: 1; font-size: 12px; color: rgba(255,255,255,0.55); }
+.server-menu-item.failed .server-menu-desc { color: #ff6b6b; }
+.server-menu-check {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: 16px;
+    height: 16px;
+    color: #3FA3FF;
+}
+
+.watch-lm-error-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+.watch-lm-error-actions button {
+    padding: 8px 16px;
+    border-radius: 8px;
+    background: rgba(63,163,255,0.15);
+    border: 1px solid rgba(63,163,255,0.5);
+    color: #fff;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.watch-lm-error-actions button:hover { background: rgba(63,163,255,0.28); }
+.watch-lm-error-actions button.secondary {
+    background: none;
+    border-color: rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.75);
+}
