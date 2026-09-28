@@ -68,6 +68,8 @@ function LocalWatch() {
     const [upNextCounting, setUpNextCounting] = useState(false);
     const [nextEpData, setNextEpData] = useState(null); // { name, still_path }
     const upNextTimerRef = useRef(null);
+    const upNextCountingRef = useRef(false);
+    const upNextDismissedRef = useRef(false);
     const upNextInfoRef = useRef(null);
     const executeUpNextRef = useRef(null);
 
@@ -1148,7 +1150,10 @@ function LocalWatch() {
                         return;
                     }
 
-                    if (creditsLike && !upNextInfoRef.current) score++;
+                    // Keep scoring while the time-based card is showing — this
+                    // detector is what upgrades it into a real countdown.
+                    const detectorIdle = upNextCountingRef.current || upNextDismissedRef.current;
+                    if (creditsLike && !detectorIdle) score++;
                     else if (!creditsLike) score = Math.max(0, score - 1);
 
                     if (creditsDebugEnabled) {
@@ -1160,11 +1165,16 @@ function LocalWatch() {
                         });
                     }
 
-                    if (score >= 5 && !upNextInfoRef.current) {
+                    if (score >= 5 && !detectorIdle) {
                         score = 0;
-                        const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
-                        const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
-                        triggerUpNext(nextEp, nextSe);
+                        if (upNextInfoRef.current) {
+                            setUpNextSeconds(5);
+                            setUpNextCounting(true);
+                        } else {
+                            const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
+                            const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
+                            triggerUpNext(nextEp, nextSe, true);
+                        }
                     }
                 }, 1000);
             }
@@ -1292,12 +1302,12 @@ function LocalWatch() {
                     }
                 }
                 const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
-                if (an === 1 && !upNextShown && player.duration > 0) {
-                    // Fire up-next 60s before the end of long content so the
-                    // viewer doesn't sit through the credit roll; the live
-                    // fade-to-black detector usually catches the credits earlier
-                    // anyway. For short content (≤20min) a fixed window would
-                    // trigger too early, so fall back to 95%.
+                if (an === 1 && !upNextShown && !upNextDismissedRef.current && player.duration > 0) {
+                    // Show (not start) the up-next card 60s before the end of
+                    // long content, or at 95% for short content (≤20min) where
+                    // a fixed window would be too early. It only offers Play
+                    // Now; the skip itself waits for the fade-to-black
+                    // detector or the real end of the episode.
                     const remaining = player.duration - player.currentTime;
                     const longContent = player.duration > 1200;
                     const creditsReached = longContent
@@ -1341,11 +1351,11 @@ function LocalWatch() {
                     }
                 }
                 const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
-                if (an !== 1) return;
+                if (an !== 1 || upNextDismissedRef.current) return;
                 if (upNextInfoRef.current) {
                     executeUpNextRef.current?.();
                 } else {
-                    // fallback if 95% trigger didn't fire
+                    // fallback if the time-based card never showed
                     const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
                     const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
                     if (parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe)) {
@@ -1527,13 +1537,15 @@ function LocalWatch() {
 
     // ── Up-next countdown helpers ────────────────────────────────────────────────
 
-    const triggerUpNext = (targetEpisode, targetSeason) => {
+    // autoAdvance=false only shows the card (time-based triggers: they're a
+    // guess at where credits start). The skip countdown starts only on
+    // evidence the episode is over — the fade-to-black detector confirming
+    // credits, or an embed reporting `ended`.
+    const triggerUpNext = (targetEpisode, targetSeason, autoAdvance = false) => {
         upNextInfoRef.current = { targetEpisode, targetSeason };
         setUpNextInfo({ targetEpisode, targetSeason });
         setUpNextSeconds(5);
-        // Start the 5s countdown immediately so the popup auto-advances unless
-        // the user clips it. Works for all providers, not just iframe ones.
-        setUpNextCounting(true);
+        if (autoAdvance) setUpNextCounting(true);
         // Refetch metadata for the exact target so the popup always shows the
         // right title — the [season,episode] useEffect can race with rapid
         // episode advances and leave nextEpData pointing at the wrong one.
@@ -1548,6 +1560,8 @@ function LocalWatch() {
     };
 
     const cancelUpNext = () => {
+        // ✕ means "not this episode" — nothing re-triggers until it changes.
+        upNextDismissedRef.current = true;
         upNextInfoRef.current = null;
         setUpNextInfo(null);
         setUpNextCounting(false);
@@ -1561,7 +1575,9 @@ function LocalWatch() {
         providerToastTimerRef.current = setTimeout(() => setProviderToast(null), 4000);
     };
 
-    // Countdown only runs for iframe providers (provider 4 executes immediately on ended)
+    useEffect(() => { upNextCountingRef.current = upNextCounting; }, [upNextCounting]);
+    useEffect(() => { upNextDismissedRef.current = false; }, [id, season, episode]);
+
     useEffect(() => {
         if (!upNextCounting || !upNextInfo) return;
         clearInterval(upNextTimerRef.current);
@@ -1668,17 +1684,16 @@ function LocalWatch() {
         return () => { window.open = originalOpen; };
     }, []);
 
-    // Auto-next for iframe providers (1–3) — show popup + start countdown on ended
+    // Auto-next for iframe providers (2–3) — show popup + start countdown on ended
     useEffect(() => {
         const handler = (event) => {
             if (event.data?.data?.event !== 'ended') return;
             const { autoNext: an, episode: ep, season: se, maxEp: mEp, maxSe: mSe } = playbackStateRef.current;
-            if (an !== 1) return;
+            if (an !== 1 || upNextDismissedRef.current) return;
             const nextEp = parseInt(ep) < parseInt(mEp) ? parseInt(ep) + 1 : 1;
             const nextSe = parseInt(ep) < parseInt(mEp) ? parseInt(se) : parseInt(se) + 1;
             if (parseInt(ep) < parseInt(mEp) || parseInt(se) < parseInt(mSe)) {
-                triggerUpNext(nextEp, nextSe);
-                setUpNextCounting(true);
+                triggerUpNext(nextEp, nextSe, true);
             }
         };
         window.addEventListener('message', handler);
