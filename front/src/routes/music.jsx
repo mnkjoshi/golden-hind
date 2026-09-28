@@ -13,6 +13,11 @@ export default function Music() {
     const [error, setError] = useState('');
     const [lastTitle, setLastTitle] = useState('');
     const [queue, setQueue] = useState([]);
+    // Song lookup: anything that isn't a YouTube link is treated as a search.
+    const [searchResults, setSearchResults] = useState(null); // null = no search yet
+    const [searching, setSearching] = useState(false);
+    const [searchError, setSearchError] = useState('');
+    const [searchedFor, setSearchedFor] = useState('');
     const inputRef = useRef(null);
 
     const user = localStorage.getItem('user');
@@ -21,10 +26,40 @@ export default function Music() {
     if (!user) { navigate('/auth'); return null; }
     Authenticate(user, token, navigate);
 
+    const ytPattern = /^https?:\/\/(www\.)?(youtube\.com\/watch|youtu\.be\/).+/;
+    const inputIsUrl = ytPattern.test(url.trim());
+
+    const runSearch = async () => {
+        const q = url.trim();
+        if (!q || searching) return;
+        setSearching(true);
+        setSearchError('');
+        setSearchedFor(q);
+        try {
+            const res = await axios.post('https://ghb.mnkjoshi.ca/music/search', { user, token, query: q }, { timeout: 40000 });
+            setSearchResults(res.data?.results || []);
+        } catch (e) {
+            setSearchResults([]);
+            setSearchError(e.response?.data?.error || 'Search failed. Try again in a moment.');
+        } finally {
+            setSearching(false);
+        }
+    };
+
+    const submitInput = () => (inputIsUrl ? addToQueue() : runSearch());
+
+    const queueResult = (r) => {
+        if (queue.some(q => q.url === r.url)) return;
+        setQueue(prev => [...prev, {
+            url: r.url, id: Date.now(),
+            title: r.title, channel: r.channel, duration: r.duration, thumbnail: r.thumbnail,
+        }]);
+        if (status === 'done') setStatus('idle');
+    };
+
     const addToQueue = () => {
         const trimmed = url.trim();
         if (!trimmed) return;
-        const ytPattern = /^https?:\/\/(www\.)?(youtube\.com\/watch|youtu\.be\/).+/;
         if (!ytPattern.test(trimmed)) {
             setError('Please enter a valid YouTube URL (youtube.com/watch?v=... or youtu.be/...)');
             setStatus('error');
@@ -107,7 +142,7 @@ export default function Music() {
                     </div>
                     <div>
                         <h1 className="music-title">Music Downloader</h1>
-                        <p className="music-subtitle">Download YouTube videos as MP3</p>
+                        <p className="music-subtitle">Search for a song or paste a YouTube link, then download as MP3</p>
                     </div>
                 </div>
 
@@ -117,20 +152,63 @@ export default function Music() {
                             ref={inputRef}
                             type="text"
                             className="music-url-input"
-                            placeholder="https://www.youtube.com/watch?v=..."
+                            placeholder="Search for a song, or paste a YouTube link"
                             value={url}
                             onChange={e => { setUrl(e.target.value); if (status === 'error') setStatus('idle'); }}
-                            onKeyDown={e => e.key === 'Enter' && addToQueue()}
+                            onKeyDown={e => e.key === 'Enter' && submitInput()}
                             disabled={isWorking}
                         />
                         <button
                             className="music-add-btn"
-                            onClick={addToQueue}
-                            disabled={isWorking || !url.trim()}
+                            onClick={submitInput}
+                            disabled={isWorking || searching || !url.trim()}
                         >
-                            Add
+                            {inputIsUrl ? 'Add' : searching ? 'Searching…' : 'Search'}
                         </button>
                     </div>
+
+                    {(searching || searchResults !== null) && (
+                        <div className="music-results">
+                            {searching ? (
+                                <div className="music-results-state">
+                                    <div className="music-spinner" />
+                                    <span>Searching YouTube for “{searchedFor}”…</span>
+                                </div>
+                            ) : searchError ? (
+                                <div className="music-results-state error">{searchError}</div>
+                            ) : searchResults.length === 0 ? (
+                                <div className="music-results-state">No results for “{searchedFor}”.</div>
+                            ) : (
+                                <>
+                                    <div className="music-results-header">
+                                        <span>Results for “{searchedFor}”</span>
+                                        <button className="music-clear-btn" onClick={() => setSearchResults(null)}>Close</button>
+                                    </div>
+                                    {searchResults.map(r => {
+                                        const queued = queue.some(q => q.url === r.url);
+                                        return (
+                                            <div key={r.videoId} className="music-result">
+                                                <img className="music-result-thumb" src={r.thumbnail} alt="" loading="lazy" />
+                                                <div className="music-result-info">
+                                                    <span className="music-result-title">{r.title}</span>
+                                                    <span className="music-result-meta">
+                                                        {[r.channel, r.duration].filter(Boolean).join(' · ')}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    className={`music-result-add${queued ? ' queued' : ''}`}
+                                                    onClick={() => queueResult(r)}
+                                                    disabled={queued || isWorking}
+                                                >
+                                                    {queued ? 'Queued' : '+ Queue'}
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            )}
+                        </div>
+                    )}
 
                     {status === 'error' && (
                         <div className="music-status error">
@@ -164,12 +242,23 @@ export default function Music() {
                         <div className="music-queue-list">
                             {queue.map(item => (
                                 <div key={item.id} className="music-queue-item">
-                                    <svg viewBox="0 0 24 24" fill="none" className="music-queue-icon">
-                                        <path d="M9 18V5l12-2v13" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-                                        <circle cx="6" cy="18" r="3" stroke="currentColor" strokeWidth="1.75"/>
-                                        <circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="1.75"/>
-                                    </svg>
-                                    <span className="music-queue-url">{item.url}</span>
+                                    {item.thumbnail ? (
+                                        <img className="music-queue-thumb" src={item.thumbnail} alt="" />
+                                    ) : (
+                                        <svg viewBox="0 0 24 24" fill="none" className="music-queue-icon">
+                                            <path d="M9 18V5l12-2v13" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                                            <circle cx="6" cy="18" r="3" stroke="currentColor" strokeWidth="1.75"/>
+                                            <circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="1.75"/>
+                                        </svg>
+                                    )}
+                                    {item.title ? (
+                                        <span className="music-queue-url music-queue-named">
+                                            <span className="music-queue-name">{item.title}</span>
+                                            {item.channel && <span className="music-queue-channel">{item.channel}</span>}
+                                        </span>
+                                    ) : (
+                                        <span className="music-queue-url">{item.url}</span>
+                                    )}
                                     {!isWorking && (
                                         <button className="music-queue-remove" onClick={() => removeFromQueue(item.id)}>
                                             <svg viewBox="0 0 24 24" fill="none">

@@ -50,6 +50,10 @@
 ### Books
 - **Book search** — Google Books integration with download links
 
+### Music
+- **Song lookup** — type a song name to search YouTube (top 8 matches with art, channel, and length), queue the ones you want, or paste a YouTube link directly
+- **MP3 download** — downloads every queued track as an MP3
+
 ### Stats & Tracking
 - **Year in Review** (`/stats`) — lifetime hours, sessions, days watched, last-12-months chart, most-watched titles, longest session, weighted genre breakdown; reachable from the account dropdown
 - **Episode watched tracking** — per-episode checkmarks and mark-season-watched on TV detail pages, with a season progress bar; finishing an episode in the player marks it automatically
@@ -156,6 +160,13 @@ Returns `{ "key": "youtubeVideoKey" }` (key is `null` if no trailer found).
 | Method | Route | Description |
 |--------|-------|-------------|
 | GET | `/book-search?q=` | Google Books search; returns titles, authors, descriptions, and download links |
+
+### Music
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/music/search` | Top 8 YouTube matches for `{ query }` (title, channel, duration, thumbnail), cached for 10 minutes |
+| POST | `/music/download` | Downloads a YouTube `{ url }` as MP3 (title in the `X-Title` header) |
 
 ### Stats & Watched
 
