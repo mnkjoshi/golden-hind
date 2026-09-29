@@ -186,6 +186,16 @@ app.get('/book-search', async (request, response) => {
     }
 });
 
+// Cheap session check for pages that only need to know the token is valid
+// (Authenticate hits an in-memory cache, unlike /home-mini's TMDB lookups).
+app.post('/session', async (request, response) => {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const { user, token } = request.body;
+    if (await Authenticate(user, token)) return response.status(200).send("OK");
+    response.status(202).send("UDE");
+});
+
 app.post('/login', async (request, response) => {
 
     response.setHeader("Access-Control-Allow-Credentials", "true");
@@ -2861,9 +2871,14 @@ function runYtDlp(args, timeout) {
 // ENOENT/EACCES from spawn means yt-dlp can't be run at all — retrying won't
 // help, so say so instead of "try again".
 function ytFailure(e, fallback) {
-    return (e?.code === 'ENOENT' || e?.code === 'EACCES')
-        ? { status: 503, error: "Music tools aren't set up on the server (yt-dlp can't be run)." }
-        : { status: 500, error: fallback };
+    if (e?.code === 'ENOENT' || e?.code === 'EACCES') {
+        return { status: 503, error: "Music tools aren't set up on the server (yt-dlp can't be run)." };
+    }
+    // YouTube's bot wall for datacenter IPs — a retry won't get past it.
+    if (/confirm you.?re not a bot|LOGIN_REQUIRED/i.test(`${e?.stderr || ''} ${e?.message || ''}`)) {
+        return { status: 503, error: "YouTube is blocking downloads from the server right now (bot check)." };
+    }
+    return { status: 500, error: fallback };
 }
 
 // Song lookup for the music page: official songs first, then ranked YouTube

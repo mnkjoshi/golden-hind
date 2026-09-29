@@ -3,7 +3,7 @@ import axios from 'axios'
 export default function Authenticate(user, token, navigate) {
     axios({
         method: 'post',
-        url: 'https://ghb.mnkjoshi.ca/home',
+        url: 'https://ghb.mnkjoshi.ca/session',
         data: {
             user: user,
             token: token,
@@ -16,5 +16,5 @@ export default function Authenticate(user, token, navigate) {
         } else {
             return response.data
         }
-    });
+    }).catch(() => {}); // network blip — never log the user out over it
 }
