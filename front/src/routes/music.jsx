@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
@@ -23,8 +23,13 @@ export default function Music() {
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
 
+    // Once per visit — in the render body it fired on every keystroke.
+    useEffect(() => {
+        if (user) Authenticate(user, token, navigate);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     if (!user) { navigate('/auth'); return null; }
-    Authenticate(user, token, navigate);
 
     const ytPattern = /^https?:\/\/(www\.)?(youtube\.com\/watch|youtu\.be\/).+/;
     const inputIsUrl = ytPattern.test(url.trim());
