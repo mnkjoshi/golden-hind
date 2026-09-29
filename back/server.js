@@ -26,7 +26,7 @@ import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, de
 import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from './lib/recs.js';
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
 import { buildWatchedUpdate } from './lib/watched.js';
-import { sanitizeSearchQuery, parseYtSearchOutput } from './lib/music.js';
+import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -2866,8 +2866,9 @@ function ytFailure(e, fallback) {
         : { status: 500, error: fallback };
 }
 
-// Song lookup for the music page: top YouTube matches for a free-text query.
-// The query is passed to yt-dlp as its own argv entry via execFile — never
+// Song lookup for the music page: official songs first, then ranked YouTube
+// matches for a free-text query. The query is passed to yt-dlp as its own
+// argv entry via execFile — never
 // interpolated into a shell string. Recent results are cached briefly since
 // a search costs a few seconds of yt-dlp time.
 const musicSearchCache = new Map(); // query -> { ts, results }
@@ -2884,11 +2885,36 @@ app.post('/music/search', async (req, res) => {
     if (cached && Date.now() - cached.ts < MUSIC_SEARCH_TTL_MS) return res.json({ results: cached.results });
 
     try {
-        const { stdout } = await runYtDlp(
-            ['--flat-playlist', '--dump-json', '--no-warnings', `ytsearch8:${q}`],
-            25000
-        );
-        const results = parseYtSearchOutput(stdout);
+        // Two searches in parallel: YouTube Music's Songs section returns the
+        // artist's official catalog tracks (plain YouTube search is dominated
+        // by fan lyric uploads), and regular YouTube covers everything else
+        // (live versions, remixes, non-catalog uploads).
+        const [songsRun, videosRun] = await Promise.allSettled([
+            runYtDlp(['--flat-playlist', '--playlist-end', '5', '--dump-json', '--no-warnings',
+                `https://music.youtube.com/search?q=${encodeURIComponent(q)}#songs`], 25000),
+            runYtDlp(['--flat-playlist', '--dump-json', '--no-warnings', `ytsearch8:${q}`], 25000),
+        ]);
+        if (songsRun.status === 'rejected' && videosRun.status === 'rejected') throw videosRun.reason;
+
+        const songs = songsRun.status === 'fulfilled'
+            ? parseYtSearchOutput(songsRun.value.stdout, { official: true })
+            : [];
+        const videos = videosRun.status === 'fulfilled'
+            ? rankYouTubeResults(parseYtSearchOutput(videosRun.value.stdout), q)
+            : [];
+
+        // Song entries carry only id + title; YouTube's public oEmbed gives
+        // the artist ("Bad Bunny - Topic") in a fraction of a second each.
+        await Promise.all(songs.map(async (s) => {
+            try {
+                const r = await axios.get('https://www.youtube.com/oembed', {
+                    params: { url: s.url, format: 'json' }, timeout: 4000,
+                });
+                s.channel = artistFromOembedAuthor(r.data?.author_name);
+            } catch { /* artist stays unknown; the result is still official */ }
+        }));
+
+        const results = mergeSearchResults(filterRelevantSongs(songs, q), videos);
         if (musicSearchCache.size >= 200) musicSearchCache.delete(musicSearchCache.keys().next().value);
         musicSearchCache.set(cacheKey, { ts: Date.now(), results });
         res.json({ results });

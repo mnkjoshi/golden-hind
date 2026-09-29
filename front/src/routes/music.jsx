@@ -197,6 +197,11 @@ export default function Music() {
                                                 <div className="music-result-info">
                                                     <span className="music-result-title">{r.title}</span>
                                                     <span className="music-result-meta">
+                                                        {r.official && (
+                                                            <span className="music-result-official" title="The artist's official audio, from YouTube Music">
+                                                                Official audio
+                                                            </span>
+                                                        )}
                                                         {[r.channel, r.duration].filter(Boolean).join(' · ')}
                                                     </span>
                                                 </div>

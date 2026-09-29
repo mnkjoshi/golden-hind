@@ -51,7 +51,7 @@
 - **Book search** — Google Books integration with download links
 
 ### Music
-- **Song lookup** — type a song name to search YouTube (top 8 matches with art, channel, and length), queue the ones you want, or paste a YouTube link directly
+- **Song lookup** — type a song name to search: official artist tracks from YouTube Music come first (badged "Official audio"), then YouTube results ranked so the artist's own uploads beat fan lyric videos; queue the ones you want, or paste a YouTube link directly
 - **MP3 download** — downloads every queued track as an MP3
 
 ### Stats & Tracking
@@ -165,7 +165,7 @@ Returns `{ "key": "youtubeVideoKey" }` (key is `null` if no trailer found).
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| POST | `/music/search` | Top 8 YouTube matches for `{ query }` (title, channel, duration, thumbnail), cached for 10 minutes |
+| POST | `/music/search` | Up to 10 matches for `{ query }`: official YouTube Music songs first, then ranked YouTube results (title, channel, duration, thumbnail, `official`), cached for 10 minutes |
 | POST | `/music/download` | Downloads a YouTube `{ url }` as MP3 (title in the `X-Title` header) |
 
 ### Stats & Watched
