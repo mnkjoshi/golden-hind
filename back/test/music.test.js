@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeSearchQuery, formatDuration, parseYtSearchOutput } from '../lib/music.js';
+import {
+    sanitizeSearchQuery, formatDuration, parseYtSearchOutput,
+    artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs,
+} from '../lib/music.js';
 
 test('sanitizeSearchQuery trims, collapses, strips control chars, caps length', () => {
     assert.equal(sanitizeSearchQuery('  never   gonna give  '), 'never gonna give');
@@ -24,7 +27,7 @@ test('formatDuration handles minutes, hours, and junk', () => {
 
 test('parseYtSearchOutput maps yt-dlp JSON lines to results', () => {
     const stdout = [
-        JSON.stringify({ id: 'dQw4w9WgXcQ', title: 'Never Gonna Give You Up', channel: 'Rick Astley', duration: 213 }),
+        JSON.stringify({ id: 'dQw4w9WgXcQ', title: 'Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, channel_is_verified: true }),
         JSON.stringify({ id: 'abcdefghijk', title: 'Live set', uploader: 'Some DJ' }),
     ].join('\n');
     assert.deepEqual(parseYtSearchOutput(stdout), [
@@ -35,6 +38,8 @@ test('parseYtSearchOutput maps yt-dlp JSON lines to results', () => {
             channel: 'Rick Astley',
             duration: '3:33',
             thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg',
+            verified: true,
+            official: false,
         },
         {
             videoId: 'abcdefghijk',
@@ -43,8 +48,58 @@ test('parseYtSearchOutput maps yt-dlp JSON lines to results', () => {
             channel: 'Some DJ',
             duration: null,
             thumbnail: 'https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg',
+            verified: false,
+            official: false,
         },
     ]);
+});
+
+test('parseYtSearchOutput marks YouTube Music songs official and keeps www URLs', () => {
+    const stdout = JSON.stringify({ id: 'TiebZllW8As', title: 'DtMF', url: 'https://music.youtube.com/watch?v=TiebZllW8As' });
+    const [song] = parseYtSearchOutput(stdout, { official: true });
+    assert.equal(song.official, true);
+    assert.equal(song.url, 'https://www.youtube.com/watch?v=TiebZllW8As');
+    assert.equal(song.channel, null);
+});
+
+test('artistFromOembedAuthor strips the auto-generated Topic suffix', () => {
+    assert.equal(artistFromOembedAuthor('Bad Bunny - Topic'), 'Bad Bunny');
+    assert.equal(artistFromOembedAuthor('Bad Bunny'), 'Bad Bunny');
+    assert.equal(artistFromOembedAuthor('  AC/DC - topic '), 'AC/DC');
+    assert.equal(artistFromOembedAuthor(''), null);
+    assert.equal(artistFromOembedAuthor(undefined), null);
+});
+
+test('rankYouTubeResults lifts verified artist uploads over fan lyric videos', () => {
+    // Real ytsearch order for "DtMF": a verified lyrics channel first, the
+    // artist's own visualizer last.
+    const results = [
+        { videoId: 'a', title: 'Bad Bunny - DtMF (Letra)', verified: true },
+        { videoId: 'b', title: 'Bad Bunny - DtMF (Video Lyrics)', verified: false },
+        { videoId: 'c', title: 'Dtmf - Bad Bunny (debi tirar mas fotos)', verified: false },
+        { videoId: 'd', title: 'BAD BUNNY - DtMF (Visualizer)', verified: true },
+    ];
+    assert.deepEqual(rankYouTubeResults(results, 'DtMF').map(r => r.videoId), ['d', 'c', 'a', 'b']);
+});
+
+test('rankYouTubeResults does not penalise markers the user asked for', () => {
+    const results = [
+        { videoId: 'a', title: 'DtMF', verified: false },
+        { videoId: 'b', title: 'DtMF (slowed + reverb)', verified: false },
+    ];
+    assert.deepEqual(rankYouTubeResults(results, 'dtmf').map(r => r.videoId), ['a', 'b']);
+    assert.deepEqual(rankYouTubeResults(results, 'DtMF slowed').map(r => r.videoId), ['a', 'b']);
+    // "8d" must match as a word, not inside other words
+    assert.deepEqual(rankYouTubeResults([{ videoId: 'x', title: 'Track 18dB master' }], 'q').length, 1);
+});
+
+test('mergeSearchResults puts official songs first, dedupes, caps totals', () => {
+    const songs = [{ videoId: 's1' }, { videoId: 's2' }, { videoId: 'v1' }];
+    const videos = [{ videoId: 'v1' }, { videoId: 'v2' }, { videoId: 'v3' }];
+    assert.deepEqual(mergeSearchResults(songs, videos).map(r => r.videoId), ['s1', 's2', 'v1', 'v2', 'v3']);
+    assert.deepEqual(mergeSearchResults(songs, videos, { maxSongs: 1, total: 3 }).map(r => r.videoId), ['s1', 'v1', 'v2']);
+    assert.deepEqual(mergeSearchResults(null, videos).map(r => r.videoId), ['v1', 'v2', 'v3']);
+    assert.deepEqual(mergeSearchResults([], []), []);
 });
 
 test('parseYtSearchOutput skips garbage, non-videos, and duplicates', () => {
@@ -62,4 +117,24 @@ test('parseYtSearchOutput skips garbage, non-videos, and duplicates', () => {
     assert.equal(out[0].channel, null);
     assert.deepEqual(parseYtSearchOutput(''), []);
     assert.deepEqual(parseYtSearchOutput(null), []);
+});
+
+test('filterRelevantSongs drops the same-artist drift but keeps artist searches', () => {
+    // Real YouTube Music Songs order for "DtMF"
+    const songs = [
+        { videoId: '1', title: 'DtMF', channel: 'Bad Bunny' },
+        { videoId: '2', title: 'MTG DTMF', channel: 'Dj Luan Gomes' },
+        { videoId: '3', title: 'NUEVAYoL', channel: 'Bad Bunny' },
+        { videoId: '4', title: 'PIToRRO DE COCO', channel: 'Bad Bunny' },
+    ];
+    assert.deepEqual(filterRelevantSongs(songs, 'DtMF').map(s => s.videoId), ['1', '2']);
+    // Searching the artist keeps all of their songs (and drops the other artist's)
+    assert.deepEqual(filterRelevantSongs(songs, 'bad bunny').map(s => s.videoId), ['1', '3', '4']);
+    // Accents and short words: "pitorro de coco" matches "PIToRRO DE COCO" via pitorro/coco
+    assert.ok(filterRelevantSongs(songs, 'pitórro de coco').some(s => s.videoId === '4'));
+    // The top match survives even when a misspelled query shares no word with it
+    assert.deepEqual(filterRelevantSongs(songs, 'dtfm').map(s => s.videoId), ['1']);
+    // Queries with no usable words keep everything
+    assert.equal(filterRelevantSongs(songs, 'U2').length, 4);
+    assert.deepEqual(filterRelevantSongs(null, 'x'), []);
 });
