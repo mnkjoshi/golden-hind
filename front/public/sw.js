@@ -5,7 +5,7 @@
 //   - Static assets (/, /assets/*, icons, manifest): stale-while-revalidate.
 //   - Anything else (API calls, TMDB images, proxy streams): bypass — never cache.
 
-const VERSION = 'ghind-v1';
+const VERSION = 'ghind-v2';
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 
@@ -34,10 +34,13 @@ self.addEventListener('fetch', (event) => {
     // Skip cross-origin (API, TMDB, proxied streams) — fetch directly.
     if (url.origin !== self.location.origin) return;
 
-    // Navigation requests: network-first with cached shell fallback.
+    // Navigation requests: network-first with cached shell fallback. The
+    // no-cache mode makes the network leg revalidate with the server instead
+    // of reusing the browser's HTTP-cached HTML — otherwise a stale page (and
+    // the old bundle it points at) can outlive a deploy.
     if (req.mode === 'navigate') {
         event.respondWith(
-            fetch(req).then((res) => {
+            fetch(req, { cache: 'no-cache' }).then((res) => {
                 const copy = res.clone();
                 caches.open(SHELL_CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
                 return res;
