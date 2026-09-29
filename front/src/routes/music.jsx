@@ -112,9 +112,14 @@ export default function Music() {
 
                 setLastTitle(title);
             } catch (e) {
-                const msg = e.response?.data
-                    ? (typeof e.response.data === 'string' ? e.response.data : await e.response.data.text?.() || 'Download failed')
-                    : e.message || 'Download failed';
+                // Blob responses carry the server's JSON error as text.
+                let msg = e.message || 'Download failed';
+                if (e.response?.data) {
+                    const raw = typeof e.response.data === 'string'
+                        ? e.response.data
+                        : (await e.response.data.text?.()) || '';
+                    try { msg = JSON.parse(raw).error || msg; } catch { msg = raw || msg; }
+                }
                 setError(typeof msg === 'string' ? msg : 'Download failed');
                 setStatus('error');
                 return;

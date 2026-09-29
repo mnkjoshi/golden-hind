@@ -13,9 +13,8 @@ import ytdl from '@distube/ytdl-core';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import { exec, execFile, spawn } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
-const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 // Pure helpers extracted for unit testing (see back/lib + back/test).
@@ -2824,9 +2823,48 @@ async function getRecommendations(contentList, mode) {
 }
 
 // Extract YouTube stream URL without downloading — browser fetches + converts client-side
-// yt-dlp cookie jar for the music endpoints. Overridable via .env so the
-// service can run from any user's home (the old box kept it at /root).
-const YT_COOKIES = process.env.YT_COOKIES || '/root/yt_cookies.txt';
+// yt-dlp for the music endpoints. Paths resolve under the service user's
+// home — the old box ran as root with its tools in /root, which the current
+// non-root service can't even traverse (spawn then fails with EACCES).
+// YouTube extraction in newer yt-dlp needs a JS runtime (Deno); per-user
+// installs land in ~/.deno/bin, pip --user installs in ~/.local/bin.
+const YT_DLP_BIN = process.env.YT_DLP_BIN || 'yt-dlp';
+const YT_COOKIES = process.env.YT_COOKIES || path.join(os.homedir(), 'yt_cookies.txt');
+const YT_ENV = {
+    ...process.env,
+    PATH: [
+        path.join(os.homedir(), '.deno', 'bin'),
+        path.join(os.homedir(), '.local', 'bin'),
+        '/usr/local/bin',
+        process.env.PATH,
+    ].filter(Boolean).join(':'),
+};
+
+// yt-dlp reads AND rewrites the cookie jar, so only pass it when it's both;
+// a missing or root-owned file makes yt-dlp fail outright, and search works
+// without cookies.
+function ytCookieArgs() {
+    try {
+        fs.accessSync(YT_COOKIES, fs.constants.R_OK | fs.constants.W_OK);
+        return ['--cookies', YT_COOKIES];
+    } catch {
+        return [];
+    }
+}
+
+function runYtDlp(args, timeout) {
+    return execFileAsync(YT_DLP_BIN, [...ytCookieArgs(), ...args], {
+        timeout, env: YT_ENV, maxBuffer: 10 * 1024 * 1024,
+    });
+}
+
+// ENOENT/EACCES from spawn means yt-dlp can't be run at all — retrying won't
+// help, so say so instead of "try again".
+function ytFailure(e, fallback) {
+    return (e?.code === 'ENOENT' || e?.code === 'EACCES')
+        ? { status: 503, error: "Music tools aren't set up on the server (yt-dlp can't be run)." }
+        : { status: 500, error: fallback };
+}
 
 // Song lookup for the music page: top YouTube matches for a free-text query.
 // The query is passed to yt-dlp as its own argv entry via execFile — never
@@ -2846,11 +2884,9 @@ app.post('/music/search', async (req, res) => {
     if (cached && Date.now() - cached.ts < MUSIC_SEARCH_TTL_MS) return res.json({ results: cached.results });
 
     try {
-        const env = { ...process.env, PATH: `/root/.deno/bin:${process.env.PATH}` };
-        const { stdout } = await execFileAsync(
-            'yt-dlp',
-            ['--cookies', YT_COOKIES, '--flat-playlist', '--dump-json', '--no-warnings', `ytsearch8:${q}`],
-            { timeout: 25000, env, maxBuffer: 10 * 1024 * 1024 }
+        const { stdout } = await runYtDlp(
+            ['--flat-playlist', '--dump-json', '--no-warnings', `ytsearch8:${q}`],
+            25000
         );
         const results = parseYtSearchOutput(stdout);
         if (musicSearchCache.size >= 200) musicSearchCache.delete(musicSearchCache.keys().next().value);
@@ -2859,7 +2895,8 @@ app.post('/music/search', async (req, res) => {
     } catch (e) {
         console.error('[music/search] failed:', e.message.split('\n')[0]);
         logError(user, '/music/search', e).catch(() => {});
-        res.status(500).json({ error: 'Search failed. Try again in a moment.' });
+        const f = ytFailure(e, 'Search failed. Try again in a moment.');
+        res.status(f.status).json({ error: f.error });
     }
 });
 
@@ -2878,10 +2915,9 @@ app.post('/music/url', async (req, res) => {
 
     try {
         const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        const env = { ...process.env, PATH: `/root/.deno/bin:${process.env.PATH}` };
-        const { stdout } = await execAsync(
-            `yt-dlp --cookies ${YT_COOKIES} --no-playlist -f "bestaudio[ext=webm]/bestaudio" --print "%(title)s" --print "%(url)s" "${ytUrl}"`,
-            { timeout: 30000, env }
+        const { stdout } = await runYtDlp(
+            ['--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio', '--print', '%(title)s', '--print', '%(url)s', ytUrl],
+            30000
         );
         const lines = stdout.trim().split('\n');
         const streamUrl = lines.pop();
@@ -2891,7 +2927,9 @@ app.post('/music/url', async (req, res) => {
         return res.json({ streamUrl, title, ext: 'webm' });
     } catch (e) {
         console.error('[music/url] failed:', e.message.split('\n')[0]);
-        res.status(500).json({ error: 'Failed to extract stream URL. Try again in a moment.' });
+        logError(user, '/music/url', e).catch(() => {});
+        const f = ytFailure(e, 'Failed to extract stream URL. Try again in a moment.');
+        res.status(f.status).json({ error: f.error });
     }
 });
 
@@ -2909,13 +2947,13 @@ app.post('/music/download', async (req, res) => {
 
     console.log(`[music/download] ${videoId}`);
 
-    const env = { ...process.env, PATH: `/root/.deno/bin:${process.env.PATH}` };
     const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
     try {
-        const { stdout } = await execAsync(
-            `yt-dlp --cookies ${YT_COOKIES} --no-playlist -f "bestaudio[ext=webm]/bestaudio" --print "%(title)s" --print "%(uploader)s" --print "%(upload_date)s" --print "%(url)s" "${ytUrl}"`,
-            { timeout: 30000, env }
+        const { stdout } = await runYtDlp(
+            ['--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio',
+                '--print', '%(title)s', '--print', '%(uploader)s', '--print', '%(upload_date)s', '--print', '%(url)s', ytUrl],
+            30000
         );
         const lines = stdout.trim().split('\n');
         const streamUrl = lines.pop();
@@ -2941,7 +2979,7 @@ app.post('/music/download', async (req, res) => {
             '-metadata', `album=YouTube`,
             ...(year ? ['-metadata', `date=${year}`] : []),
             '-f', 'mp3', '-'
-        ], { env });
+        ], { env: YT_ENV });
 
         ffmpeg.stdout.pipe(res);
         ffmpeg.stderr.on('data', () => {});
@@ -2952,6 +2990,8 @@ app.post('/music/download', async (req, res) => {
         ffmpeg.on('close', code => console.log(`[music/download] done: "${title}" code=${code}`));
     } catch (e) {
         console.error('[music/download] failed:', e.message.split('\n')[0]);
-        if (!res.headersSent) res.status(500).json({ error: 'Download failed. Try again in a moment.' });
+        logError(user, '/music/download', e).catch(() => {});
+        const f = ytFailure(e, 'Download failed. Try again in a moment.');
+        if (!res.headersSent) res.status(f.status).json({ error: f.error });
     }
 });
