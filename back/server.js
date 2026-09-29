@@ -2991,28 +2991,26 @@ app.post('/music/download', async (req, res) => {
     const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
     try {
+        // Metadata only. The raw stream URL is no use here: for a signed-in
+        // (cookie) session YouTube 403s it outside yt-dlp's session, so
+        // yt-dlp does the downloading below and ffmpeg just encodes.
         const { stdout } = await runYtDlp(
             ['--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio',
-                '--print', '%(title)s', '--print', '%(uploader)s', '--print', '%(upload_date)s', '--print', '%(url)s', ytUrl],
+                '--print', '%(title)s', '--print', '%(uploader)s', '--print', '%(upload_date)s', ytUrl],
             30000
         );
         const lines = stdout.trim().split('\n');
-        const streamUrl = lines.pop();
         const uploadDate = lines.pop() || '';
-        const artist = lines.pop() || '';
+        const rawArtist = lines.pop() || '';
+        const artist = rawArtist === 'NA' ? '' : rawArtist;
         const title = (lines.join(' ') || videoId).replace(/[/\\?%*:|"<>]/g, '-');
-        const year = uploadDate.slice(0, 4);
-
-        if (!streamUrl?.startsWith('http')) throw new Error('No stream URL returned');
+        const year = /^\d{8}$/.test(uploadDate) ? uploadDate.slice(0, 4) : '';
 
         console.log(`[music/download] streaming: "${title}" by ${artist}`);
-        res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(title)}.mp3`);
-        res.setHeader('X-Title', encodeURIComponent(title));
-        res.setHeader('Access-Control-Expose-Headers', 'X-Title');
-
+        const dl = spawn(YT_DLP_BIN, [...ytCookieArgs(), '--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio',
+            '-o', '-', '--quiet', '--no-warnings', ytUrl], { env: YT_ENV });
         const ffmpeg = spawn('ffmpeg', [
-            '-i', streamUrl,
+            '-i', 'pipe:0',
             '-codec:a', 'libmp3lame', '-q:a', '2',
             '-id3v2_version', '3',
             '-metadata', `title=${title}`,
@@ -3022,13 +3020,51 @@ app.post('/music/download', async (req, res) => {
             '-f', 'mp3', '-'
         ], { env: YT_ENV });
 
-        ffmpeg.stdout.pipe(res);
+        let dlErr = '';
+        dl.stderr.on('data', d => { dlErr = (dlErr + d).slice(-4000); });
         ffmpeg.stderr.on('data', () => {});
+        dl.stdout.pipe(ffmpeg.stdin);
+        ffmpeg.stdin.on('error', () => {}); // EPIPE when ffmpeg exits first
+
+        const kill = () => { dl.kill('SIGKILL'); ffmpeg.kill('SIGKILL'); };
+        const timer = setTimeout(kill, 10 * 60 * 1000);
+        res.on('close', () => { if (!res.writableFinished) kill(); }); // client gave up
+
+        // Headers go out with the first encoded bytes, so a failure before
+        // any audio flows is a real error response — not a 200 with an
+        // empty file.
+        ffmpeg.stdout.once('data', chunk => {
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(title)}.mp3`);
+            res.setHeader('X-Title', encodeURIComponent(title));
+            res.setHeader('Access-Control-Expose-Headers', 'X-Title');
+            res.write(chunk);
+            ffmpeg.stdout.pipe(res);
+        });
+
+        dl.on('error', e => {
+            console.error('[music/download] yt-dlp error:', e.message);
+            kill();
+            if (!res.headersSent) {
+                const f = ytFailure(e, 'Download failed. Try again in a moment.');
+                res.status(f.status).json({ error: f.error });
+            }
+        });
         ffmpeg.on('error', e => {
             console.error('[music/download] ffmpeg error:', e.message);
+            kill();
             if (!res.headersSent) res.status(500).json({ error: 'Conversion failed' });
         });
-        ffmpeg.on('close', code => console.log(`[music/download] done: "${title}" code=${code}`));
+        ffmpeg.on('close', code => {
+            clearTimeout(timer);
+            console.log(`[music/download] done: "${title}" code=${code}`);
+            if (!res.headersSent) {
+                const err = Object.assign(new Error(dlErr.trim().split('\n').pop() || `ffmpeg exited with code ${code}`), { stderr: dlErr });
+                logError(user, '/music/download', err).catch(() => {});
+                const f = ytFailure(err, 'Download failed. Try again in a moment.');
+                res.status(f.status).json({ error: f.error });
+            }
+        });
     } catch (e) {
         console.error('[music/download] failed:', e.message.split('\n')[0]);
         logError(user, '/music/download', e).catch(() => {});
