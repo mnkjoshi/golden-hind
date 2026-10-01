@@ -492,3 +492,59 @@
     letter-spacing: 0.02em;
     vertical-align: 1px;
 }
+
+/* ── My Songs ── */
+.music-library-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 16px;
+    padding: 20px;
+    margin-top: 16px;
+}
+.music-library-ready {
+    margin-left: 10px;
+    font-size: 12px;
+    font-weight: 400;
+    color: #8b949e;
+}
+.music-library-all {
+    background: #8b5cf6;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+    white-space: nowrap;
+}
+.music-library-all:hover:not(:disabled) { background: #7c3aed; }
+.music-library-all:disabled { opacity: 0.6; cursor: default; }
+.music-library-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #c4b5fd;
+    margin: 4px 0 12px;
+}
+.music-library-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 520px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+.music-library-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #484f58;
+    flex-shrink: 0;
+}
+.music-library-dot.ready { background: #3fb950; }
+.music-library-list .music-queue-remove:disabled { opacity: 0.35; cursor: default; }
+.music-library-list .music-queue-remove .music-spinner { width: 14px; height: 14px; }
+.music-result-save { margin-right: 6px; }

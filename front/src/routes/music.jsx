@@ -5,6 +5,21 @@ import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
 import '../stylesheets/music.css';
 
+const API = 'https://ghb.mnkjoshi.ca';
+
+// Error text from a failed request — blob responses carry the server's JSON
+// error as text.
+async function requestError(e, fallback) {
+    let msg = e.message || fallback;
+    if (e.response?.data) {
+        const raw = typeof e.response.data === 'string'
+            ? e.response.data
+            : (typeof e.response.data.text === 'function' ? await e.response.data.text() : (e.response.data.error || ''));
+        try { msg = JSON.parse(raw).error || msg; } catch { msg = raw || msg; }
+    }
+    return typeof msg === 'string' ? msg : fallback;
+}
+
 export default function Music() {
     const navigate = useNavigate();
     const [url, setUrl] = useState('');
@@ -19,13 +34,24 @@ export default function Music() {
     const [searchError, setSearchError] = useState('');
     const [searchedFor, setSearchedFor] = useState('');
     const inputRef = useRef(null);
+    // My Songs: every downloaded song, re-downloadable in bulk as a ZIP.
+    const [library, setLibrary] = useState(null); // null = loading
+    const [libraryBusy, setLibraryBusy] = useState(false);
+    const [libraryStatus, setLibraryStatus] = useState('');
+    const [libraryRowBusy, setLibraryRowBusy] = useState(null); // videoId being re-downloaded
 
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
 
+    const loadLibrary = () => axios.post(`${API}/music/library`, { user, token })
+        .then(r => setLibrary(r.data?.songs || []))
+        .catch(() => setLibrary(prev => prev || []));
+
     // Once per visit — in the render body it fired on every keystroke.
     useEffect(() => {
-        if (user) Authenticate(user, token, navigate);
+        if (!user) return;
+        Authenticate(user, token, navigate);
+        loadLibrary();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -41,7 +67,7 @@ export default function Music() {
         setSearchError('');
         setSearchedFor(q);
         try {
-            const res = await axios.post('https://ghb.mnkjoshi.ca/music/search', { user, token, query: q }, { timeout: 40000 });
+            const res = await axios.post(`${API}/music/search`, { user, token, query: q }, { timeout: 40000 });
             setSearchResults(res.data?.results || []);
         } catch (e) {
             setSearchResults([]);
@@ -84,6 +110,27 @@ export default function Music() {
 
     const removeFromQueue = (id) => setQueue(prev => prev.filter(q => q.id !== id));
 
+    // Download one song and hand it to the browser as an MP3. Returns the
+    // saved title; throws on failure.
+    const saveSong = async (songUrl) => {
+        const response = await axios.post(
+            `${API}/music/download`,
+            { user, token, url: songUrl },
+            { responseType: 'blob', timeout: 180000 }
+        );
+        const titleHeader = response.headers['x-title'];
+        const title = titleHeader ? decodeURIComponent(titleHeader) : 'download';
+        const blobUrl = URL.createObjectURL(new Blob([response.data], { type: 'audio/mpeg' }));
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `${title}.mp3`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        return title;
+    };
+
     const downloadAll = async () => {
         if (queue.length === 0) return;
         setStatus('working');
@@ -92,41 +139,12 @@ export default function Music() {
 
         for (const item of queue) {
             try {
-                setStatusLabel(`Downloading: ${item.url}`);
-
-                const response = await axios.post(
-                    'https://ghb.mnkjoshi.ca/music/download',
-                    { user, token, url: item.url },
-                    { responseType: 'blob', timeout: 180000 }
-                );
-
-                const titleHeader = response.headers['x-title'];
-                const title = titleHeader ? decodeURIComponent(titleHeader) : 'download';
-
-                setStatusLabel(`Saving: ${title}`);
-
-                const blob = new Blob([response.data], { type: 'audio/mpeg' });
-                const blobUrl = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = blobUrl;
-                a.download = `${title}.mp3`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-
-                setLastTitle(title);
+                setStatusLabel(`Downloading: ${item.title || item.url}`);
+                setLastTitle(await saveSong(item.url));
             } catch (e) {
-                // Blob responses carry the server's JSON error as text.
-                let msg = e.message || 'Download failed';
-                if (e.response?.data) {
-                    const raw = typeof e.response.data === 'string'
-                        ? e.response.data
-                        : (await e.response.data.text?.()) || '';
-                    try { msg = JSON.parse(raw).error || msg; } catch { msg = raw || msg; }
-                }
-                setError(typeof msg === 'string' ? msg : 'Download failed');
+                setError(await requestError(e, 'Download failed'));
                 setStatus('error');
+                loadLibrary();
                 return;
             }
         }
@@ -134,6 +152,60 @@ export default function Music() {
         setQueue([]);
         setStatus('done');
         setStatusLabel('');
+        loadLibrary(); // downloads are added to My Songs server-side
+    };
+
+    // "Download all": make sure every song is ready on the server (with
+    // progress), then fetch them as one ZIP. Ready songs skip YouTube entirely.
+    const downloadLibrary = async () => {
+        if (!library?.length || libraryBusy) return;
+        setLibraryBusy(true);
+        const pending = library.filter(s => !s.cached);
+        let failed = 0;
+        for (let i = 0; i < pending.length; i++) {
+            setLibraryStatus(`Preparing ${i + 1} of ${pending.length}: ${pending[i].title}`);
+            try {
+                await axios.post(`${API}/music/cache`, { user, token, videoId: pending[i].videoId }, { timeout: 180000 });
+                setLibrary(prev => prev.map(s => (s.videoId === pending[i].videoId ? { ...s, cached: true } : s)));
+            } catch {
+                failed++;
+            }
+        }
+        setLibraryStatus(failed
+            ? `${failed} song${failed === 1 ? '' : 's'} couldn't be prepared and will be left out of the ZIP. Starting download…`
+            : 'Starting download…');
+        const a = document.createElement('a');
+        a.href = `${API}/music/library/zip?user=${encodeURIComponent(user)}&token=${encodeURIComponent(token)}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setLibraryBusy(false);
+        setTimeout(() => setLibraryStatus(''), failed ? 12000 : 4000);
+    };
+
+    const downloadLibrarySong = async (song) => {
+        if (libraryRowBusy) return;
+        setLibraryRowBusy(song.videoId);
+        try {
+            await saveSong(`https://www.youtube.com/watch?v=${song.videoId}`);
+            setLibrary(prev => prev.map(s => (s.videoId === song.videoId ? { ...s, cached: true } : s)));
+        } catch (e) {
+            setLibraryStatus(await requestError(e, 'Download failed'));
+        } finally {
+            setLibraryRowBusy(null);
+        }
+    };
+
+    const removeLibrarySong = (song) => {
+        setLibrary(prev => prev.filter(s => s.videoId !== song.videoId));
+        axios.post(`${API}/music/library/remove`, { user, token, videoId: song.videoId }).catch(() => loadLibrary());
+    };
+
+    const saveResult = (r) => {
+        if (library?.some(s => s.videoId === r.videoId)) return;
+        setLibrary(prev => [{ videoId: r.videoId, title: r.title, artist: r.channel || '', thumbnail: r.thumbnail, cached: false, addedAt: Date.now() }, ...(prev || [])]);
+        axios.post(`${API}/music/library/add`, { user, token, song: { videoId: r.videoId, title: r.title, artist: r.channel } })
+            .catch(() => loadLibrary());
     };
 
     const isWorking = status === 'working';
@@ -210,6 +282,14 @@ export default function Music() {
                                                         {[r.channel, r.duration].filter(Boolean).join(' · ')}
                                                     </span>
                                                 </div>
+                                                <button
+                                                    className={`music-result-add music-result-save${library?.some(s => s.videoId === r.videoId) ? ' queued' : ''}`}
+                                                    onClick={() => saveResult(r)}
+                                                    disabled={!library || library.some(s => s.videoId === r.videoId)}
+                                                    title="Save to My Songs without downloading"
+                                                >
+                                                    {library?.some(s => s.videoId === r.videoId) ? 'Saved' : 'Save'}
+                                                </button>
                                                 <button
                                                     className={`music-result-add${queued ? ' queued' : ''}`}
                                                     onClick={() => queueResult(r)}
@@ -302,6 +382,69 @@ export default function Music() {
                         )}
                     </div>
                 )}
+
+                <div className="music-library-card">
+                    <div className="music-queue-header">
+                        <span className="music-queue-title">
+                            My Songs{library ? ` (${library.length})` : ''}
+                            {library?.length > 0 && (
+                                <span className="music-library-ready">
+                                    {library.filter(s => s.cached).length} ready offline
+                                </span>
+                            )}
+                        </span>
+                        {library?.length > 0 && (
+                            <button className="music-library-all" onClick={downloadLibrary} disabled={libraryBusy}>
+                                {libraryBusy ? 'Preparing…' : 'Download all (.zip)'}
+                            </button>
+                        )}
+                    </div>
+
+                    {libraryStatus && <div className="music-library-status">{libraryBusy && <div className="music-spinner" />}<span>{libraryStatus}</span></div>}
+
+                    {library === null ? (
+                        <div className="music-results-state"><div className="music-spinner" /><span>Loading your songs…</span></div>
+                    ) : library.length === 0 ? (
+                        <div className="music-results-state">Songs you download (or save from search) show up here.</div>
+                    ) : (
+                        <div className="music-library-list">
+                            {library.map(s => (
+                                <div key={s.videoId} className="music-queue-item">
+                                    <img className="music-queue-thumb" src={s.thumbnail} alt="" loading="lazy" />
+                                    <span className="music-queue-url music-queue-named">
+                                        <span className="music-queue-name">{s.title}</span>
+                                        {s.artist && <span className="music-queue-channel">{s.artist}</span>}
+                                    </span>
+                                    <span className={`music-library-dot${s.cached ? ' ready' : ''}`} title={s.cached ? 'Ready — downloads instantly' : 'Will be fetched from YouTube first'} />
+                                    <button
+                                        className="music-queue-remove"
+                                        onClick={() => downloadLibrarySong(s)}
+                                        disabled={!!libraryRowBusy || libraryBusy}
+                                        aria-label={`Download ${s.title}`}
+                                        title="Download MP3"
+                                    >
+                                        {libraryRowBusy === s.videoId ? <div className="music-spinner" /> : (
+                                            <svg viewBox="0 0 24 24" fill="none">
+                                                <path d="M12 15V3m0 12-4-4m4 4 4-4M4 21h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                            </svg>
+                                        )}
+                                    </button>
+                                    <button
+                                        className="music-queue-remove"
+                                        onClick={() => removeLibrarySong(s)}
+                                        disabled={libraryBusy}
+                                        aria-label={`Remove ${s.title}`}
+                                        title="Remove from My Songs"
+                                    >
+                                        <svg viewBox="0 0 24 24" fill="none">
+                                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

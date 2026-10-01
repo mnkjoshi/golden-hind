@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
     sanitizeSearchQuery, formatDuration, parseYtSearchOutput,
     artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs,
-    buildTrackTags, coverCandidates, buildMp3FfmpegArgs,
+    buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames,
 } from '../lib/music.js';
 
 test('sanitizeSearchQuery trims, collapses, strips control chars, caps length', () => {
@@ -194,4 +194,19 @@ test('buildMp3FfmpegArgs embeds the cover as attached_pic and skips empty tags',
     const noCover = buildMp3FfmpegArgs(tags, null, '/tmp/out.mp3');
     assert.deepEqual(noCover.slice(0, 5), ['-y', '-i', 'pipe:0', '-map', '0:a']);
     assert.ok(!noCover.includes('attached_pic') && !noCover.includes('1:v'));
+});
+
+test('sanitizeLibrarySong validates the id and cleans title/artist', () => {
+    assert.deepEqual(sanitizeLibrarySong({ videoId: 'TiebZllW8As', title: ' DtMF ', artist: 'Bad Bunny - Topic' }),
+        { videoId: 'TiebZllW8As', title: 'DtMF', artist: 'Bad Bunny' });
+    assert.deepEqual(sanitizeLibrarySong({ videoId: 'TiebZllW8As' }), { videoId: 'TiebZllW8As', title: 'TiebZllW8As', artist: '' });
+    assert.equal(sanitizeLibrarySong({ videoId: 'bad/id' }), null);
+    assert.equal(sanitizeLibrarySong(null), null);
+    assert.equal(sanitizeLibrarySong({ videoId: 'TiebZllW8As', title: 'x'.repeat(300) }).title.length, 200);
+});
+
+test('zipEntryNames dedupes case-insensitively and strips unsafe characters', () => {
+    assert.deepEqual(zipEntryNames(['Bad Bunny - DtMF', 'bad bunny - dtmf', 'A/B: C?', '', 'Bad Bunny - DtMF']), [
+        'Bad Bunny - DtMF.mp3', 'bad bunny - dtmf (2).mp3', 'A-B- C-.mp3', 'track.mp3', 'Bad Bunny - DtMF (3).mp3',
+    ]);
 });

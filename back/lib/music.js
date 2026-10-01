@@ -196,3 +196,26 @@ export function buildMp3FfmpegArgs(tags, coverPath, outPath) {
     args.push('-f', 'mp3', outPath);
     return args;
 }
+
+// ── My Songs library ────────────────────────────────────────────────────────
+
+// Validate a song before it's written to users/{u}/songs/{videoId}. Returns
+// null for anything malformed so the endpoint can 400 it.
+export function sanitizeLibrarySong(raw) {
+    const videoId = String(raw?.videoId ?? '');
+    if (!VIDEO_ID.test(videoId)) return null;
+    const title = tagText(raw?.title).slice(0, 200) || videoId;
+    const artist = (artistFromOembedAuthor(tagText(raw?.artist)) || '').slice(0, 100);
+    return { videoId, title, artist };
+}
+
+// Unique, filesystem-safe names for the songs inside the My Songs ZIP.
+export function zipEntryNames(fileNames) {
+    const used = new Map();
+    return fileNames.map((name) => {
+        const base = String(name || 'track').replace(/[/\\?%*:|"<>\x00-\x1F]/g, '-').trim().slice(0, 150) || 'track';
+        const n = (used.get(base.toLowerCase()) || 0) + 1;
+        used.set(base.toLowerCase(), n);
+        return n === 1 ? `${base}.mp3` : `${base} (${n}).mp3`;
+    });
+}
