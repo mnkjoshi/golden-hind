@@ -6,6 +6,7 @@ import cors from 'cors'
 import admin from "firebase-admin";
 import Search from "./endpoints/search.js"
 import axios from 'axios';
+import archiver from 'archiver';
 import * as cheerio from 'cheerio';
 import { create as createYtDlp } from 'yt-dlp-exec';
 const ytDlpExec = createYtDlp('/usr/local/bin/yt-dlp');
@@ -26,7 +27,7 @@ import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, de
 import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from './lib/recs.js';
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
 import { buildWatchedUpdate } from './lib/watched.js';
-import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs } from './lib/music.js';
+import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -2974,118 +2975,227 @@ app.post('/music/url', async (req, res) => {
     }
 });
 
-// Download a YouTube video's audio as MP3: yt-dlp extracts CDN URL, ffmpeg downloads+converts, streams to browser
+// ── Music downloads + My Songs ──────────────────────────────────────────────
+// Every finished MP3 is cached on disk by video id (plus a .json of its
+// tags), so re-downloads and "Download all" never go back to YouTube, which
+// bot-checks this server's IP. Each user's list lives at
+// users/{u}/songs/{videoId}; downloading a song adds it automatically.
+const MUSIC_CACHE_DIR = process.env.MUSIC_CACHE_DIR || path.join(os.homedir(), 'music-cache');
+fs.mkdirSync(MUSIC_CACHE_DIR, { recursive: true });
+const musicEncodesInFlight = new Map(); // videoId -> Promise (dedupes concurrent encodes)
+
+const cachedMp3Path = (videoId) => path.join(MUSIC_CACHE_DIR, `${videoId}.mp3`);
+const cachedTagsPath = (videoId) => path.join(MUSIC_CACHE_DIR, `${videoId}.json`);
+const thumbnailFor = (videoId) => `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
+
+async function readCachedSong(videoId) {
+    try {
+        const [tags, stat] = await Promise.all([
+            fs.promises.readFile(cachedTagsPath(videoId), 'utf8').then(JSON.parse),
+            fs.promises.stat(cachedMp3Path(videoId)),
+        ]);
+        return stat.size > 0 ? { tags, size: stat.size, mp3: cachedMp3Path(videoId) } : null;
+    } catch {
+        return null;
+    }
+}
+
+// yt-dlp fetches the audio (only it can: for a signed-in session YouTube 403s
+// the raw stream URL elsewhere) and pipes it to ffmpeg, which encodes into a
+// real file — the ID3 cover and Xing duration frame are finalised by seeking
+// back, which a pipe can't do (see buildMp3FfmpegArgs).
+async function encodeSongToCache(videoId) {
+    const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    console.log(`[music/download] ${videoId}`);
+    const { stdout } = await runYtDlp(
+        ['--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio',
+            '--print', '%(.{title,track,artist,artists,uploader,album,release_year,upload_date})j', ytUrl],
+        30000
+    );
+    let info = {};
+    try { info = JSON.parse(stdout.trim().split('\n').pop()); } catch { /* tags fall back to the id */ }
+    const tags = buildTrackTags(info, videoId);
+
+    // Cover art is best-effort: a failure just means no picture.
+    const coverPath = path.join(os.tmpdir(), `gh-cover-${videoId}-${Date.now()}.jpg`);
+    let haveCover = false;
+    for (const src of coverCandidates(videoId)) {
+        try {
+            const img = await axios.get(src, { responseType: 'arraybuffer', timeout: 6000, maxContentLength: 5 * 1024 * 1024 });
+            if (!String(img.headers['content-type'] || '').startsWith('image/')) continue;
+            await fs.promises.writeFile(coverPath, img.data);
+            haveCover = true;
+            break;
+        } catch { /* 404 (no maxres thumbnail) → try the next one */ }
+    }
+
+    console.log(`[music/download] streaming: "${tags.fileName}" by ${tags.artist}${haveCover ? ' (with cover)' : ''}`);
+    const partPath = path.join(MUSIC_CACHE_DIR, `.${videoId}-${Date.now()}.part.mp3`);
+    try {
+        await new Promise((resolve, reject) => {
+            const dl = spawn(YT_DLP_BIN, [...ytCookieArgs(), '--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio',
+                '-o', '-', '--quiet', '--no-warnings', ytUrl], { env: YT_ENV });
+            const ffmpeg = spawn('ffmpeg', buildMp3FfmpegArgs(tags, haveCover ? coverPath : null, partPath), { env: YT_ENV });
+            let dlErr = '';
+            dl.stderr.on('data', d => { dlErr = (dlErr + d).slice(-4000); });
+            ffmpeg.stderr.on('data', () => {});
+            dl.stdout.pipe(ffmpeg.stdin);
+            ffmpeg.stdin.on('error', () => {}); // EPIPE when ffmpeg exits first
+            const kill = () => { dl.kill('SIGKILL'); ffmpeg.kill('SIGKILL'); };
+            const timer = setTimeout(kill, 10 * 60 * 1000);
+            dl.on('error', e => { kill(); reject(e); });
+            ffmpeg.on('error', e => { kill(); reject(e); });
+            ffmpeg.on('close', async code => {
+                clearTimeout(timer);
+                console.log(`[music/download] done: "${tags.fileName}" code=${code}`);
+                const size = await fs.promises.stat(partPath).then(s => s.size).catch(() => 0);
+                if (code === 0 && size > 0) return resolve();
+                reject(Object.assign(new Error(dlErr.trim().split('\n').pop() || `ffmpeg exited with code ${code}`), { stderr: dlErr }));
+            });
+        });
+        await fs.promises.writeFile(cachedTagsPath(videoId), JSON.stringify(tags));
+        await fs.promises.rename(partPath, cachedMp3Path(videoId));
+    } finally {
+        fs.unlink(partPath, () => {});
+        if (haveCover) fs.unlink(coverPath, () => {});
+    }
+    return readCachedSong(videoId);
+}
+
+async function ensureSongCached(videoId) {
+    const cached = await readCachedSong(videoId);
+    if (cached) return cached;
+    if (!musicEncodesInFlight.has(videoId)) {
+        musicEncodesInFlight.set(videoId, encodeSongToCache(videoId).finally(() => musicEncodesInFlight.delete(videoId)));
+    }
+    return musicEncodesInFlight.get(videoId);
+}
+
+async function addSongToLibrary(user, videoId, { title, artist, fileName }) {
+    await admin.database().ref(`users/${user}/songs/${videoId}`).transaction(cur => ({
+        ...(cur || {}),
+        title, artist,
+        ...(fileName ? { fileName } : {}),
+        addedAt: cur?.addedAt || Date.now(),
+    }));
+}
+
+const videoIdFromUrl = (url) => (/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(url || '')
+    ? url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1] || null
+    : null);
+
+// Download one song as MP3 (and add it to My Songs).
 app.post('/music/download', async (req, res) => {
     const { user, token, url } = req.body;
     if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
-
-    if (!url || !/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(url)) {
-        return res.status(400).json({ error: 'Invalid YouTube URL' });
-    }
-
-    const videoId = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1];
-    if (!videoId) return res.status(400).json({ error: 'Could not extract video ID' });
-
-    console.log(`[music/download] ${videoId}`);
-
-    const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
-
+    const videoId = videoIdFromUrl(url);
+    if (!videoId) return res.status(400).json({ error: 'Invalid YouTube URL' });
     try {
-        // Metadata only. The raw stream URL is no use here: for a signed-in
-        // (cookie) session YouTube 403s it outside yt-dlp's session, so
-        // yt-dlp does the downloading below and ffmpeg just encodes.
-        const { stdout } = await runYtDlp(
-            ['--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio',
-                '--print', '%(.{title,track,artist,artists,uploader,album,release_year,upload_date})j', ytUrl],
-            30000
-        );
-        let info = {};
-        try { info = JSON.parse(stdout.trim().split('\n').pop()); } catch { /* tags fall back to the id */ }
-        const tags = buildTrackTags(info, videoId);
-        const title = tags.fileName;
-
-        // Cover art is best-effort: any failure just means an MP3 without a
-        // picture, never a failed download.
-        const coverPath = path.join(os.tmpdir(), `gh-cover-${videoId}-${Date.now()}.jpg`);
-        let haveCover = false;
-        for (const src of coverCandidates(videoId)) {
-            try {
-                const img = await axios.get(src, { responseType: 'arraybuffer', timeout: 6000, maxContentLength: 5 * 1024 * 1024 });
-                if (!String(img.headers['content-type'] || '').startsWith('image/')) continue;
-                await fs.promises.writeFile(coverPath, img.data);
-                haveCover = true;
-                break;
-            } catch { /* 404 (no maxres thumbnail) → try the next one */ }
-        }
-        const dropCover = () => { if (haveCover) fs.unlink(coverPath, () => {}); };
-
-        console.log(`[music/download] streaming: "${title}" by ${tags.artist}${haveCover ? ' (with cover)' : ''}`);
-        // Encode to a temp file, then send it: the ID3 picture and the Xing
-        // duration frame are finalised by seeking back, which a pipe can't do
-        // (see buildMp3FfmpegArgs). The music page buffers the whole file
-        // before saving anyway, so nothing is lost by not streaming.
-        const mp3Path = path.join(os.tmpdir(), `gh-mp3-${videoId}-${Date.now()}.mp3`);
-        const dropMp3 = () => fs.unlink(mp3Path, () => {});
-
-        const dl = spawn(YT_DLP_BIN, [...ytCookieArgs(), '--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio',
-            '-o', '-', '--quiet', '--no-warnings', ytUrl], { env: YT_ENV });
-        const ffmpeg = spawn('ffmpeg', buildMp3FfmpegArgs(tags, haveCover ? coverPath : null, mp3Path), { env: YT_ENV });
-
-        let dlErr = '';
-        dl.stderr.on('data', d => { dlErr = (dlErr + d).slice(-4000); });
-        ffmpeg.stderr.on('data', () => {});
-        dl.stdout.pipe(ffmpeg.stdin);
-        ffmpeg.stdin.on('error', () => {}); // EPIPE when ffmpeg exits first
-
-        let aborted = false;
-        const kill = () => { dl.kill('SIGKILL'); ffmpeg.kill('SIGKILL'); };
-        const timer = setTimeout(kill, 10 * 60 * 1000);
-        res.on('close', () => { if (!res.writableFinished) { aborted = true; kill(); } }); // client gave up
-
-        const failWith = (err, fallback) => {
-            logError(user, '/music/download', err).catch(() => {});
-            const f = ytFailure(err, fallback);
-            if (!res.headersSent) res.status(f.status).json({ error: f.error });
-        };
-
-        dl.on('error', e => {
-            console.error('[music/download] yt-dlp error:', e.message);
-            kill();
-            failWith(e, 'Download failed. Try again in a moment.');
-        });
-        ffmpeg.on('error', e => {
-            console.error('[music/download] ffmpeg error:', e.message);
-            kill();
-            dropCover();
-            dropMp3();
-            if (!res.headersSent) res.status(500).json({ error: 'Conversion failed' });
-        });
-        ffmpeg.on('close', async code => {
-            clearTimeout(timer);
-            dropCover();
-            console.log(`[music/download] done: "${title}" code=${code}`);
-            const size = await fs.promises.stat(mp3Path).then(s => s.size).catch(() => 0);
-            if (aborted || res.headersSent) { dropMp3(); return; }
-            if (code !== 0 || size === 0) {
-                dropMp3();
-                failWith(Object.assign(new Error(dlErr.trim().split('\n').pop() || `ffmpeg exited with code ${code}`), { stderr: dlErr }),
-                    'Download failed. Try again in a moment.');
-                return;
-            }
-            res.setHeader('Content-Type', 'audio/mpeg');
-            res.setHeader('Content-Length', size);
-            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(title)}.mp3`);
-            res.setHeader('X-Title', encodeURIComponent(title));
-            res.setHeader('Access-Control-Expose-Headers', 'X-Title');
-            const rs = fs.createReadStream(mp3Path);
-            rs.on('close', dropMp3);
-            rs.on('error', () => res.destroy());
-            rs.pipe(res);
-        });
+        const song = await ensureSongCached(videoId);
+        addSongToLibrary(user, videoId, song.tags).catch(e => logError(user, '/music/download library', e).catch(() => {}));
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Content-Length', song.size);
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(song.tags.fileName)}.mp3`);
+        res.setHeader('X-Title', encodeURIComponent(song.tags.fileName));
+        res.setHeader('Access-Control-Expose-Headers', 'X-Title');
+        const rs = fs.createReadStream(song.mp3);
+        rs.on('error', () => res.destroy());
+        rs.pipe(res);
     } catch (e) {
         console.error('[music/download] failed:', e.message.split('\n')[0]);
         logError(user, '/music/download', e).catch(() => {});
         const f = ytFailure(e, 'Download failed. Try again in a moment.');
         if (!res.headersSent) res.status(f.status).json({ error: f.error });
+    }
+});
+
+// My Songs list, newest first, with whether each is ready to download offline.
+app.post('/music/library', async (req, res) => {
+    const { user, token } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const songs = (await admin.database().ref(`users/${user}/songs`).once('value')).val() || {};
+        const list = await Promise.all(Object.entries(songs).map(async ([videoId, s]) => ({
+            videoId,
+            title: s.title || videoId,
+            artist: s.artist || '',
+            addedAt: s.addedAt || 0,
+            thumbnail: thumbnailFor(videoId),
+            cached: !!(await readCachedSong(videoId)),
+        })));
+        list.sort((a, b) => b.addedAt - a.addedAt);
+        res.json({ songs: list });
+    } catch (e) {
+        logError(user, '/music/library', e).catch(() => {});
+        res.status(500).json({ error: 'Could not load My Songs' });
+    }
+});
+
+app.post('/music/library/add', async (req, res) => {
+    const { user, token, song } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    const s = sanitizeLibrarySong(song);
+    if (!s) return res.status(400).json({ error: 'Invalid song' });
+    try {
+        await addSongToLibrary(user, s.videoId, s);
+        res.json({ ok: true });
+    } catch (e) {
+        logError(user, '/music/library/add', e).catch(() => {});
+        res.status(500).json({ error: 'Could not save the song' });
+    }
+});
+
+app.post('/music/library/remove', async (req, res) => {
+    const { user, token, videoId } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!/^[A-Za-z0-9_-]{11}$/.test(String(videoId || ''))) return res.status(400).json({ error: 'Invalid song' });
+    try {
+        await admin.database().ref(`users/${user}/songs/${videoId}`).remove();
+        res.json({ ok: true });
+    } catch (e) {
+        logError(user, '/music/library/remove', e).catch(() => {});
+        res.status(500).json({ error: 'Could not remove the song' });
+    }
+});
+
+// Prepare one song for offline download without sending it — "Download all"
+// calls this for each uncached song (with progress), then fetches the ZIP.
+app.post('/music/cache', async (req, res) => {
+    const { user, token, videoId } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!/^[A-Za-z0-9_-]{11}$/.test(String(videoId || ''))) return res.status(400).json({ error: 'Invalid song' });
+    try {
+        const song = await ensureSongCached(videoId);
+        addSongToLibrary(user, videoId, song.tags).catch(() => {});
+        res.json({ ok: true });
+    } catch (e) {
+        logError(user, '/music/cache', e).catch(() => {});
+        const f = ytFailure(e, 'Could not prepare this song.');
+        res.status(f.status).json({ error: f.error });
+    }
+});
+
+// Every ready song in My Songs as one ZIP. GET with query auth so the browser
+// streams it straight to disk (no giant in-memory blob). MP3s don't compress,
+// so entries are stored.
+app.get('/music/library/zip', async (req, res) => {
+    const { user, token } = req.query;
+    if (!await Authenticate(user, token)) return res.status(401).end();
+    try {
+        const songs = (await admin.database().ref(`users/${user}/songs`).once('value')).val() || {};
+        const ready = (await Promise.all(Object.keys(songs).map(readCachedSong))).filter(Boolean);
+        if (ready.length === 0) return res.status(404).json({ error: 'No songs are ready to download yet.' });
+        const names = zipEntryNames(ready.map(s => s.tags.fileName));
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="My Songs.zip"`);
+        const zip = archiver('zip', { store: true });
+        zip.on('error', () => res.destroy());
+        res.on('close', () => { if (!res.writableFinished) zip.abort(); });
+        zip.pipe(res);
+        ready.forEach((s, i) => zip.file(s.mp3, { name: names[i] }));
+        await zip.finalize();
+    } catch (e) {
+        logError(user, '/music/library/zip', e).catch(() => {});
+        if (!res.headersSent) res.status(500).json({ error: 'Could not build the ZIP' });
     }
 });
