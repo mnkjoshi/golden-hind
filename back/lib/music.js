@@ -127,3 +127,72 @@ export function mergeSearchResults(songs, videos, { maxSongs = 5, total = 10 } =
     }
     return out;
 }
+
+// ── MP3 tagging ─────────────────────────────────────────────────────────────
+
+const tagText = (v) => (typeof v === 'string' && v.trim() && v.trim() !== 'NA' ? v.trim() : '');
+
+// yt-dlp metadata (from --print '%(.{title,track,artists,...})j') → ID3 tags
+// plus the download file name. YouTube Music tracks carry real track/album/
+// artist fields; plain videos fall back to the video title and channel.
+// `artists` also lists songwriters after the performer, so only the first
+// (primary) artist is used.
+export function buildTrackTags(info, videoId) {
+    const track = tagText(info?.track);
+    const title = track || tagText(info?.title) || videoId;
+    const listed = Array.isArray(info?.artists) ? info.artists.map(tagText).filter(Boolean) : [];
+    const artist = listed[0]
+        || tagText(info?.artist).split(',')[0].trim()
+        || artistFromOembedAuthor(tagText(info?.uploader))
+        || '';
+    const album = tagText(info?.album);
+    const releaseYear = Number(info?.release_year);
+    const uploadDate = String(info?.upload_date ?? '');
+    const year = Number.isInteger(releaseYear) && releaseYear > 1800
+        ? String(releaseYear)
+        : (/^\d{8}$/.test(uploadDate) ? uploadDate.slice(0, 4) : '');
+    // "Artist - Track" only with real track metadata — a plain video title
+    // usually already names the artist.
+    const base = track && artist ? `${artist} - ${track}` : title;
+    const fileName = base.replace(/[/\\?%*:|"<>]/g, '-').slice(0, 150);
+    return { title, artist, album, year, fileName };
+}
+
+// Cover sources, best first. Both are 16:9 without letterboxing, unlike
+// hq/sddefault (4:3 with black bars), so a centre-square crop is clean. For
+// YouTube Music tracks the centre square is exactly the album art.
+// maxresdefault 404s on videos without a 720p+ upload.
+export function coverCandidates(videoId) {
+    return [
+        `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+        `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+    ];
+}
+
+// ffmpeg argv: audio from stdin (yt-dlp), optional cover image embedded as
+// the ID3 front-cover picture (APIC), tags only when known. outPath must be
+// a seekable file: ffmpeg rewrites the ID3 header (with the picture) and the
+// Xing duration frame at the end, so over a pipe the tag comes out unreadable
+// and players show the wrong length.
+export function buildMp3FfmpegArgs(tags, coverPath, outPath) {
+    const args = ['-y', '-i', 'pipe:0'];
+    if (coverPath) args.push('-i', coverPath);
+    args.push('-map', '0:a');
+    if (coverPath) {
+        args.push(
+            '-map', '1:v',
+            '-c:v', 'mjpeg', '-q:v', '2',
+            '-vf', 'crop=min(iw\\,ih):min(iw\\,ih),scale=600:600',
+            '-disposition:v', 'attached_pic',
+            '-metadata:s:v', 'title=Album cover',
+            '-metadata:s:v', 'comment=Cover (front)',
+        );
+    }
+    args.push('-codec:a', 'libmp3lame', '-q:a', '2', '-id3v2_version', '3');
+    const meta = { title: tags.title, artist: tags.artist, album: tags.album, date: tags.year };
+    for (const [key, value] of Object.entries(meta)) {
+        if (value) args.push('-metadata', `${key}=${value}`);
+    }
+    args.push('-f', 'mp3', outPath);
+    return args;
+}

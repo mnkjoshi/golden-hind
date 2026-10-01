@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
     sanitizeSearchQuery, formatDuration, parseYtSearchOutput,
     artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs,
+    buildTrackTags, coverCandidates, buildMp3FfmpegArgs,
 } from '../lib/music.js';
 
 test('sanitizeSearchQuery trims, collapses, strips control chars, caps length', () => {
@@ -137,4 +138,60 @@ test('filterRelevantSongs drops the same-artist drift but keeps artist searches'
     // Queries with no usable words keep everything
     assert.equal(filterRelevantSongs(songs, 'U2').length, 4);
     assert.deepEqual(filterRelevantSongs(null, 'x'), []);
+});
+
+test('buildTrackTags uses YouTube Music track metadata with the primary artist', () => {
+    // Real yt-dlp output for Bad Bunny's DtMF (artists includes songwriters)
+    const tags = buildTrackTags({
+        title: 'DtMF', track: 'DtMF',
+        artists: ['Bad Bunny', 'Benito A. Martinez Ocasio', 'Scott Dittrich'],
+        artist: 'Bad Bunny, Benito A. Martinez Ocasio, Scott Dittrich',
+        uploader: 'Bad Bunny', album: 'DeBÍ TiRAR MáS FOToS',
+        release_year: 2024, upload_date: '20250105',
+    }, 'TiebZllW8As');
+    assert.deepEqual(tags, {
+        title: 'DtMF', artist: 'Bad Bunny', album: 'DeBÍ TiRAR MáS FOToS',
+        year: '2024', fileName: 'Bad Bunny - DtMF',
+    });
+});
+
+test('buildTrackTags falls back to video title, channel, and upload year', () => {
+    const tags = buildTrackTags({
+        title: 'Queen – Bohemian Rhapsody (Official Video Remastered)',
+        uploader: 'Queen Official', upload_date: '20080801', album: 'NA', track: null,
+    }, 'fJ9rUzIMcZQ');
+    assert.deepEqual(tags, {
+        title: 'Queen – Bohemian Rhapsody (Official Video Remastered)',
+        artist: 'Queen Official', album: '', year: '2008',
+        fileName: 'Queen – Bohemian Rhapsody (Official Video Remastered)',
+    });
+    // Topic suffix stripped, unsafe file-name characters replaced, empty info survives
+    assert.equal(buildTrackTags({ title: 'A/B: C?', uploader: 'X - Topic' }, 'id').artist, 'X');
+    assert.equal(buildTrackTags({ title: 'A/B: C?' }, 'id').fileName, 'A-B- C-');
+    assert.deepEqual(buildTrackTags(null, 'vid12345678'), {
+        title: 'vid12345678', artist: '', album: '', year: '', fileName: 'vid12345678',
+    });
+});
+
+test('coverCandidates prefers maxres then mq thumbnails', () => {
+    assert.deepEqual(coverCandidates('TiebZllW8As'), [
+        'https://i.ytimg.com/vi/TiebZllW8As/maxresdefault.jpg',
+        'https://i.ytimg.com/vi/TiebZllW8As/mqdefault.jpg',
+    ]);
+});
+
+test('buildMp3FfmpegArgs embeds the cover as attached_pic and skips empty tags', () => {
+    const tags = { title: 'DtMF', artist: 'Bad Bunny', album: '', year: '2024' };
+    const withCover = buildMp3FfmpegArgs(tags, '/tmp/c.jpg', '/tmp/out.mp3');
+    assert.deepEqual(withCover.slice(0, 7), ['-y', '-i', 'pipe:0', '-i', '/tmp/c.jpg', '-map', '0:a']);
+    assert.ok(withCover.includes('attached_pic'));
+    assert.equal(withCover[withCover.indexOf('-map', 6) + 1], '1:v');
+    assert.ok(withCover.includes('title=DtMF') && withCover.includes('artist=Bad Bunny') && withCover.includes('date=2024'));
+    assert.ok(!withCover.some(a => a.startsWith('album=')));
+    // Always a real file: the ID3 picture and duration frame need a seekable output
+    assert.deepEqual(withCover.slice(-3), ['-f', 'mp3', '/tmp/out.mp3']);
+
+    const noCover = buildMp3FfmpegArgs(tags, null, '/tmp/out.mp3');
+    assert.deepEqual(noCover.slice(0, 5), ['-y', '-i', 'pipe:0', '-map', '0:a']);
+    assert.ok(!noCover.includes('attached_pic') && !noCover.includes('1:v'));
 });
