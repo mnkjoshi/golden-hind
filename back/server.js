@@ -26,7 +26,7 @@ import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, de
 import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from './lib/recs.js';
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
 import { buildWatchedUpdate } from './lib/watched.js';
-import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs } from './lib/music.js';
+import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -2996,29 +2996,40 @@ app.post('/music/download', async (req, res) => {
         // yt-dlp does the downloading below and ffmpeg just encodes.
         const { stdout } = await runYtDlp(
             ['--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio',
-                '--print', '%(title)s', '--print', '%(uploader)s', '--print', '%(upload_date)s', ytUrl],
+                '--print', '%(.{title,track,artist,artists,uploader,album,release_year,upload_date})j', ytUrl],
             30000
         );
-        const lines = stdout.trim().split('\n');
-        const uploadDate = lines.pop() || '';
-        const rawArtist = lines.pop() || '';
-        const artist = rawArtist === 'NA' ? '' : rawArtist;
-        const title = (lines.join(' ') || videoId).replace(/[/\\?%*:|"<>]/g, '-');
-        const year = /^\d{8}$/.test(uploadDate) ? uploadDate.slice(0, 4) : '';
+        let info = {};
+        try { info = JSON.parse(stdout.trim().split('\n').pop()); } catch { /* tags fall back to the id */ }
+        const tags = buildTrackTags(info, videoId);
+        const title = tags.fileName;
 
-        console.log(`[music/download] streaming: "${title}" by ${artist}`);
+        // Cover art is best-effort: any failure just means an MP3 without a
+        // picture, never a failed download.
+        const coverPath = path.join(os.tmpdir(), `gh-cover-${videoId}-${Date.now()}.jpg`);
+        let haveCover = false;
+        for (const src of coverCandidates(videoId)) {
+            try {
+                const img = await axios.get(src, { responseType: 'arraybuffer', timeout: 6000, maxContentLength: 5 * 1024 * 1024 });
+                if (!String(img.headers['content-type'] || '').startsWith('image/')) continue;
+                await fs.promises.writeFile(coverPath, img.data);
+                haveCover = true;
+                break;
+            } catch { /* 404 (no maxres thumbnail) → try the next one */ }
+        }
+        const dropCover = () => { if (haveCover) fs.unlink(coverPath, () => {}); };
+
+        console.log(`[music/download] streaming: "${title}" by ${tags.artist}${haveCover ? ' (with cover)' : ''}`);
+        // Encode to a temp file, then send it: the ID3 picture and the Xing
+        // duration frame are finalised by seeking back, which a pipe can't do
+        // (see buildMp3FfmpegArgs). The music page buffers the whole file
+        // before saving anyway, so nothing is lost by not streaming.
+        const mp3Path = path.join(os.tmpdir(), `gh-mp3-${videoId}-${Date.now()}.mp3`);
+        const dropMp3 = () => fs.unlink(mp3Path, () => {});
+
         const dl = spawn(YT_DLP_BIN, [...ytCookieArgs(), '--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio',
             '-o', '-', '--quiet', '--no-warnings', ytUrl], { env: YT_ENV });
-        const ffmpeg = spawn('ffmpeg', [
-            '-i', 'pipe:0',
-            '-codec:a', 'libmp3lame', '-q:a', '2',
-            '-id3v2_version', '3',
-            '-metadata', `title=${title}`,
-            '-metadata', `artist=${artist}`,
-            '-metadata', `album=YouTube`,
-            ...(year ? ['-metadata', `date=${year}`] : []),
-            '-f', 'mp3', '-'
-        ], { env: YT_ENV });
+        const ffmpeg = spawn('ffmpeg', buildMp3FfmpegArgs(tags, haveCover ? coverPath : null, mp3Path), { env: YT_ENV });
 
         let dlErr = '';
         dl.stderr.on('data', d => { dlErr = (dlErr + d).slice(-4000); });
@@ -3026,44 +3037,50 @@ app.post('/music/download', async (req, res) => {
         dl.stdout.pipe(ffmpeg.stdin);
         ffmpeg.stdin.on('error', () => {}); // EPIPE when ffmpeg exits first
 
+        let aborted = false;
         const kill = () => { dl.kill('SIGKILL'); ffmpeg.kill('SIGKILL'); };
         const timer = setTimeout(kill, 10 * 60 * 1000);
-        res.on('close', () => { if (!res.writableFinished) kill(); }); // client gave up
+        res.on('close', () => { if (!res.writableFinished) { aborted = true; kill(); } }); // client gave up
 
-        // Headers go out with the first encoded bytes, so a failure before
-        // any audio flows is a real error response — not a 200 with an
-        // empty file.
-        ffmpeg.stdout.once('data', chunk => {
-            res.setHeader('Content-Type', 'audio/mpeg');
-            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(title)}.mp3`);
-            res.setHeader('X-Title', encodeURIComponent(title));
-            res.setHeader('Access-Control-Expose-Headers', 'X-Title');
-            res.write(chunk);
-            ffmpeg.stdout.pipe(res);
-        });
+        const failWith = (err, fallback) => {
+            logError(user, '/music/download', err).catch(() => {});
+            const f = ytFailure(err, fallback);
+            if (!res.headersSent) res.status(f.status).json({ error: f.error });
+        };
 
         dl.on('error', e => {
             console.error('[music/download] yt-dlp error:', e.message);
             kill();
-            if (!res.headersSent) {
-                const f = ytFailure(e, 'Download failed. Try again in a moment.');
-                res.status(f.status).json({ error: f.error });
-            }
+            failWith(e, 'Download failed. Try again in a moment.');
         });
         ffmpeg.on('error', e => {
             console.error('[music/download] ffmpeg error:', e.message);
             kill();
+            dropCover();
+            dropMp3();
             if (!res.headersSent) res.status(500).json({ error: 'Conversion failed' });
         });
-        ffmpeg.on('close', code => {
+        ffmpeg.on('close', async code => {
             clearTimeout(timer);
+            dropCover();
             console.log(`[music/download] done: "${title}" code=${code}`);
-            if (!res.headersSent) {
-                const err = Object.assign(new Error(dlErr.trim().split('\n').pop() || `ffmpeg exited with code ${code}`), { stderr: dlErr });
-                logError(user, '/music/download', err).catch(() => {});
-                const f = ytFailure(err, 'Download failed. Try again in a moment.');
-                res.status(f.status).json({ error: f.error });
+            const size = await fs.promises.stat(mp3Path).then(s => s.size).catch(() => 0);
+            if (aborted || res.headersSent) { dropMp3(); return; }
+            if (code !== 0 || size === 0) {
+                dropMp3();
+                failWith(Object.assign(new Error(dlErr.trim().split('\n').pop() || `ffmpeg exited with code ${code}`), { stderr: dlErr }),
+                    'Download failed. Try again in a moment.');
+                return;
             }
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Content-Length', size);
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(title)}.mp3`);
+            res.setHeader('X-Title', encodeURIComponent(title));
+            res.setHeader('Access-Control-Expose-Headers', 'X-Title');
+            const rs = fs.createReadStream(mp3Path);
+            rs.on('close', dropMp3);
+            rs.on('error', () => res.destroy());
+            rs.pipe(res);
         });
     } catch (e) {
         console.error('[music/download] failed:', e.message.split('\n')[0]);
