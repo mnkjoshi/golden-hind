@@ -4,10 +4,11 @@
 // eslint flags React as unused, but JSX here compiles with the classic runtime.
 import React, { useEffect, useState } from 'react';
 import {
-    useMusicPlayer, currentSong, isActiveHere, displayPosition, remoteIsStale,
+    useMusicPlayer, currentSong, isActiveHere, displayPosition, remoteIsStale, coverUrl,
     togglePlay, next, prev, seek, setShuffle, setRepeat, transferHere,
 } from '../player/musicPlayer.js';
 import { formatClock } from '../utils/remote.js';
+import CoverArt from './coverArt.jsx';
 import { nextRepeatMode } from '../utils/player.js';
 
 const I = {
@@ -54,7 +55,9 @@ export default function NowPlaying({ onPlay, onShuffle }) {
 
     return (
         <div className="np-card">
-            <img className="np-art" src={`https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg`} alt="" />
+            {/* Apple Music-style backdrop: the cover, heavily blurred */}
+            <div className="np-backdrop" style={{ backgroundImage: `url(${coverUrl(song.videoId)}), url(https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg)` }} />
+            <CoverArt className="np-art" videoId={song.videoId} />
             <div className="np-meta">
                 <span className="np-title">{song.title}</span>
                 <span className="np-artist">
