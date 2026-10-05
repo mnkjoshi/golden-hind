@@ -13,6 +13,15 @@ import PlayerBar from './playerBar.jsx';
 import PlaylistPicker from './playlistPicker.jsx';
 
 const GLITCH_FRAMES = [TextLogoGlitch1, TextLogoGlitch2, TextLogoGlitch3, TextLogoGlitch4, TextLogoGlitch5];
+// Only devices with a real hover use the glitch, so only they fetch the
+// frames — up front, so the first hover doesn't flash half-loaded images.
+const CAN_HOVER = typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches;
+let glitchPreloaded = false;
+function preloadGlitchFrames() {
+    if (glitchPreloaded || !CAN_HOVER) return;
+    glitchPreloaded = true;
+    for (const src of GLITCH_FRAMES) { const img = new Image(); img.src = src; }
+}
 
 const BASE_URL = 'https://ghb.mnkjoshi.ca';
 
@@ -65,7 +74,12 @@ export default function Topbar() {
     const glitchIntervalRef = useRef(null);
     const lastGlitchIndexRef = useRef(-1);
 
-    const startGlitch = () => {
+    // Hover glitch, mouse only: a tap fires a synthetic "enter" with no
+    // "leave", which used to leave the logo glitching forever. One timer at
+    // most, and it stops if the window loses focus or the bar unmounts.
+    const startGlitch = (e) => {
+        if (e.pointerType !== 'mouse') return;
+        clearInterval(glitchIntervalRef.current);
         glitchIntervalRef.current = setInterval(() => {
             let next;
             do { next = Math.floor(Math.random() * GLITCH_FRAMES.length); } while (next === lastGlitchIndexRef.current);
@@ -76,8 +90,20 @@ export default function Topbar() {
 
     const stopGlitch = () => {
         clearInterval(glitchIntervalRef.current);
+        glitchIntervalRef.current = null;
         setLogoSrc(TextLogo);
     };
+    useEffect(() => {
+        preloadGlitchFrames();
+        const stop = () => { if (glitchIntervalRef.current) stopGlitch(); };
+        window.addEventListener('blur', stop);
+        document.addEventListener('visibilitychange', stop);
+        return () => {
+            clearInterval(glitchIntervalRef.current);
+            window.removeEventListener('blur', stop);
+            document.removeEventListener('visibilitychange', stop);
+        };
+    }, []);
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -331,7 +357,7 @@ export default function Topbar() {
                 <div className="topbar-content">
                     {/* Logo */}
                     <div className="topbar-left">
-                        <button className="topbar-logo" onClick={() => navigate('/app')} onMouseEnter={startGlitch} onMouseLeave={stopGlitch}>
+                        <button className="topbar-logo" onClick={() => navigate('/app')} onPointerEnter={startGlitch} onPointerLeave={stopGlitch}>
                             <img src={logoSrc} alt="Golden Hind" className="logo-text" />
                         </button>
                     </div>
