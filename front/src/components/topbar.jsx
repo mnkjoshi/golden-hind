@@ -275,6 +275,8 @@ export default function Topbar() {
 
     // Hidden on the watch page so it never sits over the video controls.
     const showTabbar = isMobile && !location.pathname.startsWith('/watch/');
+    // The music pages are their own section with their own tabs.
+    const inMusic = location.pathname === '/music' || location.pathname.startsWith('/music/');
     useEffect(() => {
         document.body.classList.toggle('has-tabbar', showTabbar);
         return () => document.body.classList.remove('has-tabbar');
@@ -417,6 +419,14 @@ export default function Topbar() {
 
                         {!isMobile && notifSection}
 
+                        {isMobile && !inMusic && (
+                            <button className="topbar-search-icon-btn topbar-mobile-search" onClick={() => navigate('/search')} aria-label="Search movies and shows">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                            </button>
+                        )}
+
                         <div className="account-section" ref={dropdownRef}>
                             <button className="account-button" onClick={() => setDropdownOpen(!dropdownOpen)}>
                                 <div className="user-avatar">
@@ -471,17 +481,31 @@ export default function Topbar() {
                 </div>
             </nav>
 
-            {showTabbar && (
+            {showTabbar && (inMusic ? (
+                <nav className="mobile-tabbar music" aria-label="Music">
+                    <button className={`mobile-tab${location.pathname === '/music' ? ' active' : ''}`} onClick={() => navigate('/music')}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5z" /></svg>
+                        <span className="tab-label">Home</span>
+                    </button>
+                    <button className={`mobile-tab${location.pathname === '/music/search' ? ' active' : ''}`} onClick={() => navigate('/music/search')}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" /></svg>
+                        <span className="tab-label">Search</span>
+                    </button>
+                    <button className={`mobile-tab${location.pathname === '/music/library' ? ' active' : ''}`} onClick={() => navigate('/music/library')}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 3v18M9 3v18" /><path d="m14 4 5 16" /></svg>
+                        <span className="tab-label">Library</span>
+                    </button>
+                    {/* Not a tab here, but it still runs player mode / the controller bar */}
+                    <RemoteControl hideButton />
+                </nav>
+            ) : (
                 <nav className="mobile-tabbar" aria-label="Main">
                     <button className={`mobile-tab${location.pathname === '/app' ? ' active' : ''}`} onClick={() => navigate('/app')}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5z" /></svg>
                         <span className="tab-label">Home</span>
                     </button>
-                    <button className={`mobile-tab${location.pathname === '/search' ? ' active' : ''}`} onClick={() => navigate('/search')}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" /></svg>
-                        <span className="tab-label">Search</span>
-                    </button>
-                    <button className={`mobile-tab${location.pathname === '/music' ? ' active' : ''}`} onClick={() => navigate('/music')}>
+                    <div className="mobile-tab-slot"><RemoteControl label="Remote" /></div>
+                    <button className="mobile-tab" onClick={() => navigate('/music')}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
                         <span className="tab-label">Music</span>
                     </button>
@@ -489,10 +513,9 @@ export default function Topbar() {
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5A2.5 2.5 0 0 0 4 21.5v-2z" /><path d="M8 7h7" /></svg>
                         <span className="tab-label">Books</span>
                     </button>
-                    <div className="mobile-tab-slot"><RemoteControl label="Remote" /></div>
                     <div className="mobile-tab-slot">{notifSection}</div>
                 </nav>
-            )}
+            ))}
 
             {/* ── Account Settings Modal ── */}
             {showAccountModal && (

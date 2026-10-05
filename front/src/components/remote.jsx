@@ -108,7 +108,7 @@ export function sendRemotePreview(contentId) {
         .catch(() => {});
 }
 
-export default function RemoteControl({ label } = {}) {
+export default function RemoteControl({ label, hideButton } = {}) {
     const navigate = useNavigate();
     const location = useLocation();
     const [modalOpen, setModalOpen] = useState(false);
@@ -393,7 +393,7 @@ export default function RemoteControl({ label } = {}) {
 
     return (
         <>
-            <button
+            {!hideButton && <button
                 className={`remote-toggle ${active ? 'active' : ''}`}
                 type="button"
                 onClick={openModal}
@@ -407,7 +407,7 @@ export default function RemoteControl({ label } = {}) {
                 </svg>
                 {target && <span className="remote-toggle-label">{target.name}</span>}
                 {label && <span className="tab-label">{label}</span>}
-            </button>
+            </button>}
 
             {target && !onWatchPage && miniState?.contentId && (
                 <div className="remote-mini-bar">

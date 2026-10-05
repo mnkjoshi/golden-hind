@@ -1,7 +1,7 @@
 // Bottom music bar, rendered from the Topbar so it's on every page. All
 // state lives in player/musicPlayer.js — this only displays and dispatches,
 // so remounting on navigation never interrupts playback.
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 // eslint flags React as unused, but JSX here compiles with the classic runtime.
 import React, { useEffect, useState } from 'react';
 import {
@@ -10,6 +10,7 @@ import {
     pauseForVideo, setVolume, getVolume, streamUrl, setExpanded,
 } from '../player/musicPlayer.js';
 import FullPlayer from './fullPlayer.jsx';
+import { listOffline, saveOffline, removeOffline } from '../player/offlineSongs.js';
 import { formatClock } from '../utils/remote.js';
 import CoverArt from './coverArt.jsx';
 import { nextRepeatMode } from '../utils/player.js';
@@ -23,6 +24,7 @@ const Icon = {
     repeat: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>,
     device: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>,
     download: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 21h16" /></svg>,
+    more: <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>,
     volume: <svg viewBox="0 0 24 24" fill="none"><path d="M4.5 9.5v5H8l4.5 4v-13L8 9.5H4.5z" fill="currentColor" /><path d="M15.5 9.2a4.2 4.2 0 0 1 0 5.6M18 6.8a7.6 7.6 0 0 1 0 10.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>,
 };
 
@@ -31,6 +33,11 @@ export default function PlayerBar() {
     const location = useLocation();
     const [, setTick] = useState(0);
     const [scrub, setScrub] = useState(null);
+    const navigate = useNavigate();
+    // ⋯ options sheet (phones)
+    const [optionsOpen, setOptionsOpen] = useState(false);
+    const [onPhone, setOnPhone] = useState(false);
+    const [phoneBusy, setPhoneBusy] = useState(false);
     const onWatch = location.pathname.startsWith('/watch/');
     const song = currentSong(s);
     const here = isActiveHere(s);
@@ -57,7 +64,22 @@ export default function PlayerBar() {
         return () => document.body.classList.remove('has-music-player');
     }, [visible]);
 
+    useEffect(() => {
+        if (!optionsOpen || !song) return;
+        listOffline().then(ids => setOnPhone(ids.has(song.videoId)));
+    }, [optionsOpen, song?.videoId]);
+
     if (!visible) return null;
+
+    const togglePhone = async () => {
+        if (phoneBusy) return;
+        setPhoneBusy(true);
+        try {
+            if (onPhone) { await removeOffline(song.videoId); setOnPhone(false); }
+            else { await saveOffline(song.videoId); setOnPhone(true); }
+        } catch { /* storage full / offline — the sheet just doesn't flip */ }
+        setPhoneBusy(false);
+    };
 
     const position = scrub ?? displayPosition(s);
     const duration = s.duration || 0;
@@ -88,14 +110,14 @@ export default function PlayerBar() {
 
             <div className="player-center">
                 <div className="player-controls">
-                    <button className={`player-icon-btn player-desktop${s.shuffle ? ' on' : ''}`} onClick={() => setShuffle(!s.shuffle)} aria-label="Shuffle" title="Shuffle">{Icon.shuffle}</button>
-                    <button className="player-icon-btn player-desktop" onClick={prev} aria-label="Previous">{Icon.prev}</button>
+                    <button className={`player-icon-btn${s.shuffle ? ' on' : ''}`} onClick={() => setShuffle(!s.shuffle)} aria-label="Shuffle" title="Shuffle">{Icon.shuffle}</button>
+                    <button className="player-icon-btn" onClick={prev} aria-label="Previous">{Icon.prev}</button>
                     <button className="player-play-btn" onClick={() => togglePlay()} aria-label={paused ? 'Play' : 'Pause'}>
                         {s.loading && here && !paused ? <span className="player-spinner" /> : (paused ? Icon.play : Icon.pause)}
                     </button>
-                    <button className="player-icon-btn player-desktop" onClick={() => next()} aria-label="Next">{Icon.next}</button>
+                    <button className="player-icon-btn" onClick={() => next()} aria-label="Next">{Icon.next}</button>
                     <button
-                        className={`player-icon-btn player-desktop player-repeat${s.repeat !== 'off' ? ' on' : ''}`}
+                        className={`player-icon-btn player-repeat${s.repeat !== 'off' ? ' on' : ''}`}
                         onClick={() => setRepeat(nextRepeatMode(s.repeat))}
                         aria-label={`Repeat: ${s.repeat}`}
                         title={`Repeat: ${s.repeat}`}
@@ -122,6 +144,7 @@ export default function PlayerBar() {
             </div>
 
             <div className="player-right">
+                <button className="player-icon-btn player-options-btn" onClick={() => setOptionsOpen(true)} aria-label="More options">{Icon.more}</button>
                 {!here && (
                     <button className="player-here-btn" onClick={transferHere} title="Move playback to this device">
                         {Icon.device}<span>Play here</span>
@@ -137,6 +160,25 @@ export default function PlayerBar() {
             </div>
         </div>
         {s.expanded && <FullPlayer />}
+        {optionsOpen && (
+            <div className="player-sheet-backdrop" onClick={() => setOptionsOpen(false)}>
+                <div className="player-sheet" role="menu" onClick={e => e.stopPropagation()}>
+                    <div className="player-sheet-head">
+                        <CoverArt className="player-sheet-cover" videoId={song.videoId} />
+                        <span className="player-meta">
+                            <span className="player-title">{song.title}</span>
+                            <span className="player-artist">{song.artist}</span>
+                        </span>
+                    </div>
+                    <button onClick={() => { setOptionsOpen(false); setExpanded(true); }}>Open player</button>
+                    <a href={streamUrl(song.videoId, true)} onClick={() => setOptionsOpen(false)}>Download MP3</a>
+                    <button onClick={togglePhone} disabled={phoneBusy}>{phoneBusy ? 'Saving…' : onPhone ? 'Remove from this phone' : 'Save to this phone'}</button>
+                    {!here && <button onClick={() => { setOptionsOpen(false); transferHere(); }}>Play on this phone</button>}
+                    <button onClick={() => { setOptionsOpen(false); navigate('/music/library'); }}>Go to Library</button>
+                    <button className="player-sheet-cancel" onClick={() => setOptionsOpen(false)}>Cancel</button>
+                </div>
+            </div>
+        )}
         </>
     );
 }

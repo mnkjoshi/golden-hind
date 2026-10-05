@@ -1241,3 +1241,10 @@
     body.has-tabbar.has-music-player .stats-promo-pill { bottom: calc(134px + env(safe-area-inset-bottom, 0px)); }
     body.has-tabbar.has-music-player .stats-promo-pill.raised { bottom: calc(184px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* Movies section on phones: 5 tabs (search lives in the top bar). Music: 3. */
+@media (max-width: 800px) {
+    .mobile-tabbar { grid-template-columns: repeat(5, 1fr); }
+    .mobile-tabbar.music { grid-template-columns: repeat(3, 1fr); }
+    .topbar-right .topbar-mobile-search { display: flex; }
+}
