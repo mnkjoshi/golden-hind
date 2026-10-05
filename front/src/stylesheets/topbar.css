@@ -1101,3 +1101,58 @@
 @media (max-width: 800px) {
     .topbar-music-icon-btn { display: flex; }
 }
+
+/* ── Status bar / Dynamic Island ──
+   The phone breakpoints above set a fixed height, which (with border-box
+   sizing) swallowed the safe-area padding and pushed the icons up under the
+   Dynamic Island. Keep the safe-area strip on top of every height. */
+@media (max-width: 600px) {
+    .modern-topbar { height: calc(56px + env(safe-area-inset-top, 0px)); }
+}
+@media (max-width: 480px) {
+    .modern-topbar { height: calc(54px + env(safe-area-inset-top, 0px)); }
+}
+
+/* ── Right-side icon row: one button size, one rhythm ──
+   Remote, music, search, and bell share the same square button; the avatar
+   sits in an equally sized slot. */
+.topbar-right { gap: 0.5rem; }
+.topbar-right .remote-toggle,
+.topbar-right .topbar-search-icon-btn,
+.topbar-right .notif-button {
+    height: 38px;
+    min-width: 38px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.82);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.topbar-right .remote-toggle svg,
+.topbar-right .topbar-search-icon-btn svg,
+.topbar-right .notif-button svg { width: 20px; height: 20px; }
+.topbar-right .remote-toggle:hover,
+.topbar-right .topbar-search-icon-btn:hover,
+.topbar-right .notif-button:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+/* Controlling another device: the remote keeps its blue state and label */
+.topbar-right .remote-toggle.active {
+    color: #3FA3FF;
+    background: rgba(63, 163, 255, 0.12);
+    border-color: rgba(63, 163, 255, 0.45);
+}
+.topbar-right .remote-toggle:has(.remote-toggle-label) { padding: 0 10px; }
+.topbar-right .account-button { padding: 3px; border-radius: 50%; }
+.topbar-right .account-button .user-avatar { width: 32px; height: 32px; }
+
+@media (max-width: 800px) {
+    .topbar-content { padding: 0 14px; }
+    .topbar-right { gap: 2px; }
+    .topbar-right .remote-toggle,
+    .topbar-right .topbar-search-icon-btn,
+    .topbar-right .notif-button { height: 38px; min-width: 38px; }
+    .topbar-right .remote-toggle-label { display: none; }
+    .topbar-right .remote-toggle:has(.remote-toggle-label) { padding: 0; }
+    .topbar-right .account-section { margin-left: 4px; }
+}

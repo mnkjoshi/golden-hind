@@ -729,3 +729,9 @@
     .np-btn.np-small { color: rgba(255, 255, 255, 0.7); }
     .np-timeline input[type="range"] { accent-color: #ffffff; }
 }
+
+/* Clear the fixed top bar (including the status-bar strip in the installed app) */
+.music-content { padding-top: calc(96px + env(safe-area-inset-top, 0px)); }
+@media (max-width: 760px) {
+    .music-content { padding-top: calc(74px + env(safe-area-inset-top, 0px)); }
+}
