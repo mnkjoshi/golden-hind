@@ -108,7 +108,7 @@ export function sendRemotePreview(contentId) {
         .catch(() => {});
 }
 
-export default function RemoteControl() {
+export default function RemoteControl({ label } = {}) {
     const navigate = useNavigate();
     const location = useLocation();
     const [modalOpen, setModalOpen] = useState(false);
@@ -406,6 +406,7 @@ export default function RemoteControl() {
                     <path d="M10 12h4M10 15h4M10 18h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
                 </svg>
                 {target && <span className="remote-toggle-label">{target.name}</span>}
+                {label && <span className="tab-label">{label}</span>}
             </button>
 
             {target && !onWatchPage && miniState?.contentId && (

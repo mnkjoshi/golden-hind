@@ -1156,3 +1156,88 @@
     .topbar-right .remote-toggle:has(.remote-toggle-label) { padding: 0; }
     .topbar-right .account-section { margin-left: 4px; }
 }
+
+/* ── Wheel avatar (replaces the first-letter avatar) ── */
+.user-avatar { background: #000; overflow: hidden; }
+.user-avatar img { width: 72%; height: 72%; object-fit: contain; display: block; }
+
+/* Tab labels only exist for the phone tab bar */
+.tab-label { display: none; }
+.mobile-tabbar { display: none; }
+
+/* ── Phones: logo + avatar on top, everything else on a bottom tab bar ── */
+@media (max-width: 800px) {
+    .search-container { display: none; }
+    .topbar-right .dropdown-arrow { display: none; }
+
+    .mobile-tabbar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 950;
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        height: calc(56px + env(safe-area-inset-bottom, 0px));
+        padding: 0 4px env(safe-area-inset-bottom, 0px);
+        background: rgba(10, 14, 39, 0.97);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        font-family: 'Inter', system-ui, sans-serif;
+    }
+    .mobile-tab-slot { display: flex; min-width: 0; }
+    .mobile-tab-slot .notif-section { display: flex; width: 100%; }
+    .mobile-tab,
+    .mobile-tabbar .remote-toggle,
+    .mobile-tabbar .notif-button {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        width: 100%;
+        height: 56px;
+        padding: 0;
+        border: none;
+        border-radius: 0;
+        background: none;
+        color: rgba(255, 255, 255, 0.58);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .mobile-tab svg,
+    .mobile-tabbar .remote-toggle svg,
+    .mobile-tabbar .notif-button svg { width: 22px; height: 22px; }
+    .mobile-tabbar .tab-label { display: block; font-size: 10px; font-weight: 600; letter-spacing: 0.01em; }
+    .mobile-tab.active { color: #fff; }
+    .mobile-tabbar .remote-toggle.active { color: #3FA3FF; background: none; border: none; }
+    .mobile-tabbar .remote-toggle-label { display: none; }
+    .mobile-tabbar .notif-badge { top: 6px; right: calc(50% - 20px); }
+
+    /* Notifications open as a sheet above the tab bar */
+    .mobile-tabbar .notif-dropdown {
+        position: fixed;
+        top: auto;
+        left: 8px;
+        right: 8px;
+        bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+        width: auto;
+        max-width: none;
+        max-height: 60vh;
+    }
+
+    /* Stack everything bottom-anchored above the tab bar */
+    body.has-tabbar { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar.has-music-player { padding-bottom: calc(122px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar .player-bar { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar .remote-mini-bar,
+    body.has-tabbar .new-recs-pill,
+    body.has-tabbar .stats-promo-pill { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar .stats-promo-pill.raised { bottom: calc(118px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar.has-music-player .remote-mini-bar,
+    body.has-tabbar.has-music-player .new-recs-pill,
+    body.has-tabbar.has-music-player .stats-promo-pill { bottom: calc(134px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar.has-music-player .stats-promo-pill.raised { bottom: calc(184px + env(safe-area-inset-bottom, 0px)); }
+}

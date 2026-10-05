@@ -847,3 +847,9 @@
         padding: 4px 11px;
     }
 }
+/* Phone layout (≤800px): the top bar has no search box, so the page's own
+   bar shows across the whole range, and content clears the bar + status bar. */
+@media (max-width: 800px) {
+    .mobile-search-bar { display: block; }
+    body .modern-search-page { padding-top: calc(60px + env(safe-area-inset-top, 0px)); }
+}
