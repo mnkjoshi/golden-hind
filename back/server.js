@@ -27,6 +27,7 @@ import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, de
 import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from './lib/recs.js';
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
 import { buildWatchedUpdate } from './lib/watched.js';
+import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
 import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
@@ -2675,100 +2676,170 @@ app.post('/server/lookmovie', async (request, response) => {
     }
 });
 
-// Download a movie/episode as MP4. Resolves the LookMovie HLS stream, then
-// ffmpeg remuxes it (no re-encode — fast, lossless) and streams the fragmented
-// MP4 straight to the browser as an attachment. Auth is via query params so the
-// URL can be opened directly / via a download manager.
+// Download a movie/episode as MP4, in two steps so no single request has to
+// outlast the remux (nginx gives up after 300s of silence, and a feature film
+// can take longer than that):
+//   POST /download/video/prepare — starts (or reports on) a background remux of
+//        the LookMovie HLS stream into ~/video-cache/<key>.mp4. Idempotent:
+//        clients poll it until status is "ready".
+//   GET  /download/video/file    — the finished file, with Range support so a
+//        phone can resume. Query auth so it works as a plain link.
+// Prepared files are kept for three days (long enough for a phone to fetch
+// them) and then swept. GET /download/video keeps working for old clients by
+// preparing and then sending in one request.
 let activeVideoDownloads = 0;
 const MAX_VIDEO_DOWNLOADS = 2;
+const VIDEO_CACHE_DIR = process.env.VIDEO_CACHE_DIR || path.join(os.homedir(), 'video-cache');
+fs.mkdirSync(VIDEO_CACHE_DIR, { recursive: true });
+const videoJobs = new Map(); // key -> { status: 'preparing'|'error', error, promise }
+
+const videoPaths = (key) => ({
+    mp4: path.join(VIDEO_CACHE_DIR, `${key}.mp4`),
+    meta: path.join(VIDEO_CACHE_DIR, `${key}.json`),
+});
+
+async function readPreparedVideo(key) {
+    const { mp4, meta } = videoPaths(key);
+    try {
+        const [info, st] = await Promise.all([fs.promises.readFile(meta, 'utf8').then(JSON.parse), fs.promises.stat(mp4)]);
+        return st.size > 0 ? { ...info, size: st.size, mp4 } : null;
+    } catch {
+        return null;
+    }
+}
+
+// Remux HLS → a real MP4 file on disk (NOT a pipe). A fragmented/empty_moov
+// MP4 streamed to stdout has no global duration, so players read one ~2s
+// segment as the whole length (the "250 MB but 2 seconds" bug). Writing a
+// seekable file lets +faststart lay down a correct moov with the real
+// duration. Written to disk, not /tmp (RAM-backed on this server).
+async function prepareVideo(key, id, season, episode) {
+    const { streamUrl, title, mediaType } = await resolveLookmovieStream(id, season, episode, []);
+    const fileName = videoFileName(title, mediaType, season, episode);
+    const { mp4, meta } = videoPaths(key);
+    const part = path.join(VIDEO_CACHE_DIR, `.${key}-${Date.now()}.part.mp4`);
+    console.log(`[download/video] ${key} → remuxing "${fileName}" (active=${activeVideoDownloads})`);
+    try {
+        await new Promise((resolve, reject) => {
+            const ffmpeg = spawn('ffmpeg', [
+                '-y',
+                '-headers', `Referer: https://www.lookmovie2.to/\r\nUser-Agent: ${lookmovieHeaders['User-Agent']}\r\n`,
+                '-fflags', '+genpts',
+                '-i', streamUrl,
+                '-c', 'copy',
+                '-bsf:a', 'aac_adtstoasc',
+                '-movflags', '+faststart',
+                '-f', 'mp4',
+                part,
+            ]);
+            let stderrTail = '';
+            ffmpeg.stderr.on('data', d => { stderrTail = (stderrTail + d).slice(-2000); });
+            const timer = setTimeout(() => ffmpeg.kill('SIGKILL'), 60 * 60 * 1000);
+            ffmpeg.on('error', (e) => { clearTimeout(timer); reject(e); });
+            ffmpeg.on('close', async (code) => {
+                clearTimeout(timer);
+                const size = await fs.promises.stat(part).then(s => s.size).catch(() => 0);
+                if (code === 0 && size > 0) return resolve();
+                reject(new Error(`ffmpeg exit ${code}: ${stderrTail.split('\n').slice(-2).join(' ')}`));
+            });
+        });
+        await fs.promises.writeFile(meta, JSON.stringify({ fileName, title, mediaType }));
+        await fs.promises.rename(part, mp4);
+        console.log(`[download/video] ready "${fileName}"`);
+    } finally {
+        fs.unlink(part, () => {});
+    }
+}
+
+// Returns { status: 'ready'|'preparing'|'busy'|'error', ... } and starts work
+// if needed.
+async function videoStatus(key, id, season, episode) {
+    const ready = await readPreparedVideo(key);
+    if (ready) return { status: 'ready', fileName: ready.fileName, size: ready.size };
+    const job = videoJobs.get(key);
+    if (job) return job.status === 'error' ? { status: 'error', error: job.error } : { status: 'preparing' };
+    if (activeVideoDownloads >= MAX_VIDEO_DOWNLOADS) return { status: 'busy' };
+    activeVideoDownloads++;
+    const entry = { status: 'preparing' };
+    entry.promise = prepareVideo(key, id, season, episode)
+        .then(() => videoJobs.delete(key))
+        .catch((e) => {
+            console.error(`[download/video] ${key} failed:`, e.message);
+            entry.status = 'error';
+            entry.error = 'Could not prepare this video.';
+            setTimeout(() => videoJobs.delete(key), 60 * 1000); // allow a retry soon
+        })
+        .finally(() => { activeVideoDownloads--; });
+    videoJobs.set(key, entry);
+    return { status: 'preparing' };
+}
+
+app.post('/download/video/prepare', async (request, response) => {
+    const { user, token, id, season, episode } = request.body;
+    if (!await Authenticate(user, token)) return response.status(401).json({ error: 'Unauthorized' });
+    const key = videoCacheKey(id, season, episode);
+    if (!key) return response.status(400).json({ error: 'Invalid title' });
+    try {
+        response.json(await videoStatus(key, id, season, episode));
+    } catch (e) {
+        logError(user, '/download/video/prepare', e).catch(() => {});
+        response.status(500).json({ status: 'error', error: 'Could not prepare this video.' });
+    }
+});
+
+app.get('/download/video/file', async (request, response) => {
+    const { user, token, id, season, episode } = request.query;
+    if (!await Authenticate(user, token)) return response.status(401).send('Unauthorized');
+    const key = videoCacheKey(id, season, episode);
+    if (!key) return response.status(400).send('Invalid title');
+    const ready = await readPreparedVideo(key);
+    if (!ready) return response.status(404).send('Not prepared yet');
+    response.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(ready.fileName)}`);
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+    response.sendFile(ready.mp4, { headers: { 'Content-Type': 'video/mp4' } });
+});
 
 app.get('/download/video', async (request, response) => {
     const { user, token, id, season, episode } = request.query;
     if (!await Authenticate(user, token)) return response.status(401).send('Unauthorized');
-    if (!id) return response.status(400).send('Missing id');
-    // Each download is a full ffmpeg remux — cap concurrency so they can't pile up.
-    if (activeVideoDownloads >= MAX_VIDEO_DOWNLOADS) {
+    const key = videoCacheKey(id, season, episode);
+    if (!key) return response.status(400).send('Missing id');
+    let st = await videoStatus(key, id, season, episode);
+    if (st.status === 'busy') {
         response.setHeader('Retry-After', '30');
         return response.status(503).send('Server is preparing other downloads — please try again in a moment.');
     }
-
-    const dbg = [];
-    let streamUrl, title, mediaType;
-    try {
-        ({ streamUrl, title, mediaType } = await resolveLookmovieStream(id, season, episode, dbg));
-    } catch (error) {
-        logError(user, '/download/video', error).catch(() => {});
-        return response.status(502).send(`Could not resolve stream: ${error.message}`);
+    if (st.status === 'preparing') {
+        await videoJobs.get(key)?.promise;
+        st = await videoStatus(key, id, season, episode);
     }
-
-    // Build a friendly filename: "Title.mp4" or "Title.S01E02.mp4"
-    const safeTitle = String(title || 'video').replace(/[/\\?%*:|"<>]/g, '-').trim() || 'video';
-    const pad = (n) => String(parseInt(n) || 1).padStart(2, '0');
-    const fileName = mediaType === 'tv'
-        ? `${safeTitle}.S${pad(season)}E${pad(episode)}.mp4`
-        : `${safeTitle}.mp4`;
-
-    // Remux HLS → a real MP4 file on disk (NOT a pipe). A fragmented/empty_moov
-    // MP4 streamed to stdout has no global duration, so players read one ~2s
-    // segment as the whole length (the "250 MB but 2 seconds" bug). Writing a
-    // seekable file lets +faststart lay down a correct moov with the real
-    // duration; we then stream the finished file with a Content-Length.
-    const tmpPath = path.join(os.tmpdir(), `ghdl-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);
-    activeVideoDownloads++;
-    let released = false;
-    const release = () => { if (released) return; released = true; activeVideoDownloads--; fs.unlink(tmpPath, () => {}); };
-    console.log(`[download/video] ${id} S${season}E${episode} → remuxing "${fileName}" (active=${activeVideoDownloads})`);
-
-    const ffmpeg = spawn('ffmpeg', [
-        '-y',
-        '-headers', `Referer: https://www.lookmovie2.to/\r\nUser-Agent: ${lookmovieHeaders['User-Agent']}\r\n`,
-        '-fflags', '+genpts',
-        '-i', streamUrl,
-        '-c', 'copy',
-        '-bsf:a', 'aac_adtstoasc',
-        '-movflags', '+faststart',
-        '-f', 'mp4',
-        tmpPath,
-    ]);
-
-    let stderrTail = '';
-    ffmpeg.stderr.on('data', d => { stderrTail = (stderrTail + d).slice(-2000); });
-
-    // Client cancelled before we finished sending → kill ffmpeg + clean up.
-    request.on('close', () => {
-        if (!response.writableEnded) { try { ffmpeg.kill('SIGKILL'); } catch {} release(); }
-    });
-
-    ffmpeg.on('error', (e) => {
-        console.error('[download/video] ffmpeg spawn error:', e.message);
-        if (!response.headersSent) response.status(500).send('Conversion failed');
-        release();
-    });
-
-    ffmpeg.on('close', (code) => {
-        if (released) return; // aborted
-        if (code !== 0) {
-            console.error(`[download/video] ffmpeg exit ${code}: ${stderrTail.split('\n').slice(-2).join(' ')}`);
-            if (!response.headersSent) response.status(502).send('Could not prepare the video.');
-            return release();
-        }
-        fs.stat(tmpPath, (err, st) => {
-            if (err || !st || st.size === 0) {
-                if (!response.headersSent) response.status(502).send('Empty output.');
-                return release();
-            }
-            response.setHeader('Content-Type', 'video/mp4');
-            response.setHeader('Content-Length', st.size);
-            response.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
-            response.setHeader('Access-Control-Allow-Origin', '*');
-            console.log(`[download/video] ready "${fileName}" ${(st.size / 1048576).toFixed(1)}MB`);
-            const fileStream = fs.createReadStream(tmpPath);
-            fileStream.pipe(response);
-            fileStream.on('end', release);
-            fileStream.on('error', release);
-        });
-    });
+    const ready = await readPreparedVideo(key);
+    if (!ready) return response.status(502).send(st.error || 'Could not prepare the video.');
+    response.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(ready.fileName)}`);
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.sendFile(ready.mp4, { headers: { 'Content-Type': 'video/mp4' } });
 });
+
+// Sweep prepared videos older than the TTL (and orphaned .part files).
+async function sweepVideoCache() {
+    try {
+        const now = Date.now();
+        for (const name of await fs.promises.readdir(VIDEO_CACHE_DIR)) {
+            const file = path.join(VIDEO_CACHE_DIR, name);
+            const st = await fs.promises.stat(file).catch(() => null);
+            if (!st) continue;
+            const key = name.replace(/\.(mp4|json)$/, '');
+            if (name.endsWith('.part.mp4') ? now - st.mtimeMs > 2 * 60 * 60 * 1000 : (isExpiredVideo(st.mtimeMs, now) && !videoJobs.has(key))) {
+                await fs.promises.unlink(file).catch(() => {});
+            }
+        }
+    } catch (e) {
+        logError('system', 'video-cache-sweep', e).catch(() => {});
+    }
+}
+sweepVideoCache();
+setInterval(sweepVideoCache, 6 * 60 * 60 * 1000);
 
 // ─────────────────────────────────────────────────────────────────────────────
 
