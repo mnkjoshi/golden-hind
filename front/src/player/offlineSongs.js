@@ -1,6 +1,8 @@
 // Songs downloaded to THIS device for offline playback, kept as MP3 blobs in
 // IndexedDB (the music player prefers these over streaming). Everything here
 // degrades to "nothing downloaded" if IndexedDB is unavailable.
+import { saveArt } from './offlineArt.js';
+
 const API = 'https://ghb.mnkjoshi.ca';
 const DB_NAME = 'gh-music';
 const STORE = 'songs';
@@ -67,6 +69,8 @@ export async function saveOffline(videoId) {
     }
     const blob = await res.blob();
     await tx('readwrite', s => s.put(blob, videoId));
+    // Covers too, so the player and Downloads page aren't blank offline.
+    saveArt([`${API}/music/cover/${videoId}`, `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`]);
     return blob.size;
 }
 

@@ -8,6 +8,7 @@ import 'plyr/dist/plyr.css';
 import { track } from '../utils/analytics.js'
 import Topbar from "../components/topbar"
 import { RemotePlayback, getRemoteTarget } from "../components/remote.jsx"
+import { saveVideo, isVideoSaved, videoKey, waitUntilPrepared, videoFileUrl } from "../player/offlineVideos.js"
 
 const SERVERS = [
     { n: 1, desc: 'Built-in player - subtitles, casting, downloads' },
@@ -1523,19 +1524,49 @@ function LocalWatch() {
     // Download the current movie/episode as an MP4. The server remuxes the
     // LookMovie HLS stream on the fly and returns it as an attachment, so we
     // just point an anchor at the authenticated URL.
-    const handleDownload = () => {
-        const u = localStorage.getItem('user'), t = localStorage.getItem('token');
-        if (!u || !t) return;
-        const params = new URLSearchParams({ user: u, token: t, id });
-        if (type === 'tv') { params.set('season', season); params.set('episode', episode); }
-        const a = document.createElement('a');
-        a.href = `https://ghb.mnkjoshi.ca/download/video?${params.toString()}`;
-        a.download = '';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        showProviderToast('Preparing download… this can take a moment to start.');
+    // Prepared on the server first (a long film can take minutes), then
+    // downloaded as a normal file.
+    const handleDownload = async () => {
+        showProviderToast('Preparing download… this can take a few minutes.');
+        try {
+            await waitUntilPrepared(id, season, episode);
+            const a = document.createElement('a');
+            a.href = videoFileUrl(id, season, episode);
+            a.download = '';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        } catch (e) {
+            showProviderToast(e.message || 'Download failed');
+        }
     };
+
+    // Save into this device's storage for offline viewing (Downloads page).
+    const [offlineSave, setOfflineSave] = useState(null); // null | { phase, loaded, total } | 'done' | 'error'
+    const offlineKey = videoKey(id, season, episode);
+    const savedOffline = offlineSave === 'done' || isVideoSaved(offlineKey);
+    useEffect(() => { setOfflineSave(null); }, [id, season, episode]);
+    const handleSaveOffline = async () => {
+        if (offlineSave && offlineSave !== 'error') return;
+        setOfflineSave({ phase: 'preparing' });
+        try {
+            const poster = seriesData?.poster_path || data?.poster_path;
+            await saveVideo({
+                contentId: id, season, episode,
+                title: contentNameRef.current || data?.title || data?.name || 'Saved video',
+                poster: poster ? `https://image.tmdb.org/t/p/w342${poster}` : null,
+            }, (p) => setOfflineSave(p));
+            setOfflineSave('done');
+            showProviderToast('Saved — find it in Downloads, even offline.');
+        } catch (e) {
+            setOfflineSave('error');
+            showProviderToast(e?.name === 'QuotaExceededError' ? 'Not enough space on this device.' : (e.message || 'Could not save offline'));
+        }
+    };
+    const offlineLabel = savedOffline ? 'Saved'
+        : !offlineSave || offlineSave === 'error' ? 'Save offline'
+        : offlineSave.phase === 'downloading' && offlineSave.total ? `${Math.floor((offlineSave.loaded / offlineSave.total) * 100)}%`
+        : offlineSave.phase === 'queued' ? 'Queued' : 'Preparing';
 
     // Skip helpers
     const triggerFlash = (dir) => {
@@ -2388,6 +2419,21 @@ function LocalWatch() {
                                     <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
                                 </svg>
                                 <span>Download</span>
+                            </button>
+                        )}
+                        {parseInt(provider) === 1 && lmUrl && (
+                            <button
+                                className={`wbar-btn${savedOffline ? ' on' : ''}`}
+                                onClick={handleSaveOffline}
+                                disabled={savedOffline || (offlineSave && offlineSave !== 'error')}
+                                aria-label="Save to this device for offline viewing"
+                                title="Save to this device for offline viewing"
+                            >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+                                    <rect x="6" y="2.5" width="12" height="19" rx="2.5" />
+                                    <path d="M12 8v6m0 0-2.5-2.5M12 14l2.5-2.5" />
+                                </svg>
+                                <span>{offlineLabel}</span>
                             </button>
                         )}
                         <button

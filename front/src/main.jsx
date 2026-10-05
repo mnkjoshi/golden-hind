@@ -22,6 +22,7 @@ import Detail from './routes/detail.jsx'
 import Person from './routes/person.jsx'
 import Collection from './routes/collection.jsx'
 import Stats from './routes/stats.jsx'
+import Downloads, { DownloadPlayer } from './routes/downloads.jsx'
 import ErrorPage from './routes/error.jsx'
 import './stylesheets/admin.css'
 import './stylesheets/detail.css'
@@ -108,6 +109,16 @@ const router = createBrowserRouter([
     errorElement: <ErrorPage/>
   },
   {
+    path: "/downloads",
+    element: <Downloads/>,
+    errorElement: <ErrorPage/>
+  },
+  {
+    path: "/downloads/play/:key",
+    element: <DownloadPlayer/>,
+    errorElement: <ErrorPage/>
+  },
+  {
     path: "/admin",
     element: <Admin/>,
     errorElement: <ErrorPage/>
@@ -118,6 +129,17 @@ const router = createBrowserRouter([
     errorElement: <ErrorPage/>
   }
 ])
+
+// With no connection, only downloads work — keep the app on the Downloads
+// page (any other page would just fail to load its data).
+const keepOffline = () => {
+  if (!navigator.onLine && !window.location.pathname.startsWith('/downloads')) {
+    router.navigate('/downloads', { replace: true });
+  }
+};
+keepOffline();
+window.addEventListener('offline', keepOffline);
+router.subscribe(keepOffline);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

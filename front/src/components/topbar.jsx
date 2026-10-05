@@ -443,6 +443,12 @@ export default function Topbar() {
                                         </svg>
                                         Year in Review
                                     </button>
+                                    <button className="dropdown-item" onClick={() => { setDropdownOpen(false); navigate('/downloads'); }}>
+                                        <svg viewBox="0 0 24 24" fill="none">
+                                            <path d="M12 15V3m0 12-4-4m4 4 4-4M4 21h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                        Downloads
+                                    </button>
                                     <div className="dropdown-divider"></div>
                                     <button className="dropdown-item logout" onClick={handleLogout}>
                                         <svg viewBox="0 0 24 24" fill="none">
