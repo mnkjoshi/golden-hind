@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextIndex, prevAction, estimateRemotePosition, nextRepeatMode, shuffleOrder } from '../src/utils/player.js';
+import { nextIndex, prevAction, estimateRemotePosition, nextRepeatMode, shuffleOrder, isStaleOwnEcho } from '../src/utils/player.js';
 
 describe('nextIndex', () => {
     it('steps forward and stops or wraps at the end', () => {
@@ -64,5 +64,23 @@ describe('shuffleOrder', () => {
     it('handles tiny and empty queues', () => {
         expect(shuffleOrder(['a'], 0)).toEqual(['a']);
         expect(shuffleOrder([], 0)).toEqual([]);
+    });
+});
+
+describe('isStaleOwnEcho', () => {
+    const base = { updatedBy: 'tab1', clientId: 'tab1', activeHere: true, audioLoaded: true, firstSnapshot: false };
+    it('ignores our own write replayed on reconnect while we are playing', () => {
+        expect(isStaleOwnEcho(base)).toBe(true);
+    });
+    it('applies writes from other devices', () => {
+        expect(isStaleOwnEcho({ ...base, updatedBy: 'tab2' })).toBe(false);
+    });
+    it('applies the first snapshot of a fresh page', () => {
+        expect(isStaleOwnEcho({ ...base, firstSnapshot: true })).toBe(false);
+        expect(isStaleOwnEcho({ ...base, audioLoaded: false })).toBe(false);
+    });
+    it('applies it when another device is the player', () => {
+        expect(isStaleOwnEcho({ ...base, activeHere: false })).toBe(false);
+        expect(isStaleOwnEcho({ ...base, clientId: '' , updatedBy: '' })).toBe(false);
     });
 });

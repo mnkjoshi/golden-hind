@@ -39,3 +39,13 @@ export function estimateRemotePosition({ position = 0, positionAt = 0, paused = 
 }
 
 export const nextRepeatMode = (mode) => ({ off: 'all', all: 'one', one: 'off' }[mode] || 'off');
+
+// Should this device ignore a player state from the server? Only for our OWN
+// write replayed back: the server skips our echoes except on (re)connect,
+// when it resends the whole node. While this device is playing with audio
+// already loaded, that replay is older than what the <audio> element is
+// actually doing — applying it would e.g. re-pause a song we just resumed.
+// A fresh page (first snapshot, nothing loaded) still takes it.
+export function isStaleOwnEcho({ updatedBy, clientId, activeHere, audioLoaded, firstSnapshot }) {
+    return !firstSnapshot && !!audioLoaded && !!activeHere && !!clientId && updatedBy === clientId;
+}
