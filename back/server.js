@@ -3200,6 +3200,47 @@ app.get('/music/library/zip', async (req, res) => {
     }
 });
 
+// Square album cover for a cached song (the art embedded in its MP3), for
+// the player, My Songs, and the phone lock-screen widget. Public, like
+// YouTube's own thumbnails, but only for songs this server already holds —
+// so it can't be used as an open thumbnail proxy. Extracted once, then served
+// from disk.
+const cachedCoverPath = (videoId) => path.join(MUSIC_CACHE_DIR, `${videoId}.jpg`);
+const coverExtractions = new Map();
+function extractCover(videoId) {
+    if (!coverExtractions.has(videoId)) {
+        const out = cachedCoverPath(videoId);
+        const tmp = `${out}.${Date.now()}.part.jpg`;
+        coverExtractions.set(videoId, new Promise((resolve) => {
+            const ff = spawn('ffmpeg', ['-y', '-v', 'error', '-i', cachedMp3Path(videoId), '-an', '-c:v', 'copy', '-f', 'image2', tmp]);
+            ff.on('error', () => resolve(false));
+            ff.on('close', async (code) => {
+                const ok = code === 0 && (await fs.promises.stat(tmp).then(st => st.size > 0).catch(() => false));
+                if (ok) await fs.promises.rename(tmp, out).catch(() => {});
+                else fs.unlink(tmp, () => {});
+                resolve(ok);
+            });
+        }).finally(() => coverExtractions.delete(videoId)));
+    }
+    return coverExtractions.get(videoId);
+}
+
+app.get('/music/cover/:videoId', async (req, res) => {
+    const { videoId } = req.params;
+    if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return res.status(400).end();
+    const cover = cachedCoverPath(videoId);
+    let have = await fs.promises.stat(cover).then(() => true).catch(() => false);
+    if (!have) {
+        const hasSong = await fs.promises.stat(cachedMp3Path(videoId)).then(() => true).catch(() => false);
+        if (!hasSong) return res.status(404).end();
+        have = await extractCover(videoId);
+    }
+    if (!have) return res.status(404).end();
+    res.setHeader('Cache-Control', 'public, max-age=2592000');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.sendFile(cover, { headers: { 'Content-Type': 'image/jpeg' } });
+});
+
 // Stream one song for the in-app player. GET with query auth because it's an
 // <audio> src; sendFile handles Range requests, which the player needs for
 // seeking. Uncached songs are prepared first (one-time ~15s).

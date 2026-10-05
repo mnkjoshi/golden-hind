@@ -699,3 +699,33 @@
     .music-mobile-toolbar button:nth-child(2) { color: #3fb950; border-color: rgba(63, 185, 80, 0.45); }
     .music-mobile-toolbar button:disabled { opacity: 0.55; }
 }
+
+/* Square album covers in My Songs */
+.music-library-cover {
+    width: 42px;
+    height: 42px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #21262d;
+}
+
+/* Apple Music-style Now Playing: blurred cover behind everything */
+@media (max-width: 760px) {
+    .np-card { position: relative; overflow: hidden; isolation: isolate; }
+    .np-card > *:not(.np-backdrop) { position: relative; z-index: 1; }
+    .np-backdrop {
+        position: absolute;
+        inset: -40px;
+        z-index: 0;
+        background-size: cover;
+        background-position: center;
+        filter: blur(38px) saturate(1.4) brightness(0.55);
+        transform: scale(1.1);
+    }
+    .np-art { border-radius: 14px; }
+    .np-title, .np-artist, .np-times { text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45); }
+    .np-artist, .np-times { color: rgba(255, 255, 255, 0.75); }
+    .np-btn.np-small { color: rgba(255, 255, 255, 0.7); }
+    .np-timeline input[type="range"] { accent-color: #ffffff; }
+}

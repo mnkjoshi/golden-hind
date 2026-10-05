@@ -10,6 +10,7 @@ import {
     pauseForVideo, setVolume, getVolume, streamUrl,
 } from '../player/musicPlayer.js';
 import { formatClock } from '../utils/remote.js';
+import CoverArt from './coverArt.jsx';
 import { nextRepeatMode } from '../utils/player.js';
 
 const Icon = {
@@ -62,7 +63,7 @@ export default function PlayerBar() {
             <div className="player-progress-mobile" style={{ width: duration ? `${(position / duration) * 100}%` : 0 }} />
 
             <div className="player-now">
-                <img className="player-art" src={`https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg`} alt="" />
+                <CoverArt className="player-art" videoId={song.videoId} />
                 <div className="player-meta">
                     <span className="player-title">{song.title}</span>
                     <span className="player-artist">

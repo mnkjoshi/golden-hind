@@ -61,6 +61,7 @@ export const currentSong = (s = state) => {
     const id = s.queue[s.index];
     return id ? { videoId: id, ...(s.songs[id] || { title: 'Loading…', artist: '' }) } : null;
 };
+export const coverUrl = (videoId) => `${API}/music/cover/${videoId}`;
 export const streamUrl = (videoId, download = false) => {
     const { user, token } = auth();
     return `${API}/music/stream/${videoId}?user=${encodeURIComponent(user)}&token=${encodeURIComponent(token)}${download ? '&download=1' : ''}`;
@@ -225,16 +226,43 @@ if (audio) {
         if (!isActiveHere()) return;
         set({ position: audio.currentTime || 0 });
         report();
+        updatePositionState();
     });
-    audio.addEventListener('loadedmetadata', () => set({ duration: audio.duration || 0, loading: false }));
-    audio.addEventListener('playing', () => { set({ paused: false, loading: false }); report(true); });
-    audio.addEventListener('pause', () => { if (isActiveHere()) { set({ paused: true }); report(true); } });
+    audio.addEventListener('loadedmetadata', () => { set({ duration: audio.duration || 0, loading: false }); updatePositionState(true); });
+    audio.addEventListener('playing', () => {
+        set({ paused: false, loading: false });
+        report(true);
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        updatePositionState(true);
+    });
+    audio.addEventListener('pause', () => {
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+        if (isActiveHere()) { set({ paused: true }); report(true); }
+    });
     audio.addEventListener('waiting', () => set({ loading: true }));
     audio.addEventListener('ended', () => { if (isActiveHere()) next(true); });
     audio.addEventListener('error', () => {
         if (!audio.src) return;
         set({ loading: false, error: "Couldn't load this song." });
     });
+}
+
+// Lock-screen / Control Center scrubber.
+let lastPositionState = 0;
+function updatePositionState(force = false) {
+    if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState || !audio) return;
+    const now = Date.now();
+    if (!force && now - lastPositionState < 5000) return;
+    lastPositionState = now;
+    const duration = audio.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    try {
+        navigator.mediaSession.setPositionState({
+            duration,
+            position: Math.min(audio.currentTime || 0, duration),
+            playbackRate: audio.playbackRate || 1,
+        });
+    } catch { /* unsupported */ }
 }
 
 function updateMediaSession() {
@@ -246,7 +274,10 @@ function updateMediaSession() {
             title: song.title,
             artist: song.artist,
             album: 'Golden Hind',
-            artwork: [{ src: `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`, sizes: '480x360', type: 'image/jpeg' }],
+            artwork: [
+                { src: coverUrl(song.videoId), sizes: '600x600', type: 'image/jpeg' },
+                { src: `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`, sizes: '480x360', type: 'image/jpeg' },
+            ],
         });
     } catch { /* unsupported */ }
 }
@@ -257,6 +288,8 @@ if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
         previoustrack: () => prev(),
         nexttrack: () => next(),
         seekto: (d) => seek(d.seekTime),
+        seekbackward: (d) => seek(displayPosition() - (d?.seekOffset || 10)),
+        seekforward: (d) => seek(displayPosition() + (d?.seekOffset || 10)),
     };
     for (const [action, fn] of Object.entries(handlers)) {
         try { navigator.mediaSession.setActionHandler(action, fn); } catch { /* unsupported */ }

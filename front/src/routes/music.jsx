@@ -4,6 +4,7 @@ import axios from 'axios';
 import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
 import NowPlaying from "../components/nowPlaying.jsx";
+import CoverArt from "../components/coverArt.jsx";
 import '../stylesheets/music.css';
 import { useMusicPlayer, playQueue, currentSong, togglePlay, setShuffle, cachedLibrary } from '../player/musicPlayer.js';
 import { listOffline, saveOffline, removeOffline } from '../player/offlineSongs.js';
@@ -512,7 +513,7 @@ export default function Music() {
                             {library.map((s, i) => (
                                 <div key={s.videoId} className={`music-queue-item${playing?.videoId === s.videoId ? ' playing' : ''}`}>
                                     <button className="music-library-row-play" onClick={() => playFrom(i)} aria-label={`Play ${s.title}`}>
-                                        <img className="music-queue-thumb" src={s.thumbnail} alt="" loading="lazy" />
+                                        <CoverArt className="music-library-cover" videoId={s.videoId} />
                                         <span className="music-queue-url music-queue-named">
                                             <span className="music-queue-name">
                                                 {playing?.videoId === s.videoId && !player.paused && <span className="music-eq" aria-hidden="true"><i /><i /><i /></span>}
