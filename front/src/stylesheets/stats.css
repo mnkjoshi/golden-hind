@@ -384,3 +384,5 @@
     align-items: center;
     gap: 8px;
 }
+.stats-content { padding-top: calc(106px + env(safe-area-inset-top, 0px)); }
+@media (max-width: 760px) { .stats-content { padding-top: calc(78px + env(safe-area-inset-top, 0px)); } }

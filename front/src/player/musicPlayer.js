@@ -288,8 +288,11 @@ if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
         previoustrack: () => prev(),
         nexttrack: () => next(),
         seekto: (d) => seek(d.seekTime),
-        seekbackward: (d) => seek(displayPosition() - (d?.seekOffset || 10)),
-        seekforward: (d) => seek(displayPosition() + (d?.seekOffset || 10)),
+        // Left unset on purpose: iOS shows ±10s buttons instead of previous/
+        // next track whenever seek handlers exist, and track skipping is what
+        // a music player's lock screen should offer.
+        seekbackward: null,
+        seekforward: null,
     };
     for (const [action, fn] of Object.entries(handlers)) {
         try { navigator.mediaSession.setActionHandler(action, fn); } catch { /* unsupported */ }
