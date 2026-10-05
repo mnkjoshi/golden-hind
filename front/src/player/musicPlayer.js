@@ -10,7 +10,7 @@
 import axios from 'axios';
 import { useSyncExternalStore } from 'react';
 import { defaultDeviceName } from '../utils/remote.js';
-import { nextIndex, prevAction, estimateRemotePosition } from '../utils/player.js';
+import { nextIndex, prevAction, estimateRemotePosition, shuffleOrder } from '../utils/player.js';
 import { getOfflineUrl } from './offlineSongs.js';
 
 const API = 'https://ghb.mnkjoshi.ca';
@@ -45,6 +45,7 @@ let state = {
     clockOffset: 0,       // serverNow - localNow
     duration: 0,
     shuffle: false,
+    originalQueue: null,  // queue order before shuffling, to restore on un-shuffle
     repeat: 'off',
     activeDevice: null,   // { id, name }
     songs: {},            // videoId -> { title, artist, thumbnail }
@@ -166,6 +167,7 @@ function applyRemote(s) {
         position: typeof s.position === 'number' ? s.position : state.position,
         positionAt: s.positionAt || state.positionAt,
         shuffle: !!s.shuffle,
+        originalQueue: Array.isArray(s.originalQueue) ? s.originalQueue : null,
         repeat: s.repeat || 'off',
         activeDevice: s.activeDevice || null,
         clockOffset,
@@ -317,13 +319,19 @@ registerMediaActions();
 const me = () => ({ id: CLIENT_ID, name: deviceName() });
 
 // Start a queue on THIS device (tapping play makes it the active device).
-export function playQueue(songs, startIndex = 0) {
+// With shuffle on (or opts.shuffle), the tapped song plays first and the rest
+// follow in a shuffled order — previous/next then walk that order.
+export function playQueue(songs, startIndex = 0, opts = {}) {
     if (!songs?.length) return;
     mergeSongs(songs);
-    const queue = songs.map(s => s.videoId);
-    set({ queue, index: startIndex, paused: false, position: 0, activeDevice: me(), dismissed: false });
+    const ids = songs.map(s => s.videoId);
+    const shuffle = typeof opts.shuffle === 'boolean' ? opts.shuffle : state.shuffle;
+    const queue = shuffle ? shuffleOrder(ids, startIndex) : ids;
+    const index = shuffle ? 0 : startIndex;
+    const originalQueue = shuffle ? ids : null;
+    set({ queue, index, shuffle, originalQueue, paused: false, position: 0, activeDevice: me(), dismissed: false });
     loadAndPlay(0, true);
-    send({ queue, index: startIndex, position: 0, paused: false, activeDevice: me(), shuffle: state.shuffle, repeat: state.repeat });
+    send({ queue, index, originalQueue, position: 0, paused: false, activeDevice: me(), shuffle, repeat: state.repeat });
 }
 
 export function togglePlay(forcePaused) {
@@ -352,7 +360,7 @@ function goTo(index, startAt = 0) {
 }
 
 export function next(fromEnded = false) {
-    const i = nextIndex({ length: state.queue.length, index: state.index, shuffle: state.shuffle, repeat: state.repeat });
+    const i = nextIndex({ length: state.queue.length, index: state.index, repeat: state.repeat });
     if (i === null) {
         if (fromEnded) { set({ paused: true }); report(true); }
         return;
@@ -395,7 +403,22 @@ try {
     if (audio && Number.isFinite(v)) audio.volume = v;
 } catch { /* noop */ }
 
-export function setShuffle(on) { set({ shuffle: on }); send({ shuffle: on }); }
+// Shuffle reorders the queue around the current song (Spotify-style); turning
+// it off restores the original order, still on the same song.
+export function setShuffle(on) {
+    if (on === state.shuffle) return;
+    const id = state.queue[state.index];
+    let patch;
+    if (on) {
+        patch = { shuffle: true, originalQueue: state.queue, queue: shuffleOrder(state.queue, state.index), index: 0 };
+    } else {
+        const queue = state.originalQueue?.length ? state.originalQueue : state.queue;
+        patch = { shuffle: false, originalQueue: null, queue, index: Math.max(0, queue.indexOf(id)) };
+    }
+    if (!state.queue.length) patch = { shuffle: on, originalQueue: null };
+    set(patch);
+    send(patch);
+}
 export function setRepeat(mode) { set({ repeat: mode }); send({ repeat: mode }); }
 
 // Move playback to this device, picking up where the other one is.

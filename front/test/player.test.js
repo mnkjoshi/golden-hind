@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextIndex, prevAction, estimateRemotePosition, nextRepeatMode } from '../src/utils/player.js';
+import { nextIndex, prevAction, estimateRemotePosition, nextRepeatMode, shuffleOrder } from '../src/utils/player.js';
 
 describe('nextIndex', () => {
     it('steps forward and stops or wraps at the end', () => {
@@ -10,13 +10,8 @@ describe('nextIndex', () => {
     it('repeats the current song in repeat-one', () => {
         expect(nextIndex({ length: 3, index: 1, shuffle: true, repeat: 'one' })).toBe(1);
     });
-    it('shuffle never picks the current song', () => {
-        for (const r of [0, 0.34, 0.5, 0.99]) {
-            const n = nextIndex({ length: 3, index: 1, shuffle: true, repeat: 'off' }, () => r);
-            expect(n).not.toBe(1);
-            expect(n).toBeGreaterThanOrEqual(0);
-            expect(n).toBeLessThan(3);
-        }
+    it('walks the (already shuffled) queue in order', () => {
+        expect(nextIndex({ length: 3, index: 1, shuffle: true, repeat: 'off' })).toBe(2);
         expect(nextIndex({ length: 1, index: 0, shuffle: true, repeat: 'off' })).toBe(null);
         expect(nextIndex({ length: 1, index: 0, shuffle: true, repeat: 'all' })).toBe(0);
     });
@@ -51,5 +46,23 @@ describe('nextRepeatMode', () => {
         expect(nextRepeatMode('all')).toBe('one');
         expect(nextRepeatMode('one')).toBe('off');
         expect(nextRepeatMode(undefined)).toBe('off');
+    });
+});
+
+describe('shuffleOrder', () => {
+    const q = ['a', 'b', 'c', 'd', 'e'];
+    it('keeps the current song first and every song exactly once', () => {
+        for (const r of [0, 0.3, 0.7, 0.999]) {
+            const out = shuffleOrder(q, 2, () => r);
+            expect(out[0]).toBe('c');
+            expect([...out].sort()).toEqual(q);
+        }
+    });
+    it('actually reorders the rest', () => {
+        expect(shuffleOrder(q, 0, () => 0)).toEqual(['a', 'c', 'd', 'e', 'b']);
+    });
+    it('handles tiny and empty queues', () => {
+        expect(shuffleOrder(['a'], 0)).toEqual(['a']);
+        expect(shuffleOrder([], 0)).toEqual([]);
     });
 });

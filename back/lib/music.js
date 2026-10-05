@@ -242,6 +242,12 @@ export function sanitizePlayerUpdate(raw) {
     if (Number.isFinite(position) && position >= 0) out.position = Math.round(position * 10) / 10;
     if (typeof raw.paused === 'boolean') out.paused = raw.paused;
     if (typeof raw.shuffle === 'boolean') out.shuffle = raw.shuffle;
+    // The queue's order before shuffling (null clears it once unshuffled).
+    if (Array.isArray(raw.originalQueue)) {
+        out.originalQueue = raw.originalQueue.map(String).filter(id => VIDEO_ID.test(id)).slice(0, 500);
+    } else if (raw.originalQueue === null) {
+        out.originalQueue = null;
+    }
     if (REPEAT_MODES.includes(raw.repeat)) out.repeat = raw.repeat;
     const dev = raw.activeDevice;
     if (dev && /^[A-Za-z0-9_-]{4,64}$/.test(String(dev.id || ''))) {

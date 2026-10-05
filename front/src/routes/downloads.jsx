@@ -7,7 +7,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import React, { useEffect, useRef, useState } from 'react';
 import Topbar from '../components/topbar.jsx';
 import CoverArt from '../components/coverArt.jsx';
-import { playQueue, setShuffle, cachedLibrary, useMusicPlayer, currentSong } from '../player/musicPlayer.js';
+import { playQueue, cachedLibrary, useMusicPlayer, currentSong } from '../player/musicPlayer.js';
 import { listOffline, removeOffline } from '../player/offlineSongs.js';
 import { listVideos, removeVideo, offlineVideoUrl } from '../player/offlineVideos.js';
 import '../stylesheets/downloads.css';
@@ -99,8 +99,8 @@ export default function Downloads() {
                         <div className="dl-section-head">
                             <h2>Songs ({songs.length})</h2>
                             <div className="dl-song-actions">
-                                <button className="dl-play" onClick={() => { setShuffle(false); playQueue(songs, 0); }}>Play</button>
-                                <button className="dl-shuffle" onClick={() => { setShuffle(true); playQueue(songs, Math.floor(Math.random() * songs.length)); }}>Shuffle</button>
+                                <button className="dl-play" onClick={() => playQueue(songs, 0, { shuffle: false })}>Play</button>
+                                <button className="dl-shuffle" onClick={() => playQueue(songs, Math.floor(Math.random() * songs.length), { shuffle: true })}>Shuffle</button>
                             </div>
                         </div>
                         <div className="dl-songs">

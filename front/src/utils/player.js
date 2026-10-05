@@ -2,18 +2,25 @@
 // lives in player/musicPlayer.js.
 
 // Where "next" goes. Returns null at the end of the queue (repeat off).
-// `rand` is injectable for tests; shuffle never repeats the current song
-// unless it's the only one.
-export function nextIndex({ length, index, shuffle, repeat }, rand = Math.random) {
+// Shuffle doesn't pick at random here: turning it on reorders the queue
+// itself (see shuffleOrder), so next/previous walk one fixed shuffled order.
+export function nextIndex({ length, index, repeat }) {
     if (!length) return null;
     if (repeat === 'one') return index;
-    if (shuffle) {
-        if (length === 1) return repeat === 'all' ? 0 : null;
-        const pick = Math.floor(rand() * (length - 1));
-        return pick >= index ? pick + 1 : pick;
-    }
     if (index + 1 < length) return index + 1;
     return repeat === 'all' ? 0 : null;
+}
+
+// A shuffled copy of `queue` that starts with queue[index] (the song that's
+// playing keeps playing), the rest in random order. `rand` is injectable.
+export function shuffleOrder(queue, index, rand = Math.random) {
+    const first = queue[index];
+    const rest = queue.filter((_, i) => i !== index);
+    for (let i = rest.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [rest[i], rest[j]] = [rest[j], rest[i]];
+    }
+    return first === undefined ? rest : [first, ...rest];
 }
 
 // "Previous": restart the song if it's more than 3s in, otherwise step back.
