@@ -298,8 +298,9 @@ let holdTimer = null;
 let holdTick = null;
 let silenceUrl = null;
 
-// 4s of 8 kHz mono 8-bit PCM held one step above zero: inaudible (a constant
-// offset isn't sound) but not digital silence.
+// 4s of 8 kHz mono 8-bit PCM digital silence (128 is zero for unsigned 8-bit).
+// iOS judges a media element by whether it's playing, not by its samples, so
+// silence keeps the app awake. (A small constant offset clicked at each loop.)
 function silentClip() {
     if (silenceUrl) return silenceUrl;
     const rate = 8000, n = rate * 4;
@@ -310,7 +311,7 @@ function silentClip() {
     str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
     v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
     str(36, 'data'); v.setUint32(40, n, true);
-    for (let i = 0; i < n; i++) v.setUint8(44 + i, 129);
+    new Uint8Array(buf, 44).fill(128);
     silenceUrl = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
     return silenceUrl;
 }
