@@ -10,7 +10,7 @@
 import axios from 'axios';
 import { useSyncExternalStore } from 'react';
 import { defaultDeviceName } from '../utils/remote.js';
-import { nextIndex, prevAction, estimateRemotePosition, shuffleOrder } from '../utils/player.js';
+import { nextIndex, prevAction, estimateRemotePosition, shuffleOrder, isStaleOwnEcho } from '../utils/player.js';
 import { getOfflineUrl } from './offlineSongs.js';
 
 const API = 'https://ghb.mnkjoshi.ca';
@@ -100,22 +100,43 @@ function report(force = false) {
 
 let es = null;
 let started = false;
+// The server pings every 25s. A stream can die silently (the phone slept and
+// iOS dropped the socket without an error), so silence past this reconnects.
+const STREAM_SILENCE_MS = 60000;
+let lastStreamActivity = 0;
+let retryTimer = null;
 function connect() {
     const { user, token } = auth();
     if (!user || !token) return;
-    es = new EventSource(`${API}/music/player/stream?user=${encodeURIComponent(user)}`
+    clearTimeout(retryTimer);
+    if (es) { try { es.close(); } catch { /* noop */ } }
+    lastStreamActivity = Date.now();
+    const source = new EventSource(`${API}/music/player/stream?user=${encodeURIComponent(user)}`
         + `&token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(CLIENT_ID)}`);
-    es.onopen = () => set({ connected: true });
-    es.onmessage = (ev) => {
+    es = source;
+    source.onopen = () => { lastStreamActivity = Date.now(); set({ connected: true }); };
+    source.onmessage = (ev) => {
+        lastStreamActivity = Date.now();
         try { applyRemote(JSON.parse(ev.data)); } catch { /* malformed */ }
     };
-    es.onerror = () => {
+    source.addEventListener('ping', () => { lastStreamActivity = Date.now(); });
+    source.onerror = () => {
+        if (es !== source) return;
         set({ connected: false });
-        if (es.readyState === EventSource.CLOSED) {
-            try { es.close(); } catch { /* noop */ }
-            setTimeout(connect, 3000);
+        if (source.readyState === EventSource.CLOSED) {
+            try { source.close(); } catch { /* noop */ }
+            retryTimer = setTimeout(connect, 3000);
         }
     };
+}
+const streamIsSilent = () => es && Date.now() - lastStreamActivity > STREAM_SILENCE_MS;
+if (typeof window !== 'undefined') {
+    setInterval(() => { if (started && streamIsSilent()) connect(); }, 20000);
+    // Unlocking / returning to the app: timers were frozen, so check now.
+    const revive = () => { if (started && document.visibilityState === 'visible' && streamIsSilent()) connect(); };
+    document.addEventListener('visibilitychange', revive);
+    window.addEventListener('pageshow', revive);
+    window.addEventListener('online', () => { if (started) connect(); });
 }
 
 export function ensureStarted() {
@@ -160,6 +181,13 @@ function applyRemote(s) {
     const isSnapshot = !gotSnapshot;
     gotSnapshot = true;
     const clockOffset = s.serverNow ? s.serverNow - Date.now() : state.clockOffset;
+    // e.g. locked phone: AirPods out → paused (reported), iOS suspends the
+    // page and drops this stream; AirPods in → play() → the stream reconnects
+    // and replays our own "paused", which would stop the song mid-resume.
+    if (isStaleOwnEcho({ updatedBy: s.updatedBy, clientId: CLIENT_ID, activeHere: isActiveHere(), audioLoaded: !!loadedId, firstSnapshot: isSnapshot })) {
+        set({ clockOffset });
+        return;
+    }
     const next = {
         queue: Array.isArray(s.queue) ? s.queue : state.queue,
         index: Number.isInteger(s.index) ? s.index : state.index,
@@ -341,8 +369,9 @@ export function togglePlay(forcePaused) {
     const pause = typeof forcePaused === 'boolean' ? forcePaused : !state.paused;
     if (isActiveHere()) {
         if (pause) audio.pause();
-        else if (loadedId !== state.queue[state.index]) loadAndPlay(state.position, true);
-        else tryPlay();
+        else if (loadedId !== state.queue[state.index] || audio.error || !audio.currentSrc) {
+            loadAndPlay(audio.currentTime || state.position, true);
+        } else tryPlay();
     } else {
         set({ paused: pause });
         send({ paused: pause });

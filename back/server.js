@@ -3448,7 +3448,8 @@ app.get('/music/player/stream', async (req, res) => {
     res.flushHeaders?.();
     try { res.write(': connected\n\n'); } catch {}
 
-    const heartbeat = setInterval(() => { try { res.write(':\n\n'); } catch {} }, 25000);
+    // A named event (not a ':' comment) so the client can tell the stream is alive.
+    const heartbeat = setInterval(() => { try { res.write('event: ping\ndata: 1\n\n'); } catch {} }, 25000);
     const ref = admin.database().ref(`users/${user}/player`);
     let first = true;
     const cb = (snap) => {
