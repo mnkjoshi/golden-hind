@@ -28,6 +28,7 @@ import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
 import { buildWatchedUpdate } from './lib/watched.js';
 import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
+import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar.js';
 import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
@@ -1570,8 +1571,11 @@ app.post('/account/info', async (request, response) => {
     }
     try {
         const db = admin.database();
-        const emailSnap = await db.ref(`users/${user}/email`).once('value');
-        response.status(200).json({ username: user, email: emailSnap.val() || '' });
+        const [emailSnap, avatarSnap] = await Promise.all([
+            db.ref(`users/${user}/email`).once('value'),
+            db.ref(`users/${user}/avatar`).once('value'),
+        ]);
+        response.status(200).json({ username: user, email: emailSnap.val() || '', avatar: avatarSnap.val() || 0 });
     } catch (error) {
         logError(user, '/account/info', error).catch(() => {});
         response.status(500).send(error.message);
@@ -1602,6 +1606,58 @@ app.post('/account/change-password', async (request, response) => {
         logError(user, '/account/change-password', error).catch(() => {});
         response.status(500).send(error.message);
     }
+});
+
+// ── Profile pictures ────────────────────────────────────────────────────────
+// Files live on disk (named by a hash of the username, see lib/avatar.js);
+// users/{user}/avatar holds the upload time, which doubles as the version
+// clients put in the URL so a new picture isn't hidden by the cache.
+const AVATAR_DIR = process.env.AVATAR_DIR || path.join(os.homedir(), 'avatars');
+fs.mkdirSync(AVATAR_DIR, { recursive: true });
+const avatarPath = (user) => path.join(AVATAR_DIR, avatarFileName(user));
+
+app.post('/account/avatar', async (req, res) => {
+    const { user, token, image } = req.body || {};
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    const parsed = parseAvatarDataUrl(image);
+    if (!parsed) return res.status(400).json({ error: 'That picture could not be used — try a JPEG or PNG.' });
+    try {
+        const tmp = `${avatarPath(user)}.${Date.now()}.part`;
+        await fs.promises.writeFile(tmp, parsed.buffer);
+        await fs.promises.rename(tmp, avatarPath(user));
+        const version = Date.now();
+        await admin.database().ref(`users/${user}/avatar`).set(version);
+        res.json({ avatar: version });
+    } catch (e) {
+        logError(user, '/account/avatar', e).catch(() => {});
+        res.status(500).json({ error: 'Could not save the picture' });
+    }
+});
+
+app.post('/account/avatar/delete', async (req, res) => {
+    const { user, token } = req.body || {};
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        await fs.promises.rm(avatarPath(user), { force: true });
+        await admin.database().ref(`users/${user}/avatar`).remove();
+        res.json({ avatar: 0 });
+    } catch (e) {
+        logError(user, '/account/avatar/delete', e).catch(() => {});
+        res.status(500).json({ error: 'Could not remove the picture' });
+    }
+});
+
+// Public, like any profile picture. With ?v=<version> the URL changes on
+// every upload, so it can be cached for good; without it, only briefly.
+app.get('/avatar/:user', async (req, res) => {
+    let buf;
+    try { buf = await fs.promises.readFile(avatarPath(req.params.user)); } catch { return res.status(404).end(); }
+    const type = sniffImageType(buf);
+    if (!type) return res.status(404).end();
+    res.setHeader('Content-Type', type);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', req.query.v ? 'public, max-age=31536000, immutable' : 'public, max-age=300');
+    res.end(buf);
 });
 
 // AI recommendations are served stale-while-revalidate from a per-user cache

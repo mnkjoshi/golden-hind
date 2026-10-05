@@ -1306,3 +1306,21 @@
 .account-dropdown-who { display: flex; flex-direction: column; min-width: 0; }
 .account-dropdown-name { color: #fff; font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-dropdown-sub { color: rgba(255, 255, 255, 0.5); font-size: 12px; }
+
+/* Uploaded profile pictures fill the circle (the wheel stays inset) */
+.user-avatar.has-photo img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Account Settings → profile picture */
+.avatar-editor { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
+.avatar-editor .avatar-editor-pic { width: 76px; height: 76px; }
+.avatar-editor-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.avatar-editor-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.avatar-editor-btn {
+    display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 999px;
+    background: #3FA3FF; color: #0a0e27; border: none; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.avatar-editor-btn.secondary { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.avatar-editor-btn.disabled, .avatar-editor-btn:disabled { opacity: 0.6; cursor: default; }
+.avatar-editor-status { font-size: 12.5px; color: rgba(255, 255, 255, 0.55); }
+.avatar-editor-status.ok { color: #3fb950; }
+.avatar-editor-status.err { color: #f85149; }
