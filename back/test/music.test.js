@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
     sanitizeSearchQuery, formatDuration, parseYtSearchOutput,
     artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs,
-    buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames,
+    buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate,
 } from '../lib/music.js';
 
 test('sanitizeSearchQuery trims, collapses, strips control chars, caps length', () => {
@@ -209,4 +209,18 @@ test('zipEntryNames dedupes case-insensitively and strips unsafe characters', ()
     assert.deepEqual(zipEntryNames(['Bad Bunny - DtMF', 'bad bunny - dtmf', 'A/B: C?', '', 'Bad Bunny - DtMF']), [
         'Bad Bunny - DtMF.mp3', 'bad bunny - dtmf (2).mp3', 'A-B- C-.mp3', 'track.mp3', 'Bad Bunny - DtMF (3).mp3',
     ]);
+});
+
+test('sanitizePlayerUpdate whitelists and coerces player changes', () => {
+    assert.deepEqual(sanitizePlayerUpdate({
+        queue: ['TiebZllW8As', 'bad', 'JYekRpqL4O8'], index: 5, position: 12.345, paused: false,
+        shuffle: true, repeat: 'all', activeDevice: { id: 'dabc1234', name: ' Laptop ' }, evil: 1,
+    }), {
+        queue: ['TiebZllW8As', 'JYekRpqL4O8'], index: 1, position: 12.3, paused: false,
+        shuffle: true, repeat: 'all', activeDevice: { id: 'dabc1234', name: 'Laptop' },
+    });
+    assert.deepEqual(sanitizePlayerUpdate({ index: -1, position: -5, repeat: 'sometimes', activeDevice: { id: 'x' } }), {});
+    assert.deepEqual(sanitizePlayerUpdate({ index: 3 }), { index: 3 });
+    assert.deepEqual(sanitizePlayerUpdate({ queue: [], index: 2 }), { queue: [], index: 0 });
+    assert.deepEqual(sanitizePlayerUpdate(null), {});
 });

@@ -27,7 +27,7 @@ import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, de
 import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from './lib/recs.js';
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
 import { buildWatchedUpdate } from './lib/watched.js';
-import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames } from './lib/music.js';
+import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -3198,4 +3198,82 @@ app.get('/music/library/zip', async (req, res) => {
         logError(user, '/music/library/zip', e).catch(() => {});
         if (!res.headersSent) res.status(500).json({ error: 'Could not build the ZIP' });
     }
+});
+
+// Stream one song for the in-app player. GET with query auth because it's an
+// <audio> src; sendFile handles Range requests, which the player needs for
+// seeking. Uncached songs are prepared first (one-time ~15s).
+app.get('/music/stream/:videoId', async (req, res) => {
+    const { user, token } = req.query;
+    if (!await Authenticate(user, token)) return res.status(401).end();
+    const { videoId } = req.params;
+    if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return res.status(400).end();
+    try {
+        const song = await ensureSongCached(videoId);
+        res.setHeader('Cache-Control', 'private, max-age=86400');
+        if (req.query.download) {
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(song.tags.fileName)}.mp3`);
+        }
+        res.sendFile(song.mp3, { headers: { 'Content-Type': 'audio/mpeg' } });
+    } catch (e) {
+        logError(user, '/music/stream', e).catch(() => {});
+        const f = ytFailure(e, 'Could not load this song.');
+        if (!res.headersSent) res.status(f.status).json({ error: f.error });
+    }
+});
+
+// ── Shared music player ─────────────────────────────────────────────────────
+// users/{u}/player holds what's playing for the whole account: queue, index,
+// position (+ when it was reported), paused, shuffle, repeat, and which device
+// is actually producing sound. Every signed-in device holds the SSE stream:
+// the active device plays and reports progress, the others mirror the state
+// and send changes (pause, skip, seek, "play here") through /update.
+
+app.post('/music/player/update', async (req, res) => {
+    const { user, token, clientId, patch } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    const clean = sanitizePlayerUpdate(patch);
+    if (Object.keys(clean).length === 0) return res.status(400).json({ error: 'Nothing to update' });
+    try {
+        const now = Date.now();
+        await admin.database().ref(`users/${user}/player`).update({
+            ...clean,
+            ...('position' in clean ? { positionAt: now } : {}),
+            updatedBy: String(clientId || '').slice(0, 64) || 'unknown',
+            updatedAt: now,
+        });
+        res.json({ ok: true });
+    } catch (e) {
+        logError(user, '/music/player/update', e).catch(() => {});
+        res.status(500).json({ error: 'Could not update the player' });
+    }
+});
+
+app.get('/music/player/stream', async (req, res) => {
+    const { user, token, clientId } = req.query;
+    if (!await Authenticate(user, token)) return res.status(401).end();
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.flushHeaders?.();
+    try { res.write(': connected\n\n'); } catch {}
+
+    const heartbeat = setInterval(() => { try { res.write(':\n\n'); } catch {} }, 25000);
+    const ref = admin.database().ref(`users/${user}/player`);
+    let first = true;
+    const cb = (snap) => {
+        const state = snap.val() || {};
+        // Skip echoes of this tab's own writes — except on connect, when the
+        // device needs the current state no matter who wrote it.
+        if (!first && clientId && state.updatedBy === clientId) return;
+        first = false;
+        try { res.write(`data: ${JSON.stringify({ ...state, serverNow: Date.now() })}\n\n`); } catch {}
+    };
+    ref.on('value', cb);
+    const cleanup = () => { clearInterval(heartbeat); ref.off('value', cb); };
+    req.on('close', cleanup);
+    req.on('error', cleanup);
 });

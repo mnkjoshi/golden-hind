@@ -29,6 +29,7 @@ import './stylesheets/music.css'
 import './stylesheets/person.css'
 import './stylesheets/remote.css'
 import './stylesheets/stats.css'
+import './stylesheets/player.css'
 
 import {
   createBrowserRouter,
