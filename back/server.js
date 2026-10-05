@@ -3383,6 +3383,22 @@ app.post('/music/playlists/delete', async (req, res) => {
     }
 });
 
+// Playback trace upload (front/src/player/playerTrace.js), for debugging
+// background playback on phones. Lands in the service log as JSON lines:
+//   journalctl -u golden-hind-back | grep player-trace
+app.post('/music/player/trace', async (req, res) => {
+    const { user, token, clientId, build, ua, entries } = req.body || {};
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!Array.isArray(entries)) return res.status(400).json({ error: 'No entries' });
+    const head = { user, client: String(clientId || '').slice(0, 64), build: String(build || '').slice(0, 20), ua: String(ua || '').slice(0, 200) };
+    console.log('[player-trace] batch', JSON.stringify({ ...head, count: entries.length }));
+    for (const e of entries.slice(0, 200)) {
+        const line = JSON.stringify(e);
+        if (line.length <= 600) console.log('[player-trace]', line);
+    }
+    res.json({ ok: true });
+});
+
 // Stream one song for the in-app player. GET with query auth because it's an
 // <audio> src; sendFile handles Range requests, which the player needs for
 // seeking. Uncached songs are prepared first (one-time ~15s).

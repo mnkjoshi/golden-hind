@@ -12,6 +12,7 @@ import { useSyncExternalStore } from 'react';
 import { defaultDeviceName } from '../utils/remote.js';
 import { nextIndex, prevAction, estimateRemotePosition, shuffleOrder, isStaleOwnEcho } from '../utils/player.js';
 import { getOfflineUrl } from './offlineSongs.js';
+import { trace, audioInfo, flushTrace } from './playerTrace.js';
 
 const API = 'https://ghb.mnkjoshi.ca';
 const REPORT_EVERY_MS = 10000;
@@ -114,7 +115,7 @@ function connect() {
     const source = new EventSource(`${API}/music/player/stream?user=${encodeURIComponent(user)}`
         + `&token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(CLIENT_ID)}`);
     es = source;
-    source.onopen = () => { lastStreamActivity = Date.now(); set({ connected: true }); };
+    source.onopen = () => { lastStreamActivity = Date.now(); trace('sse:open'); set({ connected: true }); };
     source.onmessage = (ev) => {
         lastStreamActivity = Date.now();
         try { applyRemote(JSON.parse(ev.data)); } catch { /* malformed */ }
@@ -122,6 +123,7 @@ function connect() {
     source.addEventListener('ping', () => { lastStreamActivity = Date.now(); });
     source.onerror = () => {
         if (es !== source) return;
+        trace('sse:error', { rs: source.readyState });
         set({ connected: false });
         if (source.readyState === EventSource.CLOSED) {
             try { source.close(); } catch { /* noop */ }
@@ -133,10 +135,19 @@ const streamIsSilent = () => es && Date.now() - lastStreamActivity > STREAM_SILE
 if (typeof window !== 'undefined') {
     setInterval(() => { if (started && streamIsSilent()) connect(); }, 20000);
     // Unlocking / returning to the app: timers were frozen, so check now.
-    const revive = () => { if (started && document.visibilityState === 'visible' && streamIsSilent()) connect(); };
+    const revive = (ev) => {
+        trace(`page:${ev?.type}`, { ...audioInfo(audio), state: state.paused ? 'paused' : 'playing' });
+        if (document.visibilityState === 'visible') flushTrace(CLIENT_ID);
+        if (started && document.visibilityState === 'visible' && streamIsSilent()) connect();
+    };
     document.addEventListener('visibilitychange', revive);
     window.addEventListener('pageshow', revive);
-    window.addEventListener('online', () => { if (started) connect(); });
+    window.addEventListener('online', () => { trace('net:online'); if (started) connect(); });
+    window.addEventListener('offline', () => trace('net:offline'));
+    window.addEventListener('pagehide', () => trace('page:pagehide', audioInfo(audio)));
+    document.addEventListener('freeze', () => trace('page:freeze'));
+    document.addEventListener('resume', () => trace('page:resume'));
+    setInterval(() => { if (document.visibilityState === 'visible') flushTrace(CLIENT_ID); }, 15000);
 }
 
 export function ensureStarted() {
@@ -184,7 +195,9 @@ function applyRemote(s) {
     // e.g. locked phone: AirPods out → paused (reported), iOS suspends the
     // page and drops this stream; AirPods in → play() → the stream reconnects
     // and replays our own "paused", which would stop the song mid-resume.
-    if (isStaleOwnEcho({ updatedBy: s.updatedBy, clientId: CLIENT_ID, activeHere: isActiveHere(), audioLoaded: !!loadedId, firstSnapshot: isSnapshot })) {
+    const ownEcho = isStaleOwnEcho({ updatedBy: s.updatedBy, clientId: CLIENT_ID, activeHere: isActiveHere(), audioLoaded: !!loadedId, firstSnapshot: isSnapshot });
+    trace('remote', { paused: s.paused, by: s.updatedBy === CLIENT_ID ? 'me' : 'other', snap: isSnapshot, ignored: ownEcho, ...audioInfo(audio) });
+    if (ownEcho) {
         set({ clockOffset });
         return;
     }
@@ -257,12 +270,17 @@ async function loadAndPlay(startAt = 0, autoplay = true) {
 }
 
 function tryPlay() {
-    audio.play().then(() => set({ blocked: false })).catch((e) => {
+    trace('tryPlay', audioInfo(audio));
+    audio.play().then(() => { trace('play-ok', audioInfo(audio)); set({ blocked: false }); }).catch((e) => {
+        trace('play-fail', { name: e?.name, msg: String(e?.message || '').slice(0, 120), ...audioInfo(audio) });
         if (e?.name === 'NotAllowedError') set({ blocked: true });
     });
 }
 
 if (audio) {
+    for (const ev of ['play', 'playing', 'pause', 'waiting', 'stalled', 'suspend', 'error', 'ended', 'emptied', 'abort', 'loadstart', 'canplay', 'seeking', 'seeked']) {
+        audio.addEventListener(ev, () => trace(`audio:${ev}`, audioInfo(audio)));
+    }
     audio.addEventListener('timeupdate', () => {
         if (!isActiveHere()) return;
         set({ position: audio.currentTime || 0 });
@@ -345,7 +363,8 @@ function registerMediaActions() {
         seekforward: null,
     };
     for (const [action, fn] of Object.entries(handlers)) {
-        try { navigator.mediaSession.setActionHandler(action, fn); } catch { /* unsupported */ }
+        const traced = fn && ((d) => { trace(`cmd:${action}`, { ...audioInfo(audio), state: state.paused ? 'paused' : 'playing' }); fn(d); });
+        try { navigator.mediaSession.setActionHandler(action, traced); } catch { /* unsupported */ }
     }
 }
 registerMediaActions();
