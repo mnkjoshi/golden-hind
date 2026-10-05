@@ -9,6 +9,7 @@ import { track } from '../utils/analytics.js'
 import Topbar from "../components/topbar"
 import { RemotePlayback, getRemoteTarget } from "../components/remote.jsx"
 import { saveVideo, isVideoSaved, videoKey, waitUntilPrepared, videoFileUrl } from "../player/offlineVideos.js"
+import UserAvatar from '../components/userAvatar.jsx';
 
 const SERVERS = [
     { n: 1, desc: 'Built-in player - subtitles, casting, downloads' },
@@ -2597,7 +2598,7 @@ function LocalWatch() {
                             const mine = m.user === (localStorage.getItem('user'));
                             return (
                                 <div key={m.id} className={`party-chat-msg${mine ? ' mine' : ''}`}>
-                                    {!mine && <span className="party-chat-user">{m.user}</span>}
+                                    {!mine && <span className="party-chat-user"><UserAvatar user={m.user} className="party-chat-avatar" />{m.user}</span>}
                                     <span className="party-chat-text">{m.text}</span>
                                 </div>
                             );

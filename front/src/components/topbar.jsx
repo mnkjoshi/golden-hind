@@ -11,6 +11,7 @@ import { formatWatchTime, formatRelativeTime } from '../utils/format.js';
 import RemoteControl from './remote.jsx';
 import PlayerBar from './playerBar.jsx';
 import PlaylistPicker from './playlistPicker.jsx';
+import UserAvatar, { AvatarEditor, useMyAvatarVersion, refreshMyAvatar } from './userAvatar.jsx';
 
 const GLITCH_FRAMES = [TextLogoGlitch1, TextLogoGlitch2, TextLogoGlitch3, TextLogoGlitch4, TextLogoGlitch5];
 // Only devices with a real hover use the glitch, so only they fetch the
@@ -111,6 +112,8 @@ export default function Topbar() {
 
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
+    const avatarVersion = useMyAvatarVersion();
+    useEffect(() => { refreshMyAvatar(); }, [user]);
 
     useEffect(() => {
         const handleScroll = () => setIsScrolled(window.scrollY > 0);
@@ -462,9 +465,7 @@ export default function Topbar() {
                                 aria-label={`Account menu for ${user || 'Guest'}`}
                                 aria-expanded={dropdownOpen}
                             >
-                                <div className="user-avatar">
-                                    <img src="/icon-512.png" alt="" />
-                                </div>
+                                <UserAvatar user={user} version={avatarVersion} />
                                 <span className="username">{user || 'Guest'}</span>
                                 <svg className={`dropdown-arrow ${dropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none">
                                     <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -474,7 +475,7 @@ export default function Topbar() {
                             {dropdownOpen && (
                                 <div className="account-dropdown">
                                     <div className="account-dropdown-head">
-                                        <div className="user-avatar"><img src="/icon-512.png" alt="" /></div>
+                                        <UserAvatar user={user} version={avatarVersion} />
                                         <div className="account-dropdown-who">
                                             <span className="account-dropdown-name">{user || 'Guest'}</span>
                                             <span className="account-dropdown-sub">Signed in</span>
@@ -574,6 +575,7 @@ export default function Topbar() {
                             <div className="modal-loading"><div className="modal-spinner"></div></div>
                         ) : (
                             <div className="modal-body">
+                                <AvatarEditor />
                                 <div className="info-grid">
                                     <div className="info-row">
                                         <span className="info-label">Username</span>

@@ -1686,3 +1686,7 @@ p {
     border-color: rgba(255,255,255,0.25);
     color: rgba(255,255,255,0.75);
 }
+
+/* Party chat: sender's picture beside their name */
+.party-chat-user { display: inline-flex; align-items: center; gap: 5px; }
+.party-chat-user .party-chat-avatar { width: 16px; height: 16px; }
