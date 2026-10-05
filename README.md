@@ -56,6 +56,7 @@
 - **My Songs + player** — every download lands in My Songs; play it like Spotify from a bottom player bar on every page (shuffle, repeat, seek, lock-screen controls)
 - **Plays across devices** — one device plays at a time; every other signed-in device shows what's playing and can control it or take over with *Play here*
 - **On this device** — save songs into the browser for offline listening, or download the whole library as a ZIP
+- **Apple Music** — `tools/apple-music-sync.mjs` (run on a Mac) copies My Songs into the Music app in a "Golden Hind" playlist, skipping songs already in the library, so a normal iPhone sync carries them over
 
 ### Stats & Tracking
 - **Year in Review** (`/stats`) — lifetime hours, sessions, days watched, last-12-months chart, most-watched titles, longest session, weighted genre breakdown; reachable from the account dropdown
