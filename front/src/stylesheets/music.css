@@ -604,3 +604,98 @@
 .music-eq i:nth-child(3) { animation-delay: -0.6s; }
 @keyframes music-eq { 0%, 100% { height: 3px; } 50% { height: 11px; } }
 @media (prefers-reduced-motion: reduce) { .music-eq i { animation: none; height: 8px; } }
+
+/* ── Phone layout: Now Playing card + compact toolbar ── */
+.np-card, .music-mobile-toolbar { display: none; }
+
+@media (max-width: 760px) {
+    body.on-music-page .player-bar { display: none; }
+    body.on-music-page.has-music-player { padding-bottom: 0; }
+    .music-library-actions { display: none; }
+
+    .np-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 16px;
+        padding: 18px 16px 16px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #1c2333 0%, #161b22 100%);
+        border: 1px solid #30363d;
+    }
+    .np-art {
+        width: min(62vw, 240px);
+        aspect-ratio: 1;
+        object-fit: cover;
+        border-radius: 12px;
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+    }
+    .np-meta { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; text-align: center; }
+    .np-title { font-size: 18px; font-weight: 700; color: #e6edf3; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .np-artist { font-size: 13px; color: #8b949e; }
+    .np-artist strong { color: #3fb950; }
+    .np-timeline { width: 100%; }
+    .np-timeline input[type="range"] { width: 100%; accent-color: #3fb950; height: 4px; }
+    .np-times { display: flex; justify-content: space-between; font-size: 11px; color: #8b949e; font-variant-numeric: tabular-nums; margin-top: 2px; }
+    .np-controls { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 360px; }
+    .np-btn {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        background: none;
+        border: none;
+        border-radius: 50%;
+        color: #e6edf3;
+        cursor: pointer;
+    }
+    .np-btn svg { width: 26px; height: 26px; }
+    .np-btn.np-small svg { width: 20px; height: 20px; }
+    .np-btn.np-small { color: #8b949e; }
+    .np-btn.on { color: #3fb950; }
+    .np-skip-num { position: absolute; bottom: 7px; font-size: 7.5px; font-weight: 700; }
+    .np-repeat-one {
+        position: absolute; top: 6px; right: 6px;
+        width: 11px; height: 11px; line-height: 11px; border-radius: 50%;
+        background: #3fb950; color: #0d1117; font-size: 8px; font-weight: 700; text-align: center;
+    }
+    .np-play {
+        display: flex; align-items: center; justify-content: center;
+        width: 62px; height: 62px; border-radius: 50%;
+        background: #e6edf3; color: #0d1117; border: none; cursor: pointer;
+    }
+    .np-play svg { width: 26px; height: 26px; }
+    .np-play:active { transform: scale(0.94); }
+    .np-here {
+        background: rgba(63, 185, 80, 0.14); border: 1px solid rgba(63, 185, 80, 0.5);
+        border-radius: 999px; color: #3fb950; font-size: 13px; font-weight: 600; padding: 8px 16px; cursor: pointer;
+    }
+    .np-empty { padding: 22px 16px; }
+    .np-empty-text { color: #8b949e; font-size: 14px; }
+    .np-empty-actions { display: flex; gap: 10px; }
+    .np-empty-play, .np-empty-shuffle {
+        display: inline-flex; align-items: center; gap: 7px;
+        border-radius: 999px; font-size: 14px; font-weight: 700; padding: 10px 18px; cursor: pointer;
+    }
+    .np-empty-play { background: #3fb950; color: #0d1117; border: none; }
+    .np-empty-shuffle { background: none; color: #e6edf3; border: 1px solid #30363d; }
+    .np-empty-play svg, .np-empty-shuffle svg { width: 15px; height: 15px; }
+
+    .music-mobile-toolbar {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+    .music-mobile-toolbar button {
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        background: #0d1117; border: 1px solid #21262d; border-radius: 10px;
+        color: #c9d1d9; padding: 9px 2px 7px; cursor: pointer; font-size: 10.5px; font-weight: 600;
+    }
+    .music-mobile-toolbar button svg { width: 18px; height: 18px; }
+    .music-mobile-toolbar button:nth-child(2) { color: #3fb950; border-color: rgba(63, 185, 80, 0.45); }
+    .music-mobile-toolbar button:disabled { opacity: 0.55; }
+}
