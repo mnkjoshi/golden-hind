@@ -7,8 +7,9 @@ import React, { useEffect, useState } from 'react';
 import {
     useMusicPlayer, ensureStarted, currentSong, isActiveHere, displayPosition,
     togglePlay, next, prev, seek, setShuffle, setRepeat, transferHere, remoteIsStale,
-    pauseForVideo, setVolume, getVolume, streamUrl,
+    pauseForVideo, setVolume, getVolume, streamUrl, setExpanded,
 } from '../player/musicPlayer.js';
+import FullPlayer from './fullPlayer.jsx';
 import { formatClock } from '../utils/remote.js';
 import CoverArt from './coverArt.jsx';
 import { nextRepeatMode } from '../utils/player.js';
@@ -39,7 +40,11 @@ export default function PlayerBar() {
 
     useEffect(() => { ensureStarted(); }, []);
     // Starting a video pauses the music (it'd fight the movie's audio).
-    useEffect(() => { if (onWatch) pauseForVideo(); }, [onWatch]);
+    useEffect(() => {
+        if (!onWatch) return;
+        pauseForVideo();
+        setExpanded(false);
+    }, [onWatch]);
     // Remote devices advance their clock locally between progress reports.
     useEffect(() => {
         if (here || paused || !song) return;
@@ -58,11 +63,18 @@ export default function PlayerBar() {
     const duration = s.duration || 0;
     const commitScrub = (v) => { seek(v); setTimeout(() => setScrub(null), 400); };
 
+    // Tapping the bar (anywhere but its controls) opens the full player.
+    const openFull = (e) => {
+        if (e.target.closest('button, a, input')) return;
+        setExpanded(true);
+    };
+
     return (
-        <div className="player-bar" role="region" aria-label="Music player">
+        <>
+        <div className="player-bar" role="region" aria-label="Music player" onClick={openFull}>
             <div className="player-progress-mobile" style={{ width: duration ? `${(position / duration) * 100}%` : 0 }} />
 
-            <div className="player-now">
+            <div className="player-now" title="Open player">
                 <CoverArt className="player-art" videoId={song.videoId} />
                 <div className="player-meta">
                     <span className="player-title">{song.title}</span>
@@ -81,7 +93,7 @@ export default function PlayerBar() {
                     <button className="player-play-btn" onClick={() => togglePlay()} aria-label={paused ? 'Play' : 'Pause'}>
                         {s.loading && here && !paused ? <span className="player-spinner" /> : (paused ? Icon.play : Icon.pause)}
                     </button>
-                    <button className="player-icon-btn" onClick={() => next()} aria-label="Next">{Icon.next}</button>
+                    <button className="player-icon-btn player-desktop" onClick={() => next()} aria-label="Next">{Icon.next}</button>
                     <button
                         className={`player-icon-btn player-desktop player-repeat${s.repeat !== 'off' ? ' on' : ''}`}
                         onClick={() => setRepeat(nextRepeatMode(s.repeat))}
@@ -124,5 +136,7 @@ export default function PlayerBar() {
                 )}
             </div>
         </div>
+        {s.expanded && <FullPlayer />}
+        </>
     );
 }
