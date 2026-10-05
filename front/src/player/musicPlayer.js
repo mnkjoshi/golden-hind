@@ -137,6 +137,8 @@ if (typeof window !== 'undefined') {
     // Unlocking / returning to the app: timers were frozen, so check now.
     const revive = (ev) => {
         trace(`page:${ev?.type}`, { ...audioInfo(audio), state: state.paused ? 'paused' : 'playing' });
+        // Back in the app while paused: no need to stay awake artificially.
+        if (document.visibilityState === 'visible') stopKeepAlive('visible');
         if (document.visibilityState === 'visible') flushTrace(CLIENT_ID);
         if (started && document.visibilityState === 'visible' && streamIsSilent()) connect();
     };
@@ -269,7 +271,78 @@ async function loadAndPlay(startAt = 0, autoplay = true) {
     if (autoplay) tryPlay();
 }
 
+// ── Background keep-alive ───────────────────────────────────────────────────
+// iOS freezes a web app a few seconds after its audio pauses in the
+// background, and from then on lock-screen "play" (or AirPods going back in)
+// never reaches us — it "plays" with no sound. So while paused in the
+// background we keep a separate Web Audio context running with a tiny DC
+// offset: inaudible (speakers can't reproduce DC) but not digital silence,
+// so iOS still counts the app as playing audio and doesn't freeze it. The song
+// element itself stays genuinely paused, so the lock screen shows "paused".
+// Capped so a forgotten pause can't drain the battery.
+const KEEPALIVE_MS = 15 * 60 * 1000;
+let keepCtx = null;
+let keepSrc = null;
+let keepTimer = null;
+let keepTick = null;
+let keepPrimed = false;
+
+function keepContext() {
+    if (keepCtx || typeof window === 'undefined') return keepCtx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try {
+        keepCtx = new AC();
+        keepCtx.onstatechange = () => trace('keep:state', { s: keepCtx.state });
+    } catch { keepCtx = null; }
+    return keepCtx;
+}
+// Called from a user gesture (tapping play) so later resumes are allowed
+// without one; suspended straight away so it costs nothing while music plays.
+function primeKeepAlive() {
+    if (keepPrimed) return;
+    const ctx = keepContext();
+    if (!ctx) return;
+    keepPrimed = true;
+    ctx.resume().then(() => { if (!keepSrc) ctx.suspend().catch(() => {}); }).catch(() => { keepPrimed = false; });
+}
+function startKeepAlive(reason) {
+    const ctx = keepContext();
+    if (!ctx || keepSrc) return;
+    try {
+        const src = ctx.createConstantSource();
+        src.offset.value = 0.0003;
+        src.connect(ctx.destination);
+        src.start();
+        keepSrc = src;
+        ctx.resume().catch((e) => trace('keep:resume-fail', { name: e?.name }));
+    } catch (e) {
+        trace('keep:fail', { name: e?.name, msg: String(e?.message || '').slice(0, 100) });
+        return;
+    }
+    clearTimeout(keepTimer);
+    keepTimer = setTimeout(() => stopKeepAlive('timeout'), KEEPALIVE_MS);
+    clearInterval(keepTick);
+    keepTick = setInterval(() => trace('keep:tick', { s: ctx.state }), 3000);
+    trace('keep:start', { reason, s: ctx.state });
+}
+function stopKeepAlive(reason) {
+    clearTimeout(keepTimer);
+    clearInterval(keepTick);
+    if (!keepSrc) return;
+    try { keepSrc.stop(); keepSrc.disconnect(); } catch { /* already stopped */ }
+    keepSrc = null;
+    keepCtx?.suspend().catch(() => {});
+    trace('keep:stop', { reason });
+}
+const inBackground = () => typeof document !== 'undefined' && document.visibilityState === 'hidden';
+
+// Ask iOS for the music-playback audio session (Safari 17+), so the
+// keep-alive and the song are treated like a music app's audio.
+try { if (typeof navigator !== 'undefined' && navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* unsupported */ }
+
 function tryPlay() {
+    primeKeepAlive();
     trace('tryPlay', audioInfo(audio));
     audio.play().then(() => { trace('play-ok', audioInfo(audio)); set({ blocked: false }); }).catch((e) => {
         trace('play-fail', { name: e?.name, msg: String(e?.message || '').slice(0, 120), ...audioInfo(audio) });
@@ -294,6 +367,7 @@ if (audio) {
         if (isActiveHere() && Number.isFinite(audio.duration)) send({ duration: audio.duration });
     });
     audio.addEventListener('playing', () => {
+        stopKeepAlive('playing');
         set({ paused: false, loading: false });
         report(true);
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
@@ -301,6 +375,7 @@ if (audio) {
         updatePositionState(true);
     });
     audio.addEventListener('pause', () => {
+        if (inBackground() && isActiveHere()) startKeepAlive('pause-event');
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
         if (isActiveHere()) { set({ paused: true }); report(true); }
     });
@@ -355,7 +430,12 @@ function registerMediaActions() {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
     const handlers = {
         play: () => togglePlay(false),
-        pause: () => togglePlay(true),
+        // Started here too: iOS grants a user gesture inside lock-screen
+        // command handlers, in case the audio context needs one.
+        pause: () => {
+            if (inBackground() && isActiveHere()) startKeepAlive('cmd-pause');
+            togglePlay(true);
+        },
         previoustrack: () => prev(),
         nexttrack: () => next(),
         seekto: (d) => seek(d.seekTime),
