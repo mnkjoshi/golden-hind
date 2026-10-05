@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
+import NowPlaying from "../components/nowPlaying.jsx";
 import '../stylesheets/music.css';
 import { useMusicPlayer, playQueue, currentSong, togglePlay, setShuffle, cachedLibrary } from '../player/musicPlayer.js';
 import { listOffline, saveOffline, removeOffline } from '../player/offlineSongs.js';
@@ -60,6 +61,9 @@ export default function Music() {
         Authenticate(user, token, navigate);
         loadLibrary();
         listOffline().then(setOfflineIds);
+        // Phones: the Now Playing card replaces the bottom bar on this page.
+        document.body.classList.add('on-music-page');
+        return () => document.body.classList.remove('on-music-page');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -275,6 +279,7 @@ export default function Music() {
         <div className="music-page">
             <Topbar />
             <div className="music-content">
+                <NowPlaying onPlay={() => playFrom(0)} onShuffle={shuffleAll} />
                 <div className="music-header">
                     <div className="music-header-icon">
                         <svg viewBox="0 0 24 24" fill="none">
@@ -470,6 +475,31 @@ export default function Music() {
                             </div>
                         )}
                     </div>
+
+                    {library?.length > 0 && (
+                        <div className="music-mobile-toolbar">
+                            <button onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); inputRef.current?.focus(); }}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                                <span>Add</span>
+                            </button>
+                            <button onClick={() => playFrom(0)}>
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 5.14a.7.7 0 0 1 1.06-.6l11 6.86a.7.7 0 0 1 0 1.2l-11 6.86a.7.7 0 0 1-1.06-.6V5.14z" /></svg>
+                                <span>Play</span>
+                            </button>
+                            <button onClick={shuffleAll}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></svg>
+                                <span>Shuffle</span>
+                            </button>
+                            <button onClick={saveAllOffline} disabled={!!offlineBusy}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M12 8v6m0 0-2.5-2.5M12 14l2.5-2.5M10.5 18.5h3" /></svg>
+                                <span>{offlineBusy === 'all' ? 'Saving' : 'To phone'}</span>
+                            </button>
+                            <button onClick={downloadLibrary} disabled={libraryBusy}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 21h16" /></svg>
+                                <span>{libraryBusy ? 'Preparing' : 'ZIP'}</span>
+                            </button>
+                        </div>
+                    )}
 
                     {libraryStatus && <div className="music-library-status">{libraryBusy && <div className="music-spinner" />}<span>{libraryStatus}</span></div>}
 

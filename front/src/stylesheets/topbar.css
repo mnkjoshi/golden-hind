@@ -1096,3 +1096,8 @@
 .history-chip-remove:hover {
     color: rgba(255,255,255,0.9);
 }
+
+/* Music shortcut: shown wherever the tab row is hidden */
+@media (max-width: 800px) {
+    .topbar-music-icon-btn { display: flex; }
+}
