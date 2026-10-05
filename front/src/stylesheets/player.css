@@ -421,3 +421,73 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
 .player-sheet > button:hover, .player-sheet > a:hover { background: rgba(255, 255, 255, 0.06); }
 .player-sheet > button:disabled { opacity: 0.6; }
 .player-sheet .player-sheet-cancel { color: rgba(255, 255, 255, 0.6); text-align: center; margin-top: 4px; }
+
+/* ── Neutral dark player (no navy tint) ── */
+.player-bar { background: rgba(28, 28, 30, 0.97); border-color: rgba(255, 255, 255, 0.08); }
+.player-sheet { background: #1c1c1e; }
+.player-close-btn { color: rgba(255, 255, 255, 0.55); }
+.player-close-btn:hover { color: #fff; }
+@media (max-width: 760px) {
+    .player-bar { background: rgba(32, 32, 34, 0.97); }
+    .player-close-btn svg { width: 16px; height: 16px; }
+}
+
+/* Add-to-playlist sheet */
+.pl-new-btn {
+    display: block; width: 100%; text-align: left; padding: 14px 14px; background: none; border: none; border-radius: 10px;
+    color: #3fb950; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.pl-new { display: flex; gap: 8px; padding: 8px 10px; }
+.pl-new input {
+    flex: 1; min-width: 0; background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+    color: #fff; font-size: 15px; padding: 10px 12px; outline: none;
+}
+.pl-new input:focus { border-color: #3fb950; }
+.pl-new button { background: #3fb950; color: #0d1117; border: none; border-radius: 8px; font-weight: 700; padding: 0 14px; cursor: pointer; }
+.pl-new button:disabled { opacity: 0.5; }
+.pl-picker-list { display: flex; flex-direction: column; max-height: 42vh; overflow-y: auto; }
+.pl-picker-list button {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 13px 14px; background: none; border: none; border-radius: 10px;
+    color: #fff; font: inherit; font-size: 15px; font-weight: 600; text-align: left; cursor: pointer;
+}
+.pl-picker-list button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
+.pl-picker-list button:disabled { opacity: 0.5; cursor: default; }
+.pl-picker-meta { font-size: 12.5px; font-weight: 500; color: rgba(255, 255, 255, 0.5); }
+.pl-done { padding: 22px 14px; text-align: center; color: #3fb950; font-weight: 700; }
+
+/* ── Desktop: a compact player tucked into the bottom-left corner ── */
+@media (min-width: 761px) {
+    .player-bar {
+        left: 16px;
+        right: auto;
+        bottom: 16px;
+        width: 380px;
+        height: auto;
+        padding: 10px 8px 8px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+        box-sizing: border-box;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: "now right" "center center";
+        row-gap: 6px;
+        gap: 8px;
+    }
+    .player-now { grid-area: now; }
+    .player-right { grid-area: right; gap: 2px; }
+    .player-center { grid-area: center; gap: 2px; }
+    .player-art { width: 46px; height: 46px; }
+    .player-controls { gap: 16px; }
+    .player-scrub { max-width: none; }
+    .player-options-btn { display: flex !important; }
+    /* Download and volume live in the ⋯ menu / system volume here */
+    .player-right > a.player-icon-btn, .player-volume { display: none !important; }
+    .player-here-btn span { display: none; }
+    .player-here-btn { padding: 7px; }
+    /* Floating, so the page only needs room to scroll past it */
+    body.has-music-player { padding-bottom: 150px; }
+    body.has-music-player .remote-mini-bar,
+    body.has-music-player .new-recs-pill,
+    body.has-music-player .stats-promo-pill { bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+}

@@ -853,3 +853,4 @@
     .mobile-search-bar { display: block; }
     body .modern-search-page { padding-top: calc(60px + env(safe-area-inset-top, 0px)); }
 }
+@media (max-width: 800px) { body .modern-search-page { padding-top: calc(52px + max(0px, calc(env(safe-area-inset-top, 0px) - 12px))); } }

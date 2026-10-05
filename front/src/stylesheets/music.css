@@ -775,3 +775,73 @@
     .mx-greeting, .mx-page-title { font-size: 24px; }
     .mx-action { padding: 9px 13px; }
 }
+
+/* Content starts just below the (now tighter) phone top bar */
+@media (max-width: 800px) {
+    .music-content { padding-top: calc(58px + max(0px, calc(env(safe-area-inset-top, 0px) - 12px))); }
+}
+
+/* ── Library: Songs | Playlists ── */
+.mx-segment { display: inline-flex; gap: 6px; margin-bottom: 14px; }
+.mx-segment button {
+    background: #21262d; border: none; border-radius: 999px; color: #e6edf3;
+    font-size: 13px; font-weight: 600; padding: 7px 15px; cursor: pointer;
+}
+.mx-segment button.active { background: #3fb950; color: #0d1117; }
+
+/* Phones: library/playlist actions on ONE row — icon buttons left, a big
+   green play circle right (Spotify's playlist header). */
+@media (max-width: 760px) {
+    .mx-actions { flex-wrap: nowrap; align-items: center; gap: 4px; }
+    .mx-action { width: 42px; height: 42px; padding: 0; justify-content: center; border-radius: 50%; background: none; color: #c9d1d9; flex-shrink: 0; }
+    .mx-action svg { width: 22px; height: 22px; }
+    .mx-action span { display: none; }
+    .mx-action.primary { order: 10; margin-left: auto; width: 50px; height: 50px; background: #3fb950; color: #0d1117; }
+    .mx-action.primary svg { width: 22px; height: 22px; }
+}
+
+/* Playlist rows + creation */
+.mx-playlists { display: flex; flex-direction: column; gap: 4px; }
+.mx-pl-new, .mx-pl-row {
+    display: flex; align-items: center; gap: 12px; width: 100%; padding: 6px 4px;
+    background: none; border: none; border-radius: 6px; color: #fff; font: inherit; font-size: 15px; font-weight: 600;
+    text-align: left; cursor: pointer;
+}
+.mx-pl-new:hover, .mx-pl-row:hover { background: rgba(255, 255, 255, 0.05); }
+.mx-pl-new-icon {
+    width: 52px; height: 52px; border-radius: 4px; background: #21262d; color: #e6edf3;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.mx-pl-new-icon svg { width: 22px; height: 22px; }
+.mx-pl-cover { width: 52px; height: 52px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+.mx-pl-cover-empty, .mx-pl-hero-cover.mx-pl-cover-empty {
+    display: flex; align-items: center; justify-content: center; background: #21262d; color: #8b949e;
+}
+.mx-pl-cover-empty svg { width: 45%; height: 45%; }
+.mx-pl-mosaic { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; }
+.mx-pl-mosaic-cell { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mx-pl-create { display: flex; gap: 8px; padding: 6px 4px 10px; }
+.mx-pl-create input {
+    flex: 1; min-width: 0; background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+    color: #fff; font-size: 15px; padding: 10px 12px; outline: none;
+}
+.mx-pl-create input:focus { border-color: #3fb950; }
+.mx-pl-create button { background: #3fb950; color: #0d1117; border: none; border-radius: 8px; font-weight: 700; padding: 0 14px; cursor: pointer; }
+.mx-pl-create button.secondary { background: none; color: #8b949e; border: 1px solid #30363d; }
+.mx-pl-create button:disabled { opacity: 0.5; }
+
+/* Playlist page */
+.mx-pl-hero { display: flex; align-items: flex-end; gap: 18px; margin-bottom: 18px; }
+.mx-pl-hero-cover { width: 160px; height: 160px; border-radius: 6px; object-fit: cover; flex-shrink: 0; box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5); }
+.mx-pl-hero-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mx-pl-hero-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #8b949e; }
+.mx-pl-name { margin: 0 !important; cursor: text; overflow: hidden; text-overflow: ellipsis; }
+.mx-pl-rename {
+    font-size: 26px; font-weight: 800; color: #fff; background: #0d1117;
+    border: 1px solid #3fb950; border-radius: 6px; padding: 2px 8px; outline: none; min-width: 0;
+}
+@media (max-width: 760px) {
+    .mx-pl-hero { flex-direction: column; align-items: center; text-align: center; }
+    .mx-pl-hero-cover { width: min(62vw, 230px); height: min(62vw, 230px); }
+    .mx-pl-hero-text { align-items: center; }
+}

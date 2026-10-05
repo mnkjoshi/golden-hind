@@ -2,7 +2,7 @@
 // Library (/music/library). On phones the bottom tab bar switches between
 // them; on desktop a pill nav at the top does. All three share one hook for
 // the song library, offline copies, and actions.
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 // eslint flags React as unused, but this project compiles JSX with the classic runtime.
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import axios from 'axios';
@@ -10,7 +10,8 @@ import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
 import CoverArt from "../components/coverArt.jsx";
 import '../stylesheets/music.css';
-import { useMusicPlayer, playQueue, currentSong, togglePlay, setShuffle, cachedLibrary, setExpanded } from '../player/musicPlayer.js';
+import { useMusicPlayer, playQueue, currentSong, togglePlay, setShuffle, cachedLibrary, reopenPlayer } from '../player/musicPlayer.js';
+import { usePlaylists, refreshPlaylists, createPlaylist, updatePlaylist, deletePlaylist, openPlaylistPicker } from '../player/playlists.js';
 import { listOffline, saveOffline, removeOffline } from '../player/offlineSongs.js';
 
 const API = 'https://ghb.mnkjoshi.ca';
@@ -57,6 +58,9 @@ const Icon = {
     heart: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" /></svg>,
     heartFilled: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" /></svg>,
     plus: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>,
+    playlistAdd: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h12M3 12h12M3 18h7M17 14v7M13.5 17.5h7" /></svg>,
+    edit: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>,
+    trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" /></svg>,
     savedCheck: <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" /><path d="m7.5 12.5 3 3 6-6.5" stroke="#0d1117" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>,
     saveCircle: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 7.5v8m0 0-3.2-3.2M12 15.5l3.2-3.2" /></svg>,
 };
@@ -294,7 +298,7 @@ export default function MusicHome() {
                     </div>
 
                     {now && (
-                        <button className="mx-jump" onClick={() => setExpanded(true)}>
+                        <button className="mx-jump" onClick={reopenPlayer}>
                             <CoverArt className="mx-jump-cover" videoId={now.videoId} />
                             <span className="mx-jump-text">
                                 <span className="mx-jump-label">Jump back in</span>
@@ -483,7 +487,10 @@ export function MusicSearch() {
                                             <button className={`mx-icon-btn${saved ? ' on' : ''}`} onClick={() => m.toggleSaved(r)} aria-label={saved ? 'Remove from library' : 'Save to library'} title={saved ? 'In your library' : 'Save to your library'}>
                                                 {saved ? Icon.heartFilled : Icon.heart}
                                             </button>
-                                            <button className={`mx-icon-btn${queued ? ' on' : ''}`} onClick={() => queueResult(r)} disabled={queued || qStatus === 'working'} aria-label="Add to download queue" title="Add to MP3 download queue">
+                                            <button className="mx-icon-btn" onClick={() => openPlaylistPicker({ videoId: r.videoId, title: r.title, artist: r.channel })} aria-label="Add to playlist" title="Add to playlist">
+                                                {Icon.playlistAdd}
+                                            </button>
+                                            <button className={`mx-icon-btn mx-desktop${queued ? ' on' : ''}`} onClick={() => queueResult(r)} disabled={queued || qStatus === 'working'} aria-label="Add to download queue" title="Add to MP3 download queue">
                                                 {Icon.plus}
                                             </button>
                                         </SongRow>
@@ -543,6 +550,10 @@ export function MusicLibrary() {
     const m = useMusicLibrary();
     const [sort, setSort] = useState(() => localStorage.getItem('musicLibrarySort') || 'recent');
     const [onlyDownloaded, setOnlyDownloaded] = useState(false);
+    const [view, setView] = useState(() => (localStorage.getItem('musicLibraryView') === 'playlists' ? 'playlists' : 'songs'));
+    const { playlists } = usePlaylists();
+    const [newName, setNewName] = useState(null); // null = not creating
+    useEffect(() => { refreshPlaylists(); }, []);
     const list = useMemo(() => {
         const all = [...(m.library || [])].sort((SORTS[sort] || SORTS.recent).fn);
         return onlyDownloaded ? all.filter(s => m.offlineIds.has(s.videoId)) : all;
@@ -550,6 +561,14 @@ export function MusicLibrary() {
     if (!m.user) { navigate('/auth'); return null; }
 
     const changeSort = (v) => { setSort(v); try { localStorage.setItem('musicLibrarySort', v); } catch { /* noop */ } };
+    const changeView = (v) => { setView(v); try { localStorage.setItem('musicLibraryView', v); } catch { /* noop */ } };
+    const createNew = async () => {
+        const n = (newName || '').trim();
+        if (!n) return;
+        const id = await createPlaylist(n);
+        setNewName(null);
+        navigate(`/music/playlist/${id}`);
+    };
     const onDevice = (m.library || []).filter(s => m.offlineIds.has(s.videoId)).length;
 
     return (
@@ -559,6 +578,38 @@ export function MusicLibrary() {
                 <span className="mx-lib-count">{m.library ? `${m.library.length} songs · ${onDevice} on this device` : ''}</span>
             </div>
 
+            <div className="mx-segment">
+                <button className={view === 'songs' ? 'active' : ''} onClick={() => changeView('songs')}>Songs</button>
+                <button className={view === 'playlists' ? 'active' : ''} onClick={() => changeView('playlists')}>Playlists</button>
+            </div>
+
+            {view === 'playlists' ? (
+                <div className="mx-playlists">
+                    {newName === null ? (
+                        <button className="mx-pl-new" onClick={() => setNewName('')}>
+                            <span className="mx-pl-new-icon">{Icon.plus}</span>New playlist
+                        </button>
+                    ) : (
+                        <div className="mx-pl-create">
+                            <input autoFocus maxLength={60} placeholder="Playlist name" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') createNew(); if (e.key === 'Escape') setNewName(null); }} />
+                            <button onClick={createNew} disabled={!newName.trim()}>Create</button>
+                            <button className="secondary" onClick={() => setNewName(null)}>Cancel</button>
+                        </div>
+                    )}
+                    {(playlists || []).map(p => (
+                        <button key={p.id} className="mx-pl-row" onClick={() => navigate(`/music/playlist/${p.id}`)}>
+                            <PlaylistCover songs={p.songs} className="mx-pl-cover" />
+                            <span className="mx-row-text">
+                                <span className="mx-row-title">{p.name}</span>
+                                <span className="mx-row-artist">Playlist · {p.songs.length} song{p.songs.length === 1 ? '' : 's'}</span>
+                            </span>
+                        </button>
+                    ))}
+                    {playlists && playlists.length === 0 && newName === null && (
+                        <div className="mx-empty"><p>No playlists yet. Make one, then add songs from your library or search.</p></div>
+                    )}
+                </div>
+            ) : <>
             {m.library?.length > 0 && (
                 <>
                     <div className="mx-actions">
@@ -610,10 +661,106 @@ export function MusicLibrary() {
                             >
                                 {m.offlineBusy === s.videoId ? <div className="music-spinner" /> : m.offlineIds.has(s.videoId) ? Icon.savedCheck : Icon.saveCircle}
                             </button>
+                            <button className="mx-icon-btn" onClick={() => openPlaylistPicker(s)} aria-label={`Add ${s.title} to a playlist`} title="Add to playlist">{Icon.playlistAdd}</button>
                             <button className="mx-icon-btn mx-desktop" onClick={() => m.downloadSong(s)} disabled={!!m.rowBusy} aria-label={`Download ${s.title}`} title="Download MP3">
                                 {m.rowBusy === s.videoId ? <div className="music-spinner" /> : Icon.download}
                             </button>
                             <button className="mx-icon-btn" onClick={() => m.removeSong(s)} aria-label={`Remove ${s.title}`} title="Remove from library">{Icon.close}</button>
+                        </SongRow>
+                    ))}
+                </div>
+            )}
+            </>}
+        </Shell>
+    );
+}
+
+// 2×2 mosaic of the first four songs (or one cover), like Spotify.
+function PlaylistCover({ songs, className }) {
+    const ids = (songs || []).slice(0, 4);
+    if (ids.length === 0) {
+        return <div className={`${className} mx-pl-cover-empty`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg></div>;
+    }
+    if (ids.length < 4) return <CoverArt className={className} videoId={ids[0]} />;
+    return (
+        <div className={`${className} mx-pl-mosaic`}>
+            {ids.map(id => <CoverArt key={id} className="mx-pl-mosaic-cell" videoId={id} />)}
+        </div>
+    );
+}
+
+// ── One playlist ─────────────────────────────────────────────────────────────
+
+export function MusicPlaylist() {
+    const navigate = useNavigate();
+    const { id } = useParams();
+    const m = useMusicLibrary();
+    const { playlists } = usePlaylists();
+    const [renaming, setRenaming] = useState(null);
+    useEffect(() => { refreshPlaylists(); }, []);
+    const playlist = (playlists || []).find(p => p.id === id);
+    const byId = useMemo(() => new Map((m.library || []).map(s => [s.videoId, s])), [m.library]);
+    const songs = useMemo(
+        () => (playlist?.songs || []).map(v => byId.get(v) || { videoId: v, title: 'Unknown song', artist: '' }),
+        [playlist, byId]
+    );
+    if (!m.user) { navigate('/auth'); return null; }
+
+    if (!playlist) {
+        return (
+            <Shell>
+                <div className="mx-empty">
+                    <p>{playlists === null ? 'Loading…' : 'This playlist no longer exists.'}</p>
+                    {playlists !== null && <button className="mx-cta" onClick={() => navigate('/music/library')}>Back to Library</button>}
+                </div>
+            </Shell>
+        );
+    }
+
+    const removeFromPlaylist = (videoId) => updatePlaylist(playlist.id, { songs: playlist.songs.filter(v => v !== videoId) });
+    const rename = () => {
+        const n = (renaming || '').trim();
+        if (n && n !== playlist.name) updatePlaylist(playlist.id, { name: n });
+        setRenaming(null);
+    };
+    const remove = async () => {
+        if (!window.confirm(`Delete “${playlist.name}”? The songs stay in your library.`)) return;
+        await deletePlaylist(playlist.id);
+        navigate('/music/library');
+    };
+
+    return (
+        <Shell>
+            <div className="mx-pl-hero">
+                <PlaylistCover songs={playlist.songs} className="mx-pl-hero-cover" />
+                <div className="mx-pl-hero-text">
+                    <span className="mx-pl-hero-label">Playlist</span>
+                    {renaming === null ? (
+                        <h1 className="mx-page-title mx-pl-name" onClick={() => setRenaming(playlist.name)} title="Rename">{playlist.name}</h1>
+                    ) : (
+                        <input className="mx-pl-rename" autoFocus maxLength={60} value={renaming} onChange={e => setRenaming(e.target.value)} onBlur={rename} onKeyDown={e => { if (e.key === 'Enter') rename(); if (e.key === 'Escape') setRenaming(null); }} />
+                    )}
+                    <span className="mx-lib-count">{songs.length} song{songs.length === 1 ? '' : 's'}</span>
+                </div>
+            </div>
+
+            <div className="mx-actions">
+                <button className="mx-action primary" onClick={() => m.playFrom(songs, 0)} disabled={!songs.length}>{Icon.play}<span>Play</span></button>
+                <button className="mx-action" onClick={() => m.shufflePlay(songs)} disabled={!songs.length}>{Icon.shuffle}<span>Shuffle</span></button>
+                <button className="mx-action" onClick={() => setRenaming(playlist.name)}>{Icon.edit}<span>Rename</span></button>
+                <button className="mx-action" onClick={remove}>{Icon.trash}<span>Delete</span></button>
+            </div>
+
+            {songs.length === 0 ? (
+                <div className="mx-empty">
+                    <p>Add songs with the playlist button in your library or search.</p>
+                    <button className="mx-cta" onClick={() => navigate('/music/search')}>Find music</button>
+                </div>
+            ) : (
+                <div className="mx-list">
+                    {songs.map((s, i) => (
+                        <SongRow key={s.videoId} song={s} isPlaying={m.playing?.videoId === s.videoId} playingNow={!m.player.paused} onPlay={() => m.playFrom(songs, i)}>
+                            <button className="mx-icon-btn" onClick={() => removeFromPlaylist(s.videoId)} aria-label={`Remove ${s.title} from this playlist`} title="Remove from playlist">{Icon.close}</button>
                         </SongRow>
                     ))}
                 </div>

@@ -59,3 +59,4 @@
 .dl-video-el { flex: 1; width: 100%; min-height: 0; background: #000; }
 .dl-content { padding-top: calc(92px + env(safe-area-inset-top, 0px)); }
 @media (max-width: 760px) { .dl-content { padding-top: calc(74px + env(safe-area-inset-top, 0px)); } }
+@media (max-width: 800px) { .dl-content { padding-top: calc(58px + max(0px, calc(env(safe-area-inset-top, 0px) - 12px))); } }

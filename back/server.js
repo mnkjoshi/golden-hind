@@ -28,7 +28,7 @@ import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
 import { buildWatchedUpdate } from './lib/watched.js';
 import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
-import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate } from './lib/music.js';
+import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -3312,6 +3312,77 @@ app.get('/music/cover/:videoId', async (req, res) => {
     res.sendFile(cover, { headers: { 'Content-Type': 'image/jpeg' } });
 });
 
+// ── Playlists ───────────────────────────────────────────────────────────────
+// users/{u}/playlists/{id} = { name, songs: [videoId…], createdAt, updatedAt }
+
+app.post('/music/playlists', async (req, res) => {
+    const { user, token } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const all = (await admin.database().ref(`users/${user}/playlists`).once('value')).val() || {};
+        const playlists = Object.entries(all).map(([id, p]) => ({
+            id, name: p.name || 'Playlist', songs: Array.isArray(p.songs) ? p.songs : [],
+            createdAt: p.createdAt || 0, updatedAt: p.updatedAt || 0,
+        })).sort((a, b) => b.updatedAt - a.updatedAt);
+        res.json({ playlists });
+    } catch (e) {
+        logError(user, '/music/playlists', e).catch(() => {});
+        res.status(500).json({ error: 'Could not load playlists' });
+    }
+});
+
+app.post('/music/playlists/create', async (req, res) => {
+    const { user, token, name, songs } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    const clean = sanitizePlaylistName(name);
+    if (!clean) return res.status(400).json({ error: 'Give the playlist a name' });
+    try {
+        const now = Date.now();
+        const ref = await admin.database().ref(`users/${user}/playlists`).push({
+            name: clean, songs: sanitizePlaylistSongs(songs), createdAt: now, updatedAt: now,
+        });
+        res.json({ id: ref.key });
+    } catch (e) {
+        logError(user, '/music/playlists/create', e).catch(() => {});
+        res.status(500).json({ error: 'Could not create the playlist' });
+    }
+});
+
+app.post('/music/playlists/update', async (req, res) => {
+    const { user, token, id, name, songs } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!isValidPlaylistId(id)) return res.status(400).json({ error: 'Invalid playlist' });
+    const patch = { updatedAt: Date.now() };
+    if (name !== undefined) {
+        const clean = sanitizePlaylistName(name);
+        if (!clean) return res.status(400).json({ error: 'Give the playlist a name' });
+        patch.name = clean;
+    }
+    if (songs !== undefined) patch.songs = sanitizePlaylistSongs(songs);
+    try {
+        const ref = admin.database().ref(`users/${user}/playlists/${id}`);
+        if (!(await ref.once('value')).exists()) return res.status(404).json({ error: 'Playlist not found' });
+        await ref.update(patch);
+        res.json({ ok: true });
+    } catch (e) {
+        logError(user, '/music/playlists/update', e).catch(() => {});
+        res.status(500).json({ error: 'Could not update the playlist' });
+    }
+});
+
+app.post('/music/playlists/delete', async (req, res) => {
+    const { user, token, id } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!isValidPlaylistId(id)) return res.status(400).json({ error: 'Invalid playlist' });
+    try {
+        await admin.database().ref(`users/${user}/playlists/${id}`).remove();
+        res.json({ ok: true });
+    } catch (e) {
+        logError(user, '/music/playlists/delete', e).catch(() => {});
+        res.status(500).json({ error: 'Could not delete the playlist' });
+    }
+});
+
 // Stream one song for the in-app player. GET with query auth because it's an
 // <audio> src; sendFile handles Range requests, which the player needs for
 // seeking. Uncached songs are prepared first (one-time ~15s).
@@ -3341,8 +3412,12 @@ app.get('/music/stream/:videoId', async (req, res) => {
 // the active device plays and reports progress, the others mirror the state
 // and send changes (pause, skip, seek, "play here") through /update.
 
-app.post('/music/player/update', async (req, res) => {
-    const { user, token, clientId, patch } = req.body;
+// Also accepts text/plain JSON: a closing app reports its last state with
+// navigator.sendBeacon, which can't send application/json cross-origin.
+app.post('/music/player/update', express.text({ type: 'text/plain' }), async (req, res) => {
+    let body = req.body;
+    if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
+    const { user, token, clientId, patch } = body || {};
     if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
     const clean = sanitizePlayerUpdate(patch);
     if (Object.keys(clean).length === 0) return res.status(400).json({ error: 'Nothing to update' });

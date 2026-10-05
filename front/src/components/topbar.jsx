@@ -10,6 +10,7 @@ import TextLogoGlitch5 from '../assets/TextLogoGlitch5.png';
 import { formatWatchTime, formatRelativeTime } from '../utils/format.js';
 import RemoteControl from './remote.jsx';
 import PlayerBar from './playerBar.jsx';
+import PlaylistPicker from './playlistPicker.jsx';
 
 const GLITCH_FRAMES = [TextLogoGlitch1, TextLogoGlitch2, TextLogoGlitch3, TextLogoGlitch4, TextLogoGlitch5];
 
@@ -325,6 +326,7 @@ export default function Topbar() {
     return (
         <>
             <PlayerBar />
+            <PlaylistPicker />
             <nav className={`modern-topbar ${isScrolled ? 'scrolled' : ''}`}>
                 <div className="topbar-content">
                     {/* Logo */}
@@ -483,6 +485,10 @@ export default function Topbar() {
 
             {showTabbar && (inMusic ? (
                 <nav className="mobile-tabbar music" aria-label="Music">
+                    <button className="mobile-tab mobile-tab-streaming" onClick={() => navigate('/app')}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="4.5" width="19" height="13" rx="2.5" /><path d="M8 21h8M10 9.5v4.5l4-2.25z" /></svg>
+                        <span className="tab-label">Streaming</span>
+                    </button>
                     <button className={`mobile-tab${location.pathname === '/music' ? ' active' : ''}`} onClick={() => navigate('/music')}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5z" /></svg>
                         <span className="tab-label">Home</span>
@@ -491,7 +497,7 @@ export default function Topbar() {
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" /></svg>
                         <span className="tab-label">Search</span>
                     </button>
-                    <button className={`mobile-tab${location.pathname === '/music/library' ? ' active' : ''}`} onClick={() => navigate('/music/library')}>
+                    <button className={`mobile-tab${location.pathname === '/music/library' || location.pathname.startsWith('/music/playlist') ? ' active' : ''}`} onClick={() => navigate('/music/library')}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 3v18M9 3v18" /><path d="m14 4 5 16" /></svg>
                         <span className="tab-label">Library</span>
                     </button>

@@ -249,3 +249,30 @@ export function sanitizePlayerUpdate(raw) {
     }
     return out;
 }
+
+// ── Playlists ───────────────────────────────────────────────────────────────
+// users/{u}/playlists/{id} = { name, songs: [videoId…], createdAt, updatedAt }
+
+// 1–60 visible characters, or null.
+export function sanitizePlaylistName(raw) {
+    // eslint-disable-next-line no-control-regex
+    const name = String(raw ?? '').replace(/[\x00-\x1F\x7F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+    return name || null;
+}
+
+// Valid, de-duplicated video ids in their original order (max 500).
+export function sanitizePlaylistSongs(raw) {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const id of raw.map(String)) {
+        if (!VIDEO_ID.test(id) || seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+        if (out.length >= 500) break;
+    }
+    return out;
+}
+
+// RTDB push keys ("-Nx…"), safe to use as a path segment.
+export const isValidPlaylistId = (id) => /^-?[A-Za-z0-9_-]{1,40}$/.test(String(id || ''));
