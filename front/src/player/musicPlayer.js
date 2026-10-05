@@ -29,8 +29,8 @@ function tabId() {
     }
 }
 const CLIENT_ID = tabId();
-const deviceName = () => localStorage.getItem('remoteDeviceName')
-    || defaultDeviceName(navigator.userAgent, false);
+export const deviceName = () => localStorage.getItem('remoteDeviceName')
+    || defaultDeviceName(navigator.userAgent, false, navigator.maxTouchPoints);
 const auth = () => ({ user: localStorage.getItem('user'), token: localStorage.getItem('token') });
 
 const audio = typeof Audio !== 'undefined' ? new Audio() : null;
