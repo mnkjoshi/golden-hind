@@ -845,3 +845,36 @@
     .mx-pl-hero-cover { width: min(62vw, 230px); height: min(62vw, 230px); }
     .mx-pl-hero-text { align-items: center; }
 }
+
+/* "Are you sure" pop-up beside a ✕ (components/confirmButton.jsx) */
+.confirm-pop {
+    position: fixed;
+    z-index: 3200;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 210px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(40, 40, 42, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-family: 'Inter', system-ui, sans-serif;
+    animation: confirm-pop-in 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes confirm-pop-in { from { opacity: 0; transform: scale(0.94); } }
+.confirm-pop-msg { font-size: 14px; font-weight: 600; }
+.confirm-pop-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.confirm-pop-actions button {
+    border: none;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.confirm-pop-cancel { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.confirm-pop-ok { background: #f85149; color: #fff; }
+.mx-icon-btn.confirming { color: #fff; background: rgba(255, 255, 255, 0.1); }

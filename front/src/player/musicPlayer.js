@@ -200,6 +200,9 @@ function applyRemote(s) {
         activeDevice: s.activeDevice || null,
         clockOffset,
     };
+    // Watching another device: its reported length drives the seek bar here.
+    // (The playing device keeps the length its own <audio> element reports.)
+    if (s.activeDevice?.id !== CLIENT_ID) next.duration = typeof s.duration === 'number' ? s.duration : 0;
     const wasActive = isActiveHere();
     set(next);
     // Opening the app: unless something is actively playing on another
@@ -266,7 +269,12 @@ if (audio) {
         report();
         updatePositionState();
     });
-    audio.addEventListener('loadedmetadata', () => { set({ duration: audio.duration || 0, loading: false }); updatePositionState(true); });
+    audio.addEventListener('loadedmetadata', () => {
+        set({ duration: audio.duration || 0, loading: false });
+        updatePositionState(true);
+        // Other devices only know the length if the player tells them.
+        if (isActiveHere() && Number.isFinite(audio.duration)) send({ duration: audio.duration });
+    });
     audio.addEventListener('playing', () => {
         set({ paused: false, loading: false });
         report(true);
@@ -359,7 +367,7 @@ export function playQueue(songs, startIndex = 0, opts = {}) {
     const originalQueue = shuffle ? ids : null;
     set({ queue, index, shuffle, originalQueue, paused: false, position: 0, activeDevice: me(), dismissed: false });
     loadAndPlay(0, true);
-    send({ queue, index, originalQueue, position: 0, paused: false, activeDevice: me(), shuffle, repeat: state.repeat });
+    send({ queue, index, originalQueue, position: 0, duration: 0, paused: false, activeDevice: me(), shuffle, repeat: state.repeat });
 }
 
 export function togglePlay(forcePaused) {
@@ -379,12 +387,14 @@ export function togglePlay(forcePaused) {
 }
 
 function goTo(index, startAt = 0) {
-    set({ index, position: startAt, paused: false });
     if (isActiveHere()) {
+        set({ index, position: startAt, paused: false });
         loadAndPlay(startAt, true);
-        send({ index, position: startAt, paused: false });
+        send({ index, position: startAt, duration: 0, paused: false });
     } else {
-        send({ index, position: startAt, paused: false });
+        // Remote: the new song's length arrives once the player loads it.
+        set({ index, position: startAt, paused: false, duration: 0 });
+        send({ index, position: startAt, duration: 0, paused: false });
     }
 }
 
