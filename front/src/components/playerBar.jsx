@@ -7,10 +7,11 @@ import React, { useEffect, useState } from 'react';
 import {
     useMusicPlayer, ensureStarted, currentSong, isActiveHere, displayPosition,
     togglePlay, next, prev, seek, setShuffle, setRepeat, transferHere, remoteIsStale,
-    pauseForVideo, setVolume, getVolume, streamUrl, setExpanded,
+    pauseForVideo, setVolume, getVolume, streamUrl, setExpanded, closePlayer,
 } from '../player/musicPlayer.js';
 import FullPlayer from './fullPlayer.jsx';
 import { listOffline, saveOffline, removeOffline } from '../player/offlineSongs.js';
+import { openPlaylistPicker } from '../player/playlists.js';
 import { formatClock } from '../utils/remote.js';
 import CoverArt from './coverArt.jsx';
 import { nextRepeatMode } from '../utils/player.js';
@@ -24,6 +25,7 @@ const Icon = {
     repeat: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>,
     device: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>,
     download: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 21h16" /></svg>,
+    close: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>,
     more: <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>,
     volume: <svg viewBox="0 0 24 24" fill="none"><path d="M4.5 9.5v5H8l4.5 4v-13L8 9.5H4.5z" fill="currentColor" /><path d="M15.5 9.2a4.2 4.2 0 0 1 0 5.6M18 6.8a7.6 7.6 0 0 1 0 10.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>,
 };
@@ -43,7 +45,7 @@ export default function PlayerBar() {
     const here = isActiveHere(s);
     const stale = remoteIsStale(s);
     const paused = s.paused || stale;
-    const visible = !!song && !onWatch;
+    const visible = !!song && !onWatch && !s.dismissed;
 
     useEffect(() => { ensureStarted(); }, []);
     // Starting a video pauses the music (it'd fight the movie's audio).
@@ -145,6 +147,7 @@ export default function PlayerBar() {
 
             <div className="player-right">
                 <button className="player-icon-btn player-options-btn" onClick={() => setOptionsOpen(true)} aria-label="More options">{Icon.more}</button>
+                <button className="player-icon-btn player-close-btn" onClick={closePlayer} aria-label="Close player" title="Close player">{Icon.close}</button>
                 {!here && (
                     <button className="player-here-btn" onClick={transferHere} title="Move playback to this device">
                         {Icon.device}<span>Play here</span>
@@ -172,9 +175,11 @@ export default function PlayerBar() {
                     </div>
                     <button onClick={() => { setOptionsOpen(false); setExpanded(true); }}>Open player</button>
                     <a href={streamUrl(song.videoId, true)} onClick={() => setOptionsOpen(false)}>Download MP3</a>
-                    <button onClick={togglePhone} disabled={phoneBusy}>{phoneBusy ? 'Saving…' : onPhone ? 'Remove from this phone' : 'Save to this phone'}</button>
-                    {!here && <button onClick={() => { setOptionsOpen(false); transferHere(); }}>Play on this phone</button>}
+                    <button onClick={togglePhone} disabled={phoneBusy}>{phoneBusy ? 'Saving…' : onPhone ? 'Remove from this device' : 'Save to this device'}</button>
+                    {!here && <button onClick={() => { setOptionsOpen(false); transferHere(); }}>Play on this device</button>}
+                    <button onClick={() => { setOptionsOpen(false); openPlaylistPicker(song); }}>Add to playlist</button>
                     <button onClick={() => { setOptionsOpen(false); navigate('/music/library'); }}>Go to Library</button>
+                    <button onClick={() => { setOptionsOpen(false); closePlayer(); }}>Close player</button>
                     <button className="player-sheet-cancel" onClick={() => setOptionsOpen(false)}>Cancel</button>
                 </div>
             </div>

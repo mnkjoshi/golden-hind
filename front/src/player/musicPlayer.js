@@ -53,6 +53,7 @@ let state = {
     loading: false,
     error: '',
     expanded: false,      // full-screen player open (phone-style "Now Playing")
+    dismissed: false,     // bar hidden on this device (closed, or app just reopened)
 };
 const listeners = new Set();
 const set = (patch) => { state = { ...state, ...patch }; listeners.forEach(fn => fn()); };
@@ -171,6 +172,12 @@ function applyRemote(s) {
     };
     const wasActive = isActiveHere();
     set(next);
+    // Opening the app: unless something is actively playing on another
+    // device, start with the player dismissed (like a freshly launched app).
+    // Later: whenever another device starts playing, show it again.
+    const playingElsewhere = !isActiveHere() && !state.paused && !remoteIsStale();
+    if (isSnapshot) set({ dismissed: !playingElsewhere });
+    else if (playingElsewhere) set({ dismissed: false });
     if (next.queue.some(id => !state.songs[id])) refreshLibrary();
 
     if (isActiveHere()) {
@@ -178,10 +185,9 @@ function applyRemote(s) {
         const id = state.queue[state.index];
         const target = estimateRemotePosition(state, Date.now(), clockOffset);
         if (id && loadedId !== id && isSnapshot) {
-            // This tab was the player before a reload: come back paused
-            // where it left off rather than blasting audio unprompted.
+            // This tab was the player before a reload: come back paused (and
+            // dismissed) rather than blasting audio unprompted.
             set({ paused: true, position: state.position });
-            loadAndPlay(state.position, false);
             send({ paused: true, position: state.position });
         } else if (id && loadedId !== id) {
             loadAndPlay(target, !state.paused);
@@ -309,7 +315,7 @@ export function playQueue(songs, startIndex = 0) {
     if (!songs?.length) return;
     mergeSongs(songs);
     const queue = songs.map(s => s.videoId);
-    set({ queue, index: startIndex, paused: false, position: 0, activeDevice: me() });
+    set({ queue, index: startIndex, paused: false, position: 0, activeDevice: me(), dismissed: false });
     loadAndPlay(0, true);
     send({ queue, index: startIndex, position: 0, paused: false, activeDevice: me(), shuffle: state.shuffle, repeat: state.repeat });
 }
@@ -390,7 +396,7 @@ export function setRepeat(mode) { set({ repeat: mode }); send({ repeat: mode });
 export function transferHere() {
     if (!currentSong()) return;
     const at = displayPosition();
-    set({ activeDevice: me(), position: at, paused: false });
+    set({ activeDevice: me(), position: at, paused: false, dismissed: false });
     loadAndPlay(at, true);
     send({ activeDevice: me(), position: at, paused: false, index: state.index });
 }
@@ -401,6 +407,30 @@ export function pauseForVideo() {
 }
 
 export function setExpanded(open) { set({ expanded: !!open }); }
+
+// Bring a dismissed player back, opened full-screen ("Jump back in").
+export function reopenPlayer() { set({ dismissed: false, expanded: true }); }
+
+// "×" on the player: stop playing here (if this is the playing device) and
+// hide the bar on this device. Other devices are left alone.
+export function closePlayer() {
+    if (isActiveHere() && audio && !audio.paused) audio.pause();
+    set({ dismissed: true, expanded: false });
+}
+
+// Closing the app (or tab) while it's the one playing: tell the server it's
+// paused, so other devices don't show it as still playing. sendBeacon is the
+// only request that survives page teardown; it can't send JSON cross-origin,
+// so the body goes as text/plain (the server accepts that for this route).
+if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', () => {
+        if (!isActiveHere() || !audio || audio.paused || !navigator.sendBeacon) return;
+        const { user, token } = auth();
+        if (!user || !token) return;
+        const body = JSON.stringify({ user, token, clientId: CLIENT_ID, patch: { paused: true, position: audio.currentTime || 0 } });
+        navigator.sendBeacon(`${API}/music/player/update`, new Blob([body], { type: 'text/plain' }));
+    });
+}
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 export const getState = () => state;

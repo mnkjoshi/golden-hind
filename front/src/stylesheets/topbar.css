@@ -1248,3 +1248,19 @@
     .mobile-tabbar.music { grid-template-columns: repeat(3, 1fr); }
     .topbar-right .topbar-mobile-search { display: flex; }
 }
+
+/* ── Phone chrome: neutral colours + tighter spacing ── */
+@media (max-width: 800px) {
+    /* Spotify-style neutral black, no navy tint */
+    .mobile-tabbar {
+        background: rgba(0, 0, 0, 0.94);
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .mobile-tabbar.music { grid-template-columns: repeat(4, 1fr); }
+    /* Sit the bar just under the Dynamic Island instead of a full safe-area
+       strip below it, and keep the bar itself compact. */
+    .modern-topbar {
+        padding-top: max(0px, calc(env(safe-area-inset-top, 0px) - 12px));
+        height: calc(50px + max(0px, calc(env(safe-area-inset-top, 0px) - 12px)));
+    }
+}

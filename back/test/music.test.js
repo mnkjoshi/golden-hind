@@ -4,6 +4,7 @@ import {
     sanitizeSearchQuery, formatDuration, parseYtSearchOutput,
     artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs,
     buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate,
+    sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId,
 } from '../lib/music.js';
 
 test('sanitizeSearchQuery trims, collapses, strips control chars, caps length', () => {
@@ -223,4 +224,17 @@ test('sanitizePlayerUpdate whitelists and coerces player changes', () => {
     assert.deepEqual(sanitizePlayerUpdate({ index: 3 }), { index: 3 });
     assert.deepEqual(sanitizePlayerUpdate({ queue: [], index: 2 }), { queue: [], index: 0 });
     assert.deepEqual(sanitizePlayerUpdate(null), {});
+});
+
+test('playlist helpers validate names, songs, and ids', () => {
+    assert.equal(sanitizePlaylistName('  Road   trip \n'), 'Road trip');
+    assert.equal(sanitizePlaylistName('x'.repeat(80)).length, 60);
+    assert.equal(sanitizePlaylistName('   '), null);
+    assert.equal(sanitizePlaylistName(null), null);
+    assert.deepEqual(sanitizePlaylistSongs(['TiebZllW8As', 'bad', 'JYekRpqL4O8', 'TiebZllW8As']), ['TiebZllW8As', 'JYekRpqL4O8']);
+    assert.deepEqual(sanitizePlaylistSongs('nope'), []);
+    assert.equal(sanitizePlaylistSongs(Array.from({ length: 600 }, (_, i) => `id${String(i).padStart(9, '0')}`)).length, 500);
+    assert.ok(isValidPlaylistId('-NxAbC_12-z'));
+    assert.ok(!isValidPlaylistId('../etc'));
+    assert.ok(!isValidPlaylistId(''));
 });
