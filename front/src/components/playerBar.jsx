@@ -14,6 +14,8 @@ import { listOffline, saveOffline, removeOffline } from '../player/offlineSongs.
 import { openPlaylistPicker } from '../player/playlists.js';
 import { formatClock } from '../utils/remote.js';
 import CoverArt from './coverArt.jsx';
+import Scrubber from './scrubber.jsx';
+import Sheet, { useSheet } from './sheet.jsx';
 import { nextRepeatMode } from '../utils/player.js';
 
 const Icon = {
@@ -35,17 +37,33 @@ export default function PlayerBar() {
     const location = useLocation();
     const [, setTick] = useState(0);
     const [scrub, setScrub] = useState(null);
-    const navigate = useNavigate();
-    // ⋯ options sheet (phones)
+    // ⋯ options sheet
     const [optionsOpen, setOptionsOpen] = useState(false);
-    const [onPhone, setOnPhone] = useState(false);
-    const [phoneBusy, setPhoneBusy] = useState(false);
     const onWatch = location.pathname.startsWith('/watch/');
     const song = currentSong(s);
     const here = isActiveHere(s);
     const stale = remoteIsStale(s);
     const paused = s.paused || stale;
     const visible = !!song && !onWatch && !s.dismissed;
+    // Slide in when the player appears and stay mounted briefly after it's
+    // hidden so it can slide away. The Topbar (and this) remounts on every
+    // page change, so an already-visible bar starts without the entrance.
+    const [mounted, setMounted] = useState(visible);
+    const [entering, setEntering] = useState(false);
+    const [leaving, setLeaving] = useState(false);
+    useEffect(() => {
+        if (visible) {
+            if (!mounted) setEntering(true);
+            setMounted(true);
+            setLeaving(false);
+            return;
+        }
+        if (!mounted) return;
+        setLeaving(true);
+        setEntering(false);
+        const t = setTimeout(() => { setMounted(false); setLeaving(false); }, 220);
+        return () => clearTimeout(t);
+    }, [visible]);
 
     useEffect(() => { ensureStarted(); }, []);
     // Starting a video pauses the music (it'd fight the movie's audio).
@@ -66,22 +84,7 @@ export default function PlayerBar() {
         return () => document.body.classList.remove('has-music-player');
     }, [visible]);
 
-    useEffect(() => {
-        if (!optionsOpen || !song) return;
-        listOffline().then(ids => setOnPhone(ids.has(song.videoId)));
-    }, [optionsOpen, song?.videoId]);
-
-    if (!visible) return null;
-
-    const togglePhone = async () => {
-        if (phoneBusy) return;
-        setPhoneBusy(true);
-        try {
-            if (onPhone) { await removeOffline(song.videoId); setOnPhone(false); }
-            else { await saveOffline(song.videoId); setOnPhone(true); }
-        } catch { /* storage full / offline — the sheet just doesn't flip */ }
-        setPhoneBusy(false);
-    };
+    if (!mounted || !song) return null;
 
     const position = scrub ?? displayPosition(s);
     const duration = s.duration || 0;
@@ -89,13 +92,14 @@ export default function PlayerBar() {
 
     // Tapping the bar (anywhere but its controls) opens the full player.
     const openFull = (e) => {
-        if (e.target.closest('button, a, input')) return;
+        if (e.target.closest('button, a, input, .scrubber')) return;
         setExpanded(true);
     };
 
     return (
         <>
-        <div className="player-bar" role="region" aria-label="Music player" onClick={openFull}>
+        <div className={`player-bar${entering ? ' entering' : ''}${leaving ? ' leaving' : ''}`}
+            onAnimationEnd={e => { if (e.target === e.currentTarget) setEntering(false); }} role="region" aria-label="Music player" onClick={openFull}>
             <div className="player-progress-mobile" style={{ width: duration ? `${(position / duration) * 100}%` : 0 }} />
 
             <div className="player-now" title="Open player">
@@ -129,15 +133,13 @@ export default function PlayerBar() {
                 </div>
                 <div className="player-scrub player-desktop">
                     <span className="player-time">{formatClock(position)}</span>
-                    <input
-                        type="range" min={0} max={duration || 1} step={0.5}
-                        value={Math.min(position, duration || 1)}
+                    <Scrubber
+                        className="player-scrubber"
+                        value={Math.min(position, duration || 0)}
+                        max={duration}
                         disabled={!duration}
-                        onChange={e => setScrub(Number(e.target.value))}
-                        onMouseUp={e => commitScrub(Number(e.target.value))}
-                        onTouchEnd={e => commitScrub(Number(e.target.value))}
-                        onKeyUp={e => commitScrub(Number(e.target.value))}
-                        aria-label="Seek"
+                        onScrub={setScrub}
+                        onCommit={commitScrub}
                     />
                     <span className="player-time">{formatClock(duration)}</span>
                 </div>
@@ -163,27 +165,49 @@ export default function PlayerBar() {
             </div>
         </div>
         {s.expanded && <FullPlayer />}
-        {optionsOpen && (
-            <div className="player-sheet-backdrop" onClick={() => setOptionsOpen(false)}>
-                <div className="player-sheet" role="menu" onClick={e => e.stopPropagation()}>
-                    <div className="player-sheet-head">
-                        <CoverArt className="player-sheet-cover" videoId={song.videoId} />
-                        <span className="player-meta">
-                            <span className="player-title">{song.title}</span>
-                            <span className="player-artist">{song.artist}</span>
-                        </span>
-                    </div>
-                    <button onClick={() => { setOptionsOpen(false); setExpanded(true); }}>Open player</button>
-                    <a href={streamUrl(song.videoId, true)} onClick={() => setOptionsOpen(false)}>Download MP3</a>
-                    <button onClick={togglePhone} disabled={phoneBusy}>{phoneBusy ? 'Saving…' : onPhone ? 'Remove from this device' : 'Save to this device'}</button>
-                    {!here && <button onClick={() => { setOptionsOpen(false); transferHere(); }}>Play on this device</button>}
-                    <button onClick={() => { setOptionsOpen(false); openPlaylistPicker(song); }}>Add to playlist</button>
-                    <button onClick={() => { setOptionsOpen(false); navigate('/music/library'); }}>Go to Library</button>
-                    <button onClick={() => { setOptionsOpen(false); closePlayer(); }}>Close player</button>
-                    <button className="player-sheet-cancel" onClick={() => setOptionsOpen(false)}>Cancel</button>
-                </div>
-            </div>
-        )}
+        {optionsOpen && <OptionsSheet song={song} here={here} onClose={() => setOptionsOpen(false)} />}
         </>
+    );
+}
+
+// ⋯ sheet for the current song.
+function OptionsSheet({ song, here, onClose }) {
+    const sheet = useSheet(onClose);
+    const navigate = useNavigate();
+    const [onPhone, setOnPhone] = useState(false);
+    const [phoneBusy, setPhoneBusy] = useState(false);
+
+    useEffect(() => {
+        listOffline().then(ids => setOnPhone(ids.has(song.videoId)));
+    }, [song.videoId]);
+
+    const togglePhone = async () => {
+        if (phoneBusy) return;
+        setPhoneBusy(true);
+        try {
+            if (onPhone) { await removeOffline(song.videoId); setOnPhone(false); }
+            else { await saveOffline(song.videoId); setOnPhone(true); }
+        } catch { /* storage full / offline — the sheet just doesn't flip */ }
+        setPhoneBusy(false);
+    };
+
+    return (
+        <Sheet sheet={sheet} role="menu" label="Song options">
+            <div className="player-sheet-head">
+                <CoverArt className="player-sheet-cover" videoId={song.videoId} />
+                <span className="player-meta">
+                    <span className="player-title">{song.title}</span>
+                    <span className="player-artist">{song.artist}</span>
+                </span>
+            </div>
+            <button onClick={() => { sheet.close(); setExpanded(true); }}>Open player</button>
+            <button onClick={() => sheet.close(() => openPlaylistPicker(song))}>Add to playlist</button>
+            <a href={streamUrl(song.videoId, true)} onClick={() => sheet.close()}>Download MP3</a>
+            <button onClick={togglePhone} disabled={phoneBusy}>{phoneBusy ? 'Saving…' : onPhone ? 'Remove from this device' : 'Save to this device'}</button>
+            {!here && <button onClick={() => { sheet.close(); transferHere(); }}>Play on this device</button>}
+            <button onClick={() => { sheet.close(); navigate('/music/library'); }}>Go to Library</button>
+            <button onClick={() => sheet.close(closePlayer)}>Close player</button>
+            <button className="player-sheet-cancel" onClick={() => sheet.close()}>Cancel</button>
+        </Sheet>
     );
 }

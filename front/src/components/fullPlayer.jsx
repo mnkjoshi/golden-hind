@@ -1,5 +1,7 @@
 // Full-screen "Now Playing" sheet (Spotify / Apple Music style). Opens from
-// the mini player; the chevron, Escape, or a swipe down collapses it back.
+// the mini player; the chevron, Escape, or a swipe/flick down collapses it.
+// Open, close and drag all move one CSS variable (--fp-y) under a single
+// transition, so letting go mid-swipe glides from where the finger was.
 // eslint flags React as unused, but JSX here compiles with the classic runtime.
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -9,6 +11,8 @@ import {
 import { formatClock } from '../utils/remote.js';
 import { nextRepeatMode } from '../utils/player.js';
 import CoverArt from './coverArt.jsx';
+import Scrubber from './scrubber.jsx';
+import { openPlaylistPicker } from '../player/playlists.js';
 
 const I = {
     down: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>,
@@ -19,6 +23,8 @@ const I = {
     shuffle: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></svg>,
     repeat: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>,
     device: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>,
+    more: <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></svg>,
+    playlistAdd: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h12M3 12h12M3 18h7M18 14v7M14.5 17.5h7" /></svg>,
     download: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 21h16" /></svg>,
 };
 
@@ -27,23 +33,41 @@ export default function FullPlayer() {
     const [, setTick] = useState(0);
     const [scrub, setScrub] = useState(null);
     const [dragY, setDragY] = useState(0);
+    const [shown, setShown] = useState(false);   // false = parked below the screen
     const [closing, setClosing] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
     const touchStart = useRef(null);
+    const menuRef = useRef(false);
+    menuRef.current = menuOpen;
     const song = currentSong(s);
     const here = isActiveHere(s);
     const stale = remoteIsStale(s);
     const paused = s.paused || stale;
 
     const close = () => {
+        if (closing) return;
+        setMenuOpen(false);
         setClosing(true);
-        setTimeout(() => { setExpanded(false); setClosing(false); setDragY(0); }, 220);
+        setDragY(0);
+        setTimeout(() => setExpanded(false), 320);
     };
 
-    // Lock the page behind the sheet; Escape closes it.
+    // Mount parked off-screen, then slide up on the next painted frame.
+    useEffect(() => {
+        let raf2;
+        const raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(() => setShown(true)); });
+        return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
+    }, []);
+
+    // Lock the page behind the sheet; Escape closes the menu, then the sheet.
     useEffect(() => {
         const prevOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
-        const onKey = (e) => { if (e.key === 'Escape') close(); };
+        const onKey = (e) => {
+            if (e.key !== 'Escape') return;
+            if (menuRef.current) setMenuOpen(false);
+            else close();
+        };
         window.addEventListener('keydown', onKey);
         return () => { document.body.style.overflow = prevOverflow; window.removeEventListener('keydown', onKey); };
     }, []);
@@ -59,28 +83,30 @@ export default function FullPlayer() {
     const duration = s.duration || 0;
     const commit = (v) => { seek(v); setTimeout(() => setScrub(null), 400); };
 
-    // Swipe down anywhere outside the timeline to dismiss.
+    // Swipe down anywhere outside the seek bar / menu to dismiss: past 110px,
+    // or a quick flick of any real distance.
     const onTouchStart = (e) => {
-        if (e.target.closest('input[type="range"]')) return;
-        touchStart.current = e.touches[0].clientY;
+        if (closing || e.target.closest('.scrubber, .fp-menu')) return;
+        touchStart.current = { y: e.touches[0].clientY, t: performance.now() };
     };
     const onTouchMove = (e) => {
-        if (touchStart.current === null) return;
-        setDragY(Math.max(0, e.touches[0].clientY - touchStart.current));
+        if (!touchStart.current) return;
+        setDragY(Math.max(0, e.touches[0].clientY - touchStart.current.y));
     };
     const onTouchEnd = () => {
-        if (touchStart.current === null) return;
+        if (!touchStart.current) return;
+        const velocity = dragY / Math.max(1, performance.now() - touchStart.current.t); // px/ms
         touchStart.current = null;
-        if (dragY > 110) close();
+        if (dragY > 110 || (dragY > 24 && velocity > 0.6)) close();
         else setDragY(0);
     };
 
     return (
         <div
-            className={`fp${closing ? ' fp-closing' : ''}`}
+            className={`fp${shown && !closing ? ' fp-shown' : ''}${closing ? ' fp-closing' : ''}`}
             role="dialog"
             aria-label="Now playing"
-            style={dragY ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
+            style={dragY ? { '--fp-y': `${dragY}px`, transition: 'none' } : undefined}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
@@ -93,7 +119,18 @@ export default function FullPlayer() {
                     <span className="fp-context-label">{here ? 'Playing on this device' : stale ? 'Last played from' : 'Playing from'}</span>
                     <span className="fp-context-name">{here ? deviceName() : s.activeDevice?.name || 'Another device'}</span>
                 </div>
-                <a className="fp-icon" href={streamUrl(song.videoId, true)} aria-label="Download MP3">{I.download}</a>
+                <div className="fp-menu-wrap">
+                    <button className={`fp-icon${menuOpen ? ' on' : ''}`} onClick={() => setMenuOpen(o => !o)} aria-label="More options" aria-haspopup="menu" aria-expanded={menuOpen}>{I.more}</button>
+                    {menuOpen && (
+                        <>
+                            <div className="fp-menu-scrim" onClick={() => setMenuOpen(false)} />
+                            <div className="fp-menu" role="menu">
+                                <button role="menuitem" onClick={() => { setMenuOpen(false); openPlaylistPicker(song); }}>{I.playlistAdd}Add to playlist</button>
+                                <a role="menuitem" href={streamUrl(song.videoId, true)} onClick={() => setMenuOpen(false)}>{I.download}Download MP3</a>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             <div className="fp-art-wrap">
@@ -106,16 +143,13 @@ export default function FullPlayer() {
             </div>
 
             <div className="fp-timeline">
-                <input
-                    type="range" min={0} max={duration || 1} step={0.5}
-                    value={Math.min(position, duration || 1)}
+                <Scrubber
+                    className="fp-scrubber"
+                    value={Math.min(position, duration || 0)}
+                    max={duration}
                     disabled={!duration}
-                    style={{ '--fp-pct': `${duration ? (Math.min(position, duration) / duration) * 100 : 0}%` }}
-                    onChange={e => setScrub(Number(e.target.value))}
-                    onTouchEnd={e => commit(Number(e.target.value))}
-                    onMouseUp={e => commit(Number(e.target.value))}
-                    onKeyUp={e => commit(Number(e.target.value))}
-                    aria-label="Seek"
+                    onScrub={setScrub}
+                    onCommit={commit}
                 />
                 <div className="fp-times">
                     <span>{formatClock(position)}</span>
