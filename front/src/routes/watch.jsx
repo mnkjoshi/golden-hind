@@ -1610,7 +1610,14 @@ function LocalWatch() {
     const toggleServerMenu = () => {
         if (serverMenu) { setServerMenu(null); return; }
         const r = serverBtnRef.current?.getBoundingClientRect();
-        if (r) setServerMenu({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+        if (!r) return;
+        const right = Math.max(8, window.innerWidth - r.right);
+        // The bar usually sits near the bottom of the viewport — open upward
+        // unless there's clearly room for the menu (~3 rows) below.
+        const MENU_HEIGHT = 230;
+        setServerMenu(r.bottom + 6 + MENU_HEIGHT <= window.innerHeight
+            ? { top: r.bottom + 6, right }
+            : { bottom: window.innerHeight - r.top + 6, right });
     };
 
     useEffect(() => {
@@ -2409,7 +2416,7 @@ function LocalWatch() {
                         {serverMenu && createPortal(
                             <>
                                 <div className="server-menu-backdrop" onClick={() => setServerMenu(null)} />
-                                <div className="server-menu" role="menu" style={{ top: serverMenu.top, right: serverMenu.right }}>
+                                <div className="server-menu" role="menu" style={{ top: serverMenu.top, bottom: serverMenu.bottom, right: serverMenu.right }}>
                                     {SERVERS.map(s => {
                                         const active = parseInt(provider) === s.n;
                                         const failed = s.n === 1 && lmFailedFor === `${parseInt(season)}_${parseInt(episode)}`;
