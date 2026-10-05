@@ -238,6 +238,12 @@ export function sanitizePlayerUpdate(raw) {
     if (Number.isInteger(index) && index >= 0) {
         out.index = out.queue ? Math.min(index, Math.max(0, out.queue.length - 1)) : index;
     }
+    // Song length from the playing device, so others can draw the seek bar
+    // (0 = not known yet, e.g. right after a track change).
+    const duration = Number(raw.duration);
+    if (raw.duration !== undefined && Number.isFinite(duration) && duration >= 0 && duration < 86400) {
+        out.duration = Math.round(duration * 10) / 10;
+    }
     const position = Number(raw.position);
     if (Number.isFinite(position) && position >= 0) out.position = Math.round(position * 10) / 10;
     if (typeof raw.paused === 'boolean') out.paused = raw.paused;

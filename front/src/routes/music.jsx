@@ -9,6 +9,7 @@ import axios from 'axios';
 import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
 import CoverArt from "../components/coverArt.jsx";
+import ConfirmButton from '../components/confirmButton.jsx';
 import '../stylesheets/music.css';
 import { useMusicPlayer, playQueue, currentSong, togglePlay, cachedLibrary, reopenPlayer } from '../player/musicPlayer.js';
 import { usePlaylists, refreshPlaylists, createPlaylist, updatePlaylist, deletePlaylist, openPlaylistPicker } from '../player/playlists.js';
@@ -663,7 +664,7 @@ export function MusicLibrary() {
                             <button className="mx-icon-btn mx-desktop" onClick={() => m.downloadSong(s)} disabled={!!m.rowBusy} aria-label={`Download ${s.title}`} title="Download MP3">
                                 {m.rowBusy === s.videoId ? <div className="music-spinner" /> : Icon.download}
                             </button>
-                            <button className="mx-icon-btn" onClick={() => m.removeSong(s)} aria-label={`Remove ${s.title}`} title="Remove from library">{Icon.close}</button>
+                            <ConfirmButton className="mx-icon-btn" onConfirm={() => m.removeSong(s)} message="Remove from your library?" aria-label={`Remove ${s.title}`} title="Remove from library">{Icon.close}</ConfirmButton>
                         </SongRow>
                     ))}
                 </div>
@@ -758,7 +759,7 @@ export function MusicPlaylist() {
                 <div className="mx-list">
                     {songs.map((s, i) => (
                         <SongRow key={s.videoId} song={s} isPlaying={m.playing?.videoId === s.videoId} playingNow={!m.player.paused} onPlay={() => m.playFrom(songs, i)}>
-                            <button className="mx-icon-btn" onClick={() => removeFromPlaylist(s.videoId)} aria-label={`Remove ${s.title} from this playlist`} title="Remove from playlist">{Icon.close}</button>
+                            <ConfirmButton className="mx-icon-btn" onConfirm={() => removeFromPlaylist(s.videoId)} message="Remove from this playlist?" aria-label={`Remove ${s.title} from this playlist`} title="Remove from playlist">{Icon.close}</ConfirmButton>
                         </SongRow>
                     ))}
                 </div>

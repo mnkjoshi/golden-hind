@@ -227,6 +227,11 @@ test('sanitizePlayerUpdate whitelists and coerces player changes', () => {
     assert.deepEqual(sanitizePlayerUpdate({ originalQueue: ['TiebZllW8As', '../x'] }), { originalQueue: ['TiebZllW8As'] });
     assert.deepEqual(sanitizePlayerUpdate({ originalQueue: null }), { originalQueue: null });
     assert.deepEqual(sanitizePlayerUpdate({ originalQueue: 'nope' }), {});
+    assert.deepEqual(sanitizePlayerUpdate({ duration: 213.456 }), { duration: 213.5 });
+    assert.deepEqual(sanitizePlayerUpdate({ duration: 0 }), { duration: 0 });
+    assert.deepEqual(sanitizePlayerUpdate({ duration: -1 }), {});
+    assert.deepEqual(sanitizePlayerUpdate({ duration: 'long' }), {});
+    assert.deepEqual(sanitizePlayerUpdate({ duration: 1e9 }), {});
 });
 
 test('playlist helpers validate names, songs, and ids', () => {
