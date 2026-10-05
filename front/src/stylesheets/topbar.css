@@ -61,8 +61,11 @@
     transition: all 0.3s ease;
 }
 
-.topbar-logo:hover .logo-text {
-    transform: scale(1.05);
+/* Hover zoom only where hover exists — on phones :hover sticks after a tap */
+@media (hover: hover) {
+    .topbar-logo:hover .logo-text {
+        transform: scale(1.05);
+    }
 }
 
 /* Santa Hat */
