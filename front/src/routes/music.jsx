@@ -3,7 +3,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
-import NowPlaying from "../components/nowPlaying.jsx";
 import CoverArt from "../components/coverArt.jsx";
 import '../stylesheets/music.css';
 import { useMusicPlayer, playQueue, currentSong, togglePlay, setShuffle, cachedLibrary } from '../player/musicPlayer.js';
@@ -62,9 +61,6 @@ export default function Music() {
         Authenticate(user, token, navigate);
         loadLibrary();
         listOffline().then(setOfflineIds);
-        // Phones: the Now Playing card replaces the bottom bar on this page.
-        document.body.classList.add('on-music-page');
-        return () => document.body.classList.remove('on-music-page');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -280,7 +276,6 @@ export default function Music() {
         <div className="music-page">
             <Topbar />
             <div className="music-content">
-                <NowPlaying onPlay={() => playFrom(0)} onShuffle={shuffleAll} />
                 <div className="music-header">
                     <div className="music-header-icon">
                         <svg viewBox="0 0 24 24" fill="none">

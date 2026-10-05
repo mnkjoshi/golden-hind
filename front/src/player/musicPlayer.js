@@ -52,6 +52,7 @@ let state = {
     blocked: false,       // browser refused to start audio without a tap
     loading: false,
     error: '',
+    expanded: false,      // full-screen player open (phone-style "Now Playing")
 };
 const listeners = new Set();
 const set = (patch) => { state = { ...state, ...patch }; listeners.forEach(fn => fn()); };
@@ -398,6 +399,8 @@ export function transferHere() {
 export function pauseForVideo() {
     if (isActiveHere() && audio && !audio.paused) audio.pause();
 }
+
+export function setExpanded(open) { set({ expanded: !!open }); }
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 export const getState = () => state;
