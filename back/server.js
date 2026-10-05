@@ -48,6 +48,7 @@ app.use(cors({
     "https://ghind.tech",
     "http://ghind.tech",
     "https://ghb.mnkjoshi.ca",
+    "https://gh.mnkjoshi.ca",
   ],
   credentials: true,
   exposedHeaders: ['X-Title'],
