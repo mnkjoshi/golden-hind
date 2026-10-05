@@ -218,8 +218,9 @@ async function loadAndPlay(startAt = 0, autoplay = true) {
         audio.removeEventListener('loadedmetadata', seek);
     };
     audio.addEventListener('loadedmetadata', seek);
-    if (autoplay) tryPlay();
     updateMediaSession();
+    registerMediaActions();
+    if (autoplay) tryPlay();
 }
 
 function tryPlay() {
@@ -240,6 +241,7 @@ if (audio) {
         set({ paused: false, loading: false });
         report(true);
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        registerMediaActions();
         updatePositionState(true);
     });
     audio.addEventListener('pause', () => {
@@ -288,16 +290,19 @@ function updateMediaSession() {
         });
     } catch { /* unsupported */ }
 }
-if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+// Lock-screen buttons. seekbackward/seekforward are cleared on purpose: iOS
+// shows ±10s buttons instead of previous/next track whenever seeking is
+// on offer, and track skipping is what a music player should show. iOS can
+// drop back to its default ±10s when a new source starts, so this runs again
+// on every load and play, not just once at startup.
+function registerMediaActions() {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
     const handlers = {
         play: () => togglePlay(false),
         pause: () => togglePlay(true),
         previoustrack: () => prev(),
         nexttrack: () => next(),
         seekto: (d) => seek(d.seekTime),
-        // Left unset on purpose: iOS shows ±10s buttons instead of previous/
-        // next track whenever seek handlers exist, and track skipping is what
-        // a music player's lock screen should offer.
         seekbackward: null,
         seekforward: null,
     };
@@ -305,6 +310,7 @@ if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
         try { navigator.mediaSession.setActionHandler(action, fn); } catch { /* unsupported */ }
     }
 }
+registerMediaActions();
 
 // ── Actions (work from any device) ──────────────────────────────────────────
 
