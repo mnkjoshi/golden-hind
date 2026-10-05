@@ -10,7 +10,7 @@ import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
 import CoverArt from "../components/coverArt.jsx";
 import '../stylesheets/music.css';
-import { useMusicPlayer, playQueue, currentSong, togglePlay, setShuffle, cachedLibrary, reopenPlayer } from '../player/musicPlayer.js';
+import { useMusicPlayer, playQueue, currentSong, togglePlay, cachedLibrary, reopenPlayer } from '../player/musicPlayer.js';
 import { usePlaylists, refreshPlaylists, createPlaylist, updatePlaylist, deletePlaylist, openPlaylistPicker } from '../player/playlists.js';
 import { listOffline, saveOffline, removeOffline } from '../player/offlineSongs.js';
 
@@ -102,13 +102,11 @@ function useMusicLibrary() {
     const playFrom = (list, index) => {
         if (!list?.length) return;
         if (playing?.videoId === list[index].videoId && player.queue.length === list.length) return togglePlay();
-        setShuffle(false);
         playQueue(list, index);
     };
     const shufflePlay = (list) => {
         if (!list?.length) return;
-        setShuffle(true);
-        playQueue(list, Math.floor(Math.random() * list.length));
+        playQueue(list, Math.floor(Math.random() * list.length), { shuffle: true });
     };
 
     const toggleOffline = async (song) => {
