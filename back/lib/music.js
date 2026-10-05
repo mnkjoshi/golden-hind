@@ -219,3 +219,33 @@ export function zipEntryNames(fileNames) {
         return n === 1 ? `${base}.mp3` : `${base} (${n}).mp3`;
     });
 }
+
+// ── Shared player state (Spotify Connect-style) ─────────────────────────────
+// One node per user at users/{u}/player. Any signed-in device may write a
+// change; the active device plays the audio, the rest mirror and control it.
+
+export const REPEAT_MODES = ['off', 'all', 'one'];
+
+// Whitelist + coerce a client's player change. Returns {} for junk, so a bad
+// write can never stash arbitrary keys under the user's node.
+export function sanitizePlayerUpdate(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object') return out;
+    if (Array.isArray(raw.queue)) {
+        out.queue = raw.queue.map(String).filter(id => VIDEO_ID.test(id)).slice(0, 500);
+    }
+    const index = Number(raw.index);
+    if (Number.isInteger(index) && index >= 0) {
+        out.index = out.queue ? Math.min(index, Math.max(0, out.queue.length - 1)) : index;
+    }
+    const position = Number(raw.position);
+    if (Number.isFinite(position) && position >= 0) out.position = Math.round(position * 10) / 10;
+    if (typeof raw.paused === 'boolean') out.paused = raw.paused;
+    if (typeof raw.shuffle === 'boolean') out.shuffle = raw.shuffle;
+    if (REPEAT_MODES.includes(raw.repeat)) out.repeat = raw.repeat;
+    const dev = raw.activeDevice;
+    if (dev && /^[A-Za-z0-9_-]{4,64}$/.test(String(dev.id || ''))) {
+        out.activeDevice = { id: String(dev.id), name: tagText(dev.name).slice(0, 40) || 'Device' };
+    }
+    return out;
+}

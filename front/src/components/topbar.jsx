@@ -9,6 +9,7 @@ import TextLogoGlitch4 from '../assets/TextLogoGlitch4.png';
 import TextLogoGlitch5 from '../assets/TextLogoGlitch5.png';
 import { formatWatchTime, formatRelativeTime } from '../utils/format.js';
 import RemoteControl from './remote.jsx';
+import PlayerBar from './playerBar.jsx';
 
 const GLITCH_FRAMES = [TextLogoGlitch1, TextLogoGlitch2, TextLogoGlitch3, TextLogoGlitch4, TextLogoGlitch5];
 
@@ -264,6 +265,7 @@ export default function Topbar() {
 
     return (
         <>
+            <PlayerBar />
             <nav className={`modern-topbar ${isScrolled ? 'scrolled' : ''}`}>
                 <div className="topbar-content">
                     {/* Logo */}

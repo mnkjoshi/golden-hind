@@ -4,6 +4,8 @@ import axios from 'axios';
 import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
 import '../stylesheets/music.css';
+import { useMusicPlayer, playQueue, currentSong, togglePlay, setShuffle, cachedLibrary } from '../player/musicPlayer.js';
+import { listOffline, saveOffline, removeOffline } from '../player/offlineSongs.js';
 
 const API = 'https://ghb.mnkjoshi.ca';
 
@@ -39,19 +41,25 @@ export default function Music() {
     const [libraryBusy, setLibraryBusy] = useState(false);
     const [libraryStatus, setLibraryStatus] = useState('');
     const [libraryRowBusy, setLibraryRowBusy] = useState(null); // videoId being re-downloaded
+    // Songs saved onto THIS device for offline playback (IndexedDB).
+    const [offlineIds, setOfflineIds] = useState(() => new Set());
+    const [offlineBusy, setOfflineBusy] = useState(null); // videoId | 'all'
+    const player = useMusicPlayer();
+    const playing = currentSong(player);
 
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
 
     const loadLibrary = () => axios.post(`${API}/music/library`, { user, token })
         .then(r => setLibrary(r.data?.songs || []))
-        .catch(() => setLibrary(prev => prev || []));
+        .catch(() => setLibrary(prev => prev || cachedLibrary())); // offline: last known list
 
     // Once per visit — in the render body it fired on every keystroke.
     useEffect(() => {
         if (!user) return;
         Authenticate(user, token, navigate);
         loadLibrary();
+        listOffline().then(setOfflineIds);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -194,6 +202,59 @@ export default function Music() {
         } finally {
             setLibraryRowBusy(null);
         }
+    };
+
+    // ── Player ──
+    const playFrom = (index) => {
+        if (!library?.length) return;
+        // Tapping the song that's already loaded just toggles it.
+        if (playing?.videoId === library[index].videoId && player.queue.length === library.length) return togglePlay();
+        playQueue(library, index);
+    };
+    const shuffleAll = () => {
+        if (!library?.length) return;
+        setShuffle(true);
+        playQueue(library, Math.floor(Math.random() * library.length));
+    };
+
+    // ── On this device (offline) ──
+    const toggleOffline = async (song) => {
+        if (offlineBusy) return;
+        if (offlineIds.has(song.videoId)) {
+            await removeOffline(song.videoId);
+            setOfflineIds(prev => { const n = new Set(prev); n.delete(song.videoId); return n; });
+            return;
+        }
+        setOfflineBusy(song.videoId);
+        try {
+            await saveOffline(song.videoId);
+            setOfflineIds(prev => new Set(prev).add(song.videoId));
+        } catch (e) {
+            setLibraryStatus(e.message || 'Could not save this song to the device');
+        } finally {
+            setOfflineBusy(null);
+        }
+    };
+    const saveAllOffline = async () => {
+        if (offlineBusy || !library?.length) return;
+        const pending = library.filter(s => !offlineIds.has(s.videoId));
+        setOfflineBusy('all');
+        let failed = 0;
+        for (let i = 0; i < pending.length; i++) {
+            setLibraryStatus(`Saving to this device ${i + 1} of ${pending.length}: ${pending[i].title}`);
+            try {
+                await saveOffline(pending[i].videoId);
+                setOfflineIds(prev => new Set(prev).add(pending[i].videoId));
+            } catch (e) {
+                failed++;
+                // Out of device storage: stop instead of failing every song.
+                if (e?.name === 'QuotaExceededError') { setLibraryStatus("This device is out of storage for offline songs."); break; }
+            }
+        }
+        setOfflineBusy(null);
+        if (failed) setLibraryStatus(`${failed} song${failed === 1 ? '' : 's'} couldn't be saved to this device.`);
+        else setLibraryStatus('All songs are saved on this device — they play without a connection.');
+        setTimeout(() => setLibraryStatus(''), 8000);
     };
 
     const removeLibrarySong = (song) => {
@@ -389,14 +450,24 @@ export default function Music() {
                             My Songs{library ? ` (${library.length})` : ''}
                             {library?.length > 0 && (
                                 <span className="music-library-ready">
-                                    {library.filter(s => s.cached).length} ready offline
+                                    {library.filter(s => offlineIds.has(s.videoId)).length} on this device
                                 </span>
                             )}
                         </span>
                         {library?.length > 0 && (
-                            <button className="music-library-all" onClick={downloadLibrary} disabled={libraryBusy}>
-                                {libraryBusy ? 'Preparing…' : 'Download all (.zip)'}
-                            </button>
+                            <div className="music-library-actions">
+                                <button className="music-library-play" onClick={() => playFrom(0)} aria-label="Play all">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 5.14a.7.7 0 0 1 1.06-.6l11 6.86a.7.7 0 0 1 0 1.2l-11 6.86a.7.7 0 0 1-1.06-.6V5.14z" /></svg>
+                                    Play
+                                </button>
+                                <button className="music-library-secondary" onClick={shuffleAll}>Shuffle</button>
+                                <button className="music-library-secondary" onClick={saveAllOffline} disabled={!!offlineBusy} title="Save every song onto this device for offline listening">
+                                    {offlineBusy === 'all' ? 'Saving…' : 'Save to this device'}
+                                </button>
+                                <button className="music-library-secondary" onClick={downloadLibrary} disabled={libraryBusy} title="Download every song as MP3 files in one ZIP">
+                                    {libraryBusy ? 'Preparing…' : 'Download .zip'}
+                                </button>
+                            </div>
                         )}
                     </div>
 
@@ -408,14 +479,31 @@ export default function Music() {
                         <div className="music-results-state">Songs you download (or save from search) show up here.</div>
                     ) : (
                         <div className="music-library-list">
-                            {library.map(s => (
-                                <div key={s.videoId} className="music-queue-item">
-                                    <img className="music-queue-thumb" src={s.thumbnail} alt="" loading="lazy" />
-                                    <span className="music-queue-url music-queue-named">
-                                        <span className="music-queue-name">{s.title}</span>
-                                        {s.artist && <span className="music-queue-channel">{s.artist}</span>}
-                                    </span>
-                                    <span className={`music-library-dot${s.cached ? ' ready' : ''}`} title={s.cached ? 'Ready — downloads instantly' : 'Will be fetched from YouTube first'} />
+                            {library.map((s, i) => (
+                                <div key={s.videoId} className={`music-queue-item${playing?.videoId === s.videoId ? ' playing' : ''}`}>
+                                    <button className="music-library-row-play" onClick={() => playFrom(i)} aria-label={`Play ${s.title}`}>
+                                        <img className="music-queue-thumb" src={s.thumbnail} alt="" loading="lazy" />
+                                        <span className="music-queue-url music-queue-named">
+                                            <span className="music-queue-name">
+                                                {playing?.videoId === s.videoId && !player.paused && <span className="music-eq" aria-hidden="true"><i /><i /><i /></span>}
+                                                {s.title}
+                                            </span>
+                                            {s.artist && <span className="music-queue-channel">{s.artist}</span>}
+                                        </span>
+                                    </button>
+                                    <button
+                                        className={`music-queue-remove music-offline-btn${offlineIds.has(s.videoId) ? ' saved' : ''}`}
+                                        onClick={() => toggleOffline(s)}
+                                        disabled={!!offlineBusy}
+                                        aria-label={offlineIds.has(s.videoId) ? `Remove ${s.title} from this device` : `Save ${s.title} to this device`}
+                                        title={offlineIds.has(s.videoId) ? 'On this device — tap to remove' : 'Save to this device for offline'}
+                                    >
+                                        {offlineBusy === s.videoId ? <div className="music-spinner" /> : offlineIds.has(s.videoId) ? (
+                                            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" /><path d="m7.5 12.5 3 3 6-6.5" stroke="#0d1117" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                        ) : (
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 7.5v8m0 0-3.2-3.2M12 15.5l3.2-3.2" /></svg>
+                                        )}
+                                    </button>
                                     <button
                                         className="music-queue-remove"
                                         onClick={() => downloadLibrarySong(s)}

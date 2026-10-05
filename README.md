@@ -53,6 +53,9 @@
 ### Music
 - **Song lookup** — type a song name to search: official artist tracks from YouTube Music come first (badged "Official audio"), then YouTube results ranked so the artist's own uploads beat fan lyric videos; queue the ones you want, or paste a YouTube link directly
 - **MP3 download** — downloads every queued track as an MP3
+- **My Songs + player** — every download lands in My Songs; play it like Spotify from a bottom player bar on every page (shuffle, repeat, seek, lock-screen controls)
+- **Plays across devices** — one device plays at a time; every other signed-in device shows what's playing and can control it or take over with *Play here*
+- **On this device** — save songs into the browser for offline listening, or download the whole library as a ZIP
 
 ### Stats & Tracking
 - **Year in Review** (`/stats`) — lifetime hours, sessions, days watched, last-12-months chart, most-watched titles, longest session, weighted genre breakdown; reachable from the account dropdown
@@ -166,7 +169,13 @@ Returns `{ "key": "youtubeVideoKey" }` (key is `null` if no trailer found).
 | Method | Route | Description |
 |--------|-------|-------------|
 | POST | `/music/search` | Up to 10 matches for `{ query }`: official YouTube Music songs first, then ranked YouTube results (title, channel, duration, thumbnail, `official`), cached for 10 minutes |
-| POST | `/music/download` | Downloads a YouTube `{ url }` as MP3 (title in the `X-Title` header) |
+| POST | `/music/download` | Downloads a YouTube `{ url }` as MP3 (title in the `X-Title` header) and adds it to My Songs |
+| POST | `/music/library` · `/music/library/add` · `/music/library/remove` | My Songs list, save a song, remove a song |
+| POST | `/music/cache` | Prepare one song on the server ahead of time |
+| GET | `/music/library/zip` | Every ready song as one ZIP (query auth) |
+| GET | `/music/stream/:videoId` | One song for the player, with Range support (`?download=1` to save it) |
+| POST | `/music/player/update` | Change the shared player state (queue, index, position, paused, shuffle, repeat, active device) |
+| GET | `/music/player/stream` | SSE of the shared player state for this account |
 
 ### Stats & Watched
 
