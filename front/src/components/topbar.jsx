@@ -51,6 +51,16 @@ export default function Topbar() {
     const notifRef = useRef(null);
 
     const [logoSrc, setLogoSrc] = useState(TextLogo);
+    // Phones get a native-app layout: logo + avatar on top, everything else
+    // on a bottom tab bar. The remote and bell render in exactly one place
+    // (the remote also runs the TV-mode engine, so it must never be doubled).
+    const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 800px)').matches);
+    useEffect(() => {
+        const mq = window.matchMedia('(max-width: 800px)');
+        const onChange = (e) => setIsMobile(e.matches);
+        mq.addEventListener('change', onChange);
+        return () => mq.removeEventListener('change', onChange);
+    }, []);
     const glitchIntervalRef = useRef(null);
     const lastGlitchIndexRef = useRef(-1);
 
@@ -263,6 +273,53 @@ export default function Topbar() {
     const pwStatusType = pwStatus.startsWith('success') ? 'success' : 'error';
     const pwStatusText = pwStatus.replace(/^(success|error):/, '');
 
+    // Hidden on the watch page so it never sits over the video controls.
+    const showTabbar = isMobile && !location.pathname.startsWith('/watch/');
+    useEffect(() => {
+        document.body.classList.toggle('has-tabbar', showTabbar);
+        return () => document.body.classList.remove('has-tabbar');
+    }, [showTabbar]);
+
+    const notifSection = (
+                        <div className="notif-section" ref={notifRef}>
+                            <button className="notif-button" onClick={toggleNotifications} aria-label="Notifications">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                {notifUnread > 0 && <span className="notif-badge">{notifUnread > 9 ? '9+' : notifUnread}</span>}
+                                <span className="tab-label">Alerts</span>
+                            </button>
+                            {notifOpen && (
+                                <div className="notif-dropdown">
+                                    <div className="notif-dropdown-header">Notifications</div>
+                                    {notifications.length === 0 ? (
+                                        <div className="notif-empty">You're all caught up.</div>
+                                    ) : (
+                                        notifications.map(n => (
+                                            <button
+                                                key={n.id}
+                                                className={`notif-item${n.seen ? '' : ' unread'}`}
+                                                onClick={() => openNotification(n)}
+                                            >
+                                                {n.poster_path ? (
+                                                    <img className="notif-item-poster" src={`https://image.tmdb.org/t/p/w92${n.poster_path}`} alt="" />
+                                                ) : (
+                                                    <div className="notif-item-poster notif-item-poster-empty">📺</div>
+                                                )}
+                                                <div className="notif-item-body">
+                                                    <span className="notif-item-msg">{n.message}</span>
+                                                    <span className="notif-item-time">{formatRelativeTime(n.ts)}</span>
+                                                </div>
+                                                {!n.seen && <span className="notif-item-dot" />}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+    );
+
     return (
         <>
             <PlayerBar />
@@ -303,23 +360,7 @@ export default function Topbar() {
 
                     {/* Right Side */}
                     <div className="topbar-right">
-                        <RemoteControl />
-
-                        {/* Mobile music shortcut — the tab row is hidden on phones */}
-                        <button className="topbar-search-icon-btn topbar-music-icon-btn" onClick={() => navigate('/music')} aria-label="Music">
-                            <svg viewBox="0 0 24 24" fill="none">
-                                <path d="M9 18V5l12-2v13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                <circle cx="6" cy="18" r="3" stroke="currentColor" strokeWidth="2"/>
-                                <circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="2"/>
-                            </svg>
-                        </button>
-
-                        {/* Mobile search icon - only visible on small screens */}
-                        <button className="topbar-search-icon-btn" onClick={() => navigate('/search')}>
-                            <svg viewBox="0 0 24 24" fill="none">
-                                <path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                        </button>
+                        {!isMobile && <RemoteControl />}
 
                         <div className="search-container" ref={searchWrapperRef}>
                             <div className="search-wrapper">
@@ -374,47 +415,12 @@ export default function Topbar() {
                             )}
                         </div>
 
-                        <div className="notif-section" ref={notifRef}>
-                            <button className="notif-button" onClick={toggleNotifications} aria-label="Notifications">
-                                <svg viewBox="0 0 24 24" fill="none">
-                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
-                                    <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                                {notifUnread > 0 && <span className="notif-badge">{notifUnread > 9 ? '9+' : notifUnread}</span>}
-                            </button>
-                            {notifOpen && (
-                                <div className="notif-dropdown">
-                                    <div className="notif-dropdown-header">Notifications</div>
-                                    {notifications.length === 0 ? (
-                                        <div className="notif-empty">You're all caught up.</div>
-                                    ) : (
-                                        notifications.map(n => (
-                                            <button
-                                                key={n.id}
-                                                className={`notif-item${n.seen ? '' : ' unread'}`}
-                                                onClick={() => openNotification(n)}
-                                            >
-                                                {n.poster_path ? (
-                                                    <img className="notif-item-poster" src={`https://image.tmdb.org/t/p/w92${n.poster_path}`} alt="" />
-                                                ) : (
-                                                    <div className="notif-item-poster notif-item-poster-empty">📺</div>
-                                                )}
-                                                <div className="notif-item-body">
-                                                    <span className="notif-item-msg">{n.message}</span>
-                                                    <span className="notif-item-time">{formatRelativeTime(n.ts)}</span>
-                                                </div>
-                                                {!n.seen && <span className="notif-item-dot" />}
-                                            </button>
-                                        ))
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                        {!isMobile && notifSection}
 
                         <div className="account-section" ref={dropdownRef}>
                             <button className="account-button" onClick={() => setDropdownOpen(!dropdownOpen)}>
                                 <div className="user-avatar">
-                                    {user?.charAt(0).toUpperCase() || 'U'}
+                                    <img src="/icon-512.png" alt="" />
                                 </div>
                                 <span className="username">{user || 'Guest'}</span>
                                 <svg className={`dropdown-arrow ${dropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none">
@@ -464,6 +470,29 @@ export default function Topbar() {
                     </div>
                 </div>
             </nav>
+
+            {showTabbar && (
+                <nav className="mobile-tabbar" aria-label="Main">
+                    <button className={`mobile-tab${location.pathname === '/app' ? ' active' : ''}`} onClick={() => navigate('/app')}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5z" /></svg>
+                        <span className="tab-label">Home</span>
+                    </button>
+                    <button className={`mobile-tab${location.pathname === '/search' ? ' active' : ''}`} onClick={() => navigate('/search')}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" /></svg>
+                        <span className="tab-label">Search</span>
+                    </button>
+                    <button className={`mobile-tab${location.pathname === '/music' ? ' active' : ''}`} onClick={() => navigate('/music')}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+                        <span className="tab-label">Music</span>
+                    </button>
+                    <button className={`mobile-tab${location.pathname === '/books' ? ' active' : ''}`} onClick={() => navigate('/books')}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5A2.5 2.5 0 0 0 4 21.5v-2z" /><path d="M8 7h7" /></svg>
+                        <span className="tab-label">Books</span>
+                    </button>
+                    <div className="mobile-tab-slot"><RemoteControl label="Remote" /></div>
+                    <div className="mobile-tab-slot">{notifSection}</div>
+                </nav>
+            )}
 
             {/* ── Account Settings Modal ── */}
             {showAccountModal && (
