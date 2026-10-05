@@ -19,6 +19,7 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 // JSX compiles with the classic runtime and needs React in scope (like every
 // other component file here).
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import Topbar from './topbar';
 import { defaultDeviceName, formatRemoteState, formatClock, estimatePosition } from '../utils/remote.js';
@@ -409,6 +410,9 @@ export default function RemoteControl({ label, hideButton } = {}) {
                 {label && <span className="tab-label">{label}</span>}
             </button>}
 
+            {/* Overlays go to <body>: the phone tab bar this button sits in has a
+                backdrop-filter, which would otherwise pin fixed children inside it. */}
+            {createPortal(<>
             {target && !onWatchPage && miniState?.contentId && (
                 <div className="remote-mini-bar">
                     <span className={`remote-dot ${miniOnline ? 'online' : ''}`} />
@@ -603,6 +607,7 @@ export default function RemoteControl({ label, hideButton } = {}) {
                     </div>
                 </div>
             )}
+            </>, document.body)}
         </>
     );
 }
