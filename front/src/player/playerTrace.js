@@ -5,7 +5,7 @@
 const API = 'https://ghb.mnkjoshi.ca';
 const KEY = 'playerTrace';
 const MAX = 400;
-const BUILD = 'trace-2-keepalive';
+const BUILD = 'trace-3-hold';
 
 let buf = [];
 try { buf = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { buf = []; }
