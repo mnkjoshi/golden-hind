@@ -10,14 +10,21 @@ describe('defaultDeviceName', () => {
         expect(defaultDeviceName('Roku/DVP-12.0')).toBe('TV');
     });
     it('detects phones and tablets', () => {
-        expect(defaultDeviceName('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) Mobile/15E148')).toBe('Phone');
-        expect(defaultDeviceName('Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile Safari')).toBe('Phone');
-        expect(defaultDeviceName('Mozilla/5.0 (iPad; CPU OS 17_0)')).toBe('Tablet');
-        expect(defaultDeviceName('Mozilla/5.0 (Linux; Android 14; SM-X910)')).toBe('Tablet');
+        expect(defaultDeviceName('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) Mobile/15E148')).toBe('iPhone');
+        expect(defaultDeviceName('Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile Safari')).toBe('Android phone');
+        expect(defaultDeviceName('Mozilla/5.0 (iPad; CPU OS 17_0)')).toBe('iPad');
+        expect(defaultDeviceName('Mozilla/5.0 (Linux; Android 14; SM-X910)')).toBe('Android tablet');
     });
-    it('detects desktops and falls back generically', () => {
-        expect(defaultDeviceName('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')).toBe('Mac');
-        expect(defaultDeviceName('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')).toBe('PC');
+    it('treats a touch-screen "Mac" as an iPad', () => {
+        const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15';
+        expect(defaultDeviceName(ua, false, 5)).toBe('iPad');
+        expect(defaultDeviceName(ua, false, 0)).toBe('Safari on Mac');
+    });
+    it('names desktops with their browser and falls back generically', () => {
+        expect(defaultDeviceName('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/129.0 Safari/537.36')).toBe('Chrome on Mac');
+        expect(defaultDeviceName('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/129.0 Safari/537.36 Edg/129.0')).toBe('Edge on Windows PC');
+        expect(defaultDeviceName('Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0')).toBe('Firefox on Linux PC');
+        expect(defaultDeviceName('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')).toBe('Windows PC');
         expect(defaultDeviceName('')).toBe('Device');
     });
 });

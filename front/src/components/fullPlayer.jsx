@@ -3,7 +3,7 @@
 // eslint flags React as unused, but JSX here compiles with the classic runtime.
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    useMusicPlayer, currentSong, isActiveHere, displayPosition, remoteIsStale, coverUrl,
+    useMusicPlayer, currentSong, isActiveHere, displayPosition, remoteIsStale, coverUrl, deviceName,
     togglePlay, next, prev, seek, setShuffle, setRepeat, transferHere, setExpanded, streamUrl,
 } from '../player/musicPlayer.js';
 import { formatClock } from '../utils/remote.js';
@@ -90,8 +90,8 @@ export default function FullPlayer() {
             <div className="fp-top">
                 <button className="fp-icon" onClick={close} aria-label="Minimize player">{I.down}</button>
                 <div className="fp-context">
-                    <span className="fp-context-label">Playing from</span>
-                    <span className="fp-context-name">My Songs</span>
+                    <span className="fp-context-label">{here ? 'Playing on this device' : stale ? 'Last played from' : 'Playing from'}</span>
+                    <span className="fp-context-name">{here ? deviceName() : s.activeDevice?.name || 'Another device'}</span>
                 </div>
                 <a className="fp-icon" href={streamUrl(song.videoId, true)} aria-label="Download MP3">{I.download}</a>
             </div>

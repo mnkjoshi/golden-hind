@@ -117,7 +117,7 @@ export default function RemoteControl({ label, hideButton } = {}) {
     const [exposeStatus, setExposeStatus] = useState('idle'); // idle | connecting | connected | error
     const [deviceName, setDeviceName] = useState(() =>
         localStorage.getItem('remoteDeviceName')
-        || defaultDeviceName(navigator.userAgent, localStorage.getItem('tvMode') === 'on'));
+        || defaultDeviceName(navigator.userAgent, localStorage.getItem('tvMode') === 'on', navigator.maxTouchPoints));
     const [devices, setDevices] = useState(null);
     const [devicesLoading, setDevicesLoading] = useState(false);
     const [target, setTarget] = useState(getRemoteTarget);

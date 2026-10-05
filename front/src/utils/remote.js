@@ -3,16 +3,27 @@
 
 // Best-guess default name for this device, editable by the user before
 // exposing it. TV mode is the strongest signal — it exists specifically for
-// televisions — then the user agent.
-export function defaultDeviceName(userAgent = '', tvMode = false) {
+// televisions — then the user agent. iPadOS reports a Mac user agent, so a
+// touch-capable "Mac" is an iPad. Desktops get the browser too, since two
+// tabs on one computer are separate devices to the player.
+export function defaultDeviceName(userAgent = '', tvMode = false, touchPoints = 0) {
     const ua = String(userAgent).toLowerCase();
     if (tvMode || /smart-tv|smarttv|googletv|apple tv|crkey|roku|tizen|web0s|webos/.test(ua)) return 'TV';
-    if (/ipad|tablet/.test(ua)) return 'Tablet';
-    if (/iphone|android.*mobile|mobile.*android/.test(ua)) return 'Phone';
-    if (/android/.test(ua)) return 'Tablet';
-    if (/macintosh|mac os/.test(ua)) return 'Mac';
-    if (/windows/.test(ua)) return 'PC';
-    return 'Device';
+    if (/ipad/.test(ua) || (/macintosh/.test(ua) && touchPoints > 1)) return 'iPad';
+    if (/iphone|ipod/.test(ua)) return 'iPhone';
+    if (/android/.test(ua)) return /mobile/.test(ua) ? 'Android phone' : 'Android tablet';
+    if (/tablet/.test(ua)) return 'Tablet';
+    const computer = /cros/.test(ua) ? 'Chromebook'
+        : /macintosh|mac os/.test(ua) ? 'Mac'
+        : /windows/.test(ua) ? 'Windows PC'
+        : /linux/.test(ua) ? 'Linux PC' : null;
+    if (!computer) return 'Device';
+    const browser = /edg\//.test(ua) ? 'Edge'
+        : /firefox\//.test(ua) ? 'Firefox'
+        : /opr\//.test(ua) ? 'Opera'
+        : /chrome\//.test(ua) ? 'Chrome'
+        : /safari\//.test(ua) ? 'Safari' : null;
+    return browser ? `${browser} on ${computer}` : computer;
 }
 
 // One-line description of what a player device is doing, for device lists.

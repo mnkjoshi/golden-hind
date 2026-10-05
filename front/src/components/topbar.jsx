@@ -430,7 +430,12 @@ export default function Topbar() {
                         )}
 
                         <div className="account-section" ref={dropdownRef}>
-                            <button className="account-button" onClick={() => setDropdownOpen(!dropdownOpen)}>
+                            <button
+                                className={`account-button${dropdownOpen ? ' open' : ''}`}
+                                onClick={() => setDropdownOpen(!dropdownOpen)}
+                                aria-label={`Account menu for ${user || 'Guest'}`}
+                                aria-expanded={dropdownOpen}
+                            >
                                 <div className="user-avatar">
                                     <img src="/icon-512.png" alt="" />
                                 </div>
@@ -442,6 +447,14 @@ export default function Topbar() {
 
                             {dropdownOpen && (
                                 <div className="account-dropdown">
+                                    <div className="account-dropdown-head">
+                                        <div className="user-avatar"><img src="/icon-512.png" alt="" /></div>
+                                        <div className="account-dropdown-who">
+                                            <span className="account-dropdown-name">{user || 'Guest'}</span>
+                                            <span className="account-dropdown-sub">Signed in</span>
+                                        </div>
+                                    </div>
+                                    <div className="dropdown-divider"></div>
                                     <button className="dropdown-item" onClick={openAccountModal}>
                                         <svg viewBox="0 0 24 24" fill="none">
                                             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
