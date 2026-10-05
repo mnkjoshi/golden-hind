@@ -45,7 +45,7 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
 }
 .player-title { font-size: 14px; font-weight: 600; }
 .player-artist { font-size: 12px; color: rgba(255, 255, 255, 0.6); }
-.player-artist strong { color: #3fb950; font-weight: 600; }
+.player-artist strong { color: #3FA3FF; font-weight: 600; }
 
 .player-center { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
 .player-controls { display: flex; align-items: center; gap: 14px; }
@@ -146,10 +146,10 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    background: rgba(63, 185, 80, 0.14);
-    border: 1px solid rgba(63, 185, 80, 0.5);
+    background: rgba(63, 163, 255, 0.14);
+    border: 1px solid rgba(63, 163, 255, 0.5);
     border-radius: 999px;
-    color: #3fb950;
+    color: #3FA3FF;
     font: inherit;
     font-size: 12.5px;
     font-weight: 600;
@@ -328,13 +328,13 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
 .fp-controls { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 420px; }
 .fp-skip svg { width: 34px; height: 34px; }
 .fp-side { color: rgba(255, 255, 255, 0.75); }
-.fp-side.on { color: #3fb950; }
+.fp-side.on { color: #3FA3FF; }
 .fp-side.on::after {
-    content: ''; position: absolute; bottom: 2px; width: 4px; height: 4px; border-radius: 50%; background: #3fb950;
+    content: ''; position: absolute; bottom: 2px; width: 4px; height: 4px; border-radius: 50%; background: #3FA3FF;
 }
 .fp-repeat-one {
     position: absolute; top: 5px; right: 5px; width: 12px; height: 12px; line-height: 12px; border-radius: 50%;
-    background: #3fb950; color: #0a0e27; font-size: 8px; font-weight: 800; text-align: center;
+    background: #3FA3FF; color: #0a0e27; font-size: 8px; font-weight: 800; text-align: center;
 }
 .fp-play {
     display: flex; align-items: center; justify-content: center;
@@ -348,9 +348,9 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
 .fp-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; max-width: 520px; min-height: 32px; }
 .fp-device { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: rgba(255, 255, 255, 0.7); }
 .fp-device svg { width: 16px; height: 16px; }
-.fp-device.here { color: #3fb950; }
+.fp-device.here { color: #3FA3FF; }
 .fp-here {
-    background: #3fb950; color: #0a0e27; border: none; border-radius: 999px;
+    background: #3FA3FF; color: #0a0e27; border: none; border-radius: 999px;
     font-size: 12.5px; font-weight: 700; padding: 7px 14px; cursor: pointer;
 }
 .fp-blocked {
@@ -435,15 +435,15 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
 /* Add-to-playlist sheet */
 .pl-new-btn {
     display: block; width: 100%; text-align: left; padding: 14px 14px; background: none; border: none; border-radius: 10px;
-    color: #3fb950; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+    color: #3FA3FF; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
 }
 .pl-new { display: flex; gap: 8px; padding: 8px 10px; }
 .pl-new input {
     flex: 1; min-width: 0; background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
     color: #fff; font-size: 15px; padding: 10px 12px; outline: none;
 }
-.pl-new input:focus { border-color: #3fb950; }
-.pl-new button { background: #3fb950; color: #0d1117; border: none; border-radius: 8px; font-weight: 700; padding: 0 14px; cursor: pointer; }
+.pl-new input:focus { border-color: #3FA3FF; }
+.pl-new button { background: #3FA3FF; color: #0d1117; border: none; border-radius: 8px; font-weight: 700; padding: 0 14px; cursor: pointer; }
 .pl-new button:disabled { opacity: 0.5; }
 .pl-picker-list { display: flex; flex-direction: column; max-height: 42vh; overflow-y: auto; }
 .pl-picker-list button {
@@ -454,7 +454,7 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
 .pl-picker-list button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
 .pl-picker-list button:disabled { opacity: 0.5; cursor: default; }
 .pl-picker-meta { font-size: 12.5px; font-weight: 500; color: rgba(255, 255, 255, 0.5); }
-.pl-done { padding: 22px 14px; text-align: center; color: #3fb950; font-weight: 700; }
+.pl-done { padding: 22px 14px; text-align: center; color: #3FA3FF; font-weight: 700; }
 
 /* ── Desktop: a compact player tucked into the bottom-left corner ── */
 @media (min-width: 761px) {

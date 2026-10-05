@@ -20,7 +20,7 @@
 .dl-section-head h2 { margin: 0; }
 .dl-song-actions { display: flex; gap: 8px; }
 .dl-play, .dl-shuffle { border-radius: 999px; font-size: 13px; font-weight: 700; padding: 8px 16px; cursor: pointer; }
-.dl-play { background: #3fb950; color: #0d1117; border: none; }
+.dl-play { background: #3FA3FF; color: #0d1117; border: none; }
 .dl-shuffle { background: none; color: #fff; border: 1px solid rgba(255, 255, 255, 0.25); }
 
 .dl-videos { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; }
@@ -36,8 +36,8 @@
 
 .dl-songs { display: flex; flex-direction: column; gap: 6px; }
 .dl-song { display: flex; align-items: center; gap: 10px; background: #131838; border: 1px solid rgba(63, 163, 255, 0.12); border-radius: 10px; padding: 8px 10px; }
-.dl-song.playing { border-color: rgba(63, 185, 80, 0.55); }
-.dl-song.playing .dl-song-title { color: #3fb950; }
+.dl-song.playing { border-color: rgba(63, 163, 255, 0.55); }
+.dl-song.playing .dl-song-title { color: #3FA3FF; }
 .dl-song-open { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; background: none; border: none; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .dl-song-cover { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: #0a0e27; }
 .dl-song-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
