@@ -137,8 +137,8 @@ if (typeof window !== 'undefined') {
     // Unlocking / returning to the app: timers were frozen, so check now.
     const revive = (ev) => {
         trace(`page:${ev?.type}`, { ...audioInfo(audio), state: state.paused ? 'paused' : 'playing' });
-        // Back in the app while paused: no need to stay awake artificially.
-        if (document.visibilityState === 'visible') stopKeepAlive('visible');
+        // Back in the app: an ordinary pause again, no need to stay awake.
+        if (document.visibilityState === 'visible') restoreFromHold('visible');
         if (document.visibilityState === 'visible') flushTrace(CLIENT_ID);
         if (started && document.visibilityState === 'visible' && streamIsSilent()) connect();
     };
@@ -239,6 +239,10 @@ function applyRemote(s) {
             send({ paused: true, position: state.position });
         } else if (id && loadedId !== id) {
             loadAndPlay(target, !state.paused);
+        } else if (holding) {
+            // Another device pressed play (or moved the position) for us.
+            heldAt = target;
+            if (!state.paused) resumeFromHold('remote');
         } else if (audio) {
             if (Math.abs((audio.currentTime || 0) - target) > 2.5) audio.currentTime = target;
             if (state.paused && !audio.paused) audio.pause();
@@ -246,6 +250,7 @@ function applyRemote(s) {
         }
     } else if (wasActive || (audio && !audio.paused)) {
         // Playback moved to another device.
+        endHold();
         audio?.pause();
     }
 }
@@ -258,9 +263,12 @@ async function loadAndPlay(startAt = 0, autoplay = true) {
     if (!audio) return;
     const id = state.queue[state.index];
     if (!id) return;
+    endHold();
     loadedId = id;
     set({ loading: true, error: '', duration: 0, position: startAt });
-    audio.src = (await getOfflineUrl(id)) || streamUrl(id);
+    const src = (await getOfflineUrl(id)) || streamUrl(id);
+    audio.loop = false;   // the hold's silent clip loops
+    audio.src = src;
     const seek = () => {
         if (startAt > 0) audio.currentTime = startAt;
         audio.removeEventListener('loadedmetadata', seek);
@@ -271,78 +279,114 @@ async function loadAndPlay(startAt = 0, autoplay = true) {
     if (autoplay) tryPlay();
 }
 
-// ── Background keep-alive ───────────────────────────────────────────────────
+// ── Background hold ─────────────────────────────────────────────────────────
 // iOS freezes a web app a few seconds after its audio pauses in the
-// background, and from then on lock-screen "play" (or AirPods going back in)
-// never reaches us — it "plays" with no sound. So while paused in the
-// background we keep a separate Web Audio context running with a tiny DC
-// offset: inaudible (speakers can't reproduce DC) but not digital silence,
-// so iOS still counts the app as playing audio and doesn't freeze it. The song
-// element itself stays genuinely paused, so the lock screen shows "paused".
-// Capped so a forgotten pause can't drain the battery.
-const KEEPALIVE_MS = 15 * 60 * 1000;
-let keepCtx = null;
-let keepSrc = null;
-let keepTimer = null;
-let keepTick = null;
-let keepPrimed = false;
+// background (a separate Web Audio keep-alive gets cut off too, ~12s in), and
+// from then on lock-screen "play" / AirPods never reach us — it "plays" with
+// no sound. What iOS does keep alive is a media element that's playing. So a
+// pause while the phone is locked doesn't stop the element: it swaps the song
+// for a looping inaudible clip and remembers the spot ("holding"). Play — or
+// the lock screen's centre button either way, since iOS now thinks we're
+// playing — swaps the song back in. Opening the app, another device taking
+// over, or the 15-minute cap restore a normal pause.
+const HOLD_MAX_MS = 15 * 60 * 1000;
+let holding = false;
+let heldAt = 0;
+let heldSrc = '';   // the song's URL (offline blob URLs stay valid until removed)
+let heldId = null;
+let holdTimer = null;
+let holdTick = null;
+let silenceUrl = null;
 
-function keepContext() {
-    if (keepCtx || typeof window === 'undefined') return keepCtx;
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return null;
-    try {
-        keepCtx = new AC();
-        keepCtx.onstatechange = () => trace('keep:state', { s: keepCtx.state });
-    } catch { keepCtx = null; }
-    return keepCtx;
+// 4s of 8 kHz mono 8-bit PCM held one step above zero: inaudible (a constant
+// offset isn't sound) but not digital silence.
+function silentClip() {
+    if (silenceUrl) return silenceUrl;
+    const rate = 8000, n = rate * 4;
+    const buf = new ArrayBuffer(44 + n);
+    const v = new DataView(buf);
+    const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVE');
+    str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    str(36, 'data'); v.setUint32(40, n, true);
+    for (let i = 0; i < n; i++) v.setUint8(44 + i, 129);
+    silenceUrl = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    return silenceUrl;
 }
-// Called from a user gesture (tapping play) so later resumes are allowed
-// without one; suspended straight away so it costs nothing while music plays.
-function primeKeepAlive() {
-    if (keepPrimed) return;
-    const ctx = keepContext();
-    if (!ctx) return;
-    keepPrimed = true;
-    ctx.resume().then(() => { if (!keepSrc) ctx.suspend().catch(() => {}); }).catch(() => { keepPrimed = false; });
-}
-function startKeepAlive(reason) {
-    const ctx = keepContext();
-    if (!ctx || keepSrc) return;
-    try {
-        const src = ctx.createConstantSource();
-        src.offset.value = 0.0003;
-        src.connect(ctx.destination);
-        src.start();
-        keepSrc = src;
-        ctx.resume().catch((e) => trace('keep:resume-fail', { name: e?.name }));
-    } catch (e) {
-        trace('keep:fail', { name: e?.name, msg: String(e?.message || '').slice(0, 100) });
-        return;
-    }
-    clearTimeout(keepTimer);
-    keepTimer = setTimeout(() => stopKeepAlive('timeout'), KEEPALIVE_MS);
-    clearInterval(keepTick);
-    keepTick = setInterval(() => trace('keep:tick', { s: ctx.state }), 3000);
-    trace('keep:start', { reason, s: ctx.state });
-}
-function stopKeepAlive(reason) {
-    clearTimeout(keepTimer);
-    clearInterval(keepTick);
-    if (!keepSrc) return;
-    try { keepSrc.stop(); keepSrc.disconnect(); } catch { /* already stopped */ }
-    keepSrc = null;
-    keepCtx?.suspend().catch(() => {});
-    trace('keep:stop', { reason });
-}
+
 const inBackground = () => typeof document !== 'undefined' && document.visibilityState === 'hidden';
 
-// Ask iOS for the music-playback audio session (Safari 17+), so the
-// keep-alive and the song are treated like a music app's audio.
+// Pause (from a lock-screen command while hidden) by holding instead.
+function startHold() {
+    if (holding || !audio) return;
+    holding = true;
+    heldAt = audio.currentTime || state.position || 0;
+    heldSrc = audio.currentSrc || audio.src;
+    heldId = loadedId;
+    const duration = audio.duration;
+    audio.loop = true;
+    audio.src = silentClip();
+    audio.play().catch((e) => { trace('hold:play-fail', { name: e?.name }); endHold(); });
+    set({ paused: true, position: heldAt });
+    send({ index: state.index, position: heldAt, paused: true });
+    try {
+        navigator.mediaSession.playbackState = 'paused';
+        if (Number.isFinite(duration) && duration > 0) {
+            navigator.mediaSession.setPositionState({ duration, position: Math.min(heldAt, duration), playbackRate: 1 });
+        }
+    } catch { /* unsupported */ }
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => restoreFromHold('timeout'), HOLD_MAX_MS);
+    clearInterval(holdTick);
+    holdTick = setInterval(() => trace('hold:tick', audioInfo(audio)), 3000);
+    trace('hold:start', { at: Math.round(heldAt) });
+}
+// Stop holding without touching playback (loadAndPlay is about to take over;
+// it also clears the loop right before loading the song).
+function endHold() {
+    if (!holding) return;
+    holding = false;
+    clearTimeout(holdTimer);
+    clearInterval(holdTick);
+}
+// Put the held song back in the element, synchronously — inside the lock
+// screen's command handler, where iOS allows playback to start.
+function swapBack(play) {
+    const at = heldAt;
+    endHold();
+    if (!heldSrc || heldId !== state.queue[state.index]) {
+        // The queue moved on while we held (e.g. another device skipped).
+        loadAndPlay(at, play);
+        return;
+    }
+    audio.loop = false;
+    audio.src = heldSrc;   // loading resets paused to true without a 'pause' event
+    const seekTo = () => { audio.currentTime = at; audio.removeEventListener('loadedmetadata', seekTo); };
+    audio.addEventListener('loadedmetadata', seekTo);
+    set({ position: at, error: '' });
+    if (play) tryPlay();
+}
+// Play: the song comes back where it was.
+function resumeFromHold(reason) {
+    if (!holding) return;
+    trace('hold:resume', { reason });
+    set({ paused: false });
+    send({ index: state.index, position: heldAt, paused: false });
+    swapBack(true);
+}
+// Back to an ordinary pause on the song (app opened, time cap, clip error).
+function restoreFromHold(reason) {
+    if (!holding) return;
+    trace('hold:restore', { reason });
+    swapBack(false);
+    try { navigator.mediaSession.playbackState = 'paused'; } catch { /* unsupported */ }
+}
+
+// Ask iOS for the music-playback audio session (Safari 17+).
 try { if (typeof navigator !== 'undefined' && navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* unsupported */ }
 
 function tryPlay() {
-    primeKeepAlive();
     trace('tryPlay', audioInfo(audio));
     audio.play().then(() => { trace('play-ok', audioInfo(audio)); set({ blocked: false }); }).catch((e) => {
         trace('play-fail', { name: e?.name, msg: String(e?.message || '').slice(0, 120), ...audioInfo(audio) });
@@ -355,19 +399,20 @@ if (audio) {
         audio.addEventListener(ev, () => trace(`audio:${ev}`, audioInfo(audio)));
     }
     audio.addEventListener('timeupdate', () => {
-        if (!isActiveHere()) return;
+        if (holding || !isActiveHere()) return;
         set({ position: audio.currentTime || 0 });
         report();
         updatePositionState();
     });
     audio.addEventListener('loadedmetadata', () => {
+        if (holding) return;
         set({ duration: audio.duration || 0, loading: false });
         updatePositionState(true);
         // Other devices only know the length if the player tells them.
         if (isActiveHere() && Number.isFinite(audio.duration)) send({ duration: audio.duration });
     });
     audio.addEventListener('playing', () => {
-        stopKeepAlive('playing');
+        if (holding) return;
         set({ paused: false, loading: false });
         report(true);
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
@@ -375,13 +420,14 @@ if (audio) {
         updatePositionState(true);
     });
     audio.addEventListener('pause', () => {
-        if (inBackground() && isActiveHere()) startKeepAlive('pause-event');
+        if (holding) return;
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
         if (isActiveHere()) { set({ paused: true }); report(true); }
     });
-    audio.addEventListener('waiting', () => set({ loading: true }));
-    audio.addEventListener('ended', () => { if (isActiveHere()) next(true); });
+    audio.addEventListener('waiting', () => { if (!holding) set({ loading: true }); });
+    audio.addEventListener('ended', () => { if (!holding && isActiveHere()) next(true); });
     audio.addEventListener('error', () => {
+        if (holding) { trace('hold:error', audioInfo(audio)); restoreFromHold('error'); return; }
         if (!audio.src) return;
         set({ loading: false, error: "Couldn't load this song." });
     });
@@ -430,10 +476,11 @@ function registerMediaActions() {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
     const handlers = {
         play: () => togglePlay(false),
-        // Started here too: iOS grants a user gesture inside lock-screen
-        // command handlers, in case the audio context needs one.
+        // Locked: hold rather than pause, so iOS doesn't freeze the app. While
+        // holding the lock screen shows "playing", so its button resumes.
         pause: () => {
-            if (inBackground() && isActiveHere()) startKeepAlive('cmd-pause');
+            if (holding) return resumeFromHold('cmd-pause');
+            if (inBackground() && isActiveHere() && audio && !audio.paused) return startHold();
             togglePlay(true);
         },
         previoustrack: () => prev(),
@@ -474,6 +521,10 @@ export function togglePlay(forcePaused) {
     // The device that was playing is gone — play here instead.
     if (remoteIsStale() || (!state.activeDevice && forcePaused !== true)) return transferHere();
     const pause = typeof forcePaused === 'boolean' ? forcePaused : !state.paused;
+    if (isActiveHere() && holding) {
+        if (!pause) resumeFromHold('play');
+        return;
+    }
     if (isActiveHere()) {
         if (pause) audio.pause();
         else if (loadedId !== state.queue[state.index] || audio.error || !audio.currentSrc) {
@@ -519,6 +570,12 @@ export function playIndex(index) {
 
 export function seek(seconds) {
     const t = Math.max(0, Number(seconds) || 0);
+    if (isActiveHere() && holding) {
+        heldAt = t;
+        set({ position: t });
+        send({ position: t });
+        return;
+    }
     if (isActiveHere()) {
         audio.currentTime = t;
         set({ position: t });
