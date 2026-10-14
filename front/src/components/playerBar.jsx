@@ -1,13 +1,13 @@
 // Bottom music bar, rendered from the Topbar so it's on every page. All
 // state lives in player/musicPlayer.js — this only displays and dispatches,
 // so remounting on navigation never interrupts playback.
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 // eslint flags React as unused, but JSX here compiles with the classic runtime.
 import React, { useEffect, useState } from 'react';
 import {
     useMusicPlayer, ensureStarted, currentSong, isActiveHere, displayPosition,
     togglePlay, next, prev, seek, setShuffle, setRepeat, transferHere, remoteIsStale,
-    pauseForVideo, setVolume, getVolume, streamUrl, setExpanded, closePlayer,
+    setVolume, getVolume, streamUrl, setExpanded, closePlayer,
 } from '../player/musicPlayer.js';
 import FullPlayer from './fullPlayer.jsx';
 import { listOffline, saveOffline, removeOffline } from '../player/offlineSongs.js';
@@ -34,17 +34,15 @@ const Icon = {
 
 export default function PlayerBar() {
     const s = useMusicPlayer();
-    const location = useLocation();
     const [, setTick] = useState(0);
     const [scrub, setScrub] = useState(null);
     // ⋯ options sheet
     const [optionsOpen, setOptionsOpen] = useState(false);
-    const onWatch = location.pathname.startsWith('/watch/');
     const song = currentSong(s);
     const here = isActiveHere(s);
     const stale = remoteIsStale(s);
     const paused = s.paused || stale;
-    const visible = !!song && !onWatch && !s.dismissed;
+    const visible = !!song && s.allowed && !s.dismissed;
     // Slide in when the player appears and stay mounted briefly after it's
     // hidden so it can slide away. The Topbar (and this) remounts on every
     // page change, so an already-visible bar starts without the entrance.
@@ -66,12 +64,6 @@ export default function PlayerBar() {
     }, [visible]);
 
     useEffect(() => { ensureStarted(); }, []);
-    // Starting a video pauses the music (it'd fight the movie's audio).
-    useEffect(() => {
-        if (!onWatch) return;
-        pauseForVideo();
-        setExpanded(false);
-    }, [onWatch]);
     // Remote devices advance their clock locally between progress reports.
     useEffect(() => {
         if (here || paused || !song) return;

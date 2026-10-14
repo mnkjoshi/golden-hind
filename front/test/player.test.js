@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextIndex, prevAction, estimateRemotePosition, nextRepeatMode, shuffleOrder, isStaleOwnEcho } from '../src/utils/player.js';
+import { nextIndex, prevAction, estimateRemotePosition, nextRepeatMode, shuffleOrder, isStaleOwnEcho, musicAllowedAt } from '../src/utils/player.js';
 
 describe('nextIndex', () => {
     it('steps forward and stops or wraps at the end', () => {
@@ -82,5 +82,18 @@ describe('isStaleOwnEcho', () => {
     it('applies it when another device is the player', () => {
         expect(isStaleOwnEcho({ ...base, activeHere: false })).toBe(false);
         expect(isStaleOwnEcho({ ...base, clientId: '' , updatedBy: '' })).toBe(false);
+    });
+});
+
+describe('musicAllowedAt', () => {
+    it('allows the music section, home and the Downloads list', () => {
+        for (const p of ['/app', '/app/', '/music', '/music/search', '/music/library', '/music/playlist/-Nabc', '/downloads']) {
+            expect(musicAllowedAt(p)).toBe(true);
+        }
+    });
+    it('blocks watching and every other page', () => {
+        for (const p of ['/watch/m27205', '/watch/t1396/1/2', '/downloads/play/abc', '/detail/m27205', '/search', '/books', '/stats', '/', '', null, '/musical']) {
+            expect(musicAllowedAt(p)).toBe(false);
+        }
     });
 });

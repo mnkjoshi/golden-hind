@@ -10,7 +10,7 @@
 import axios from 'axios';
 import { useSyncExternalStore } from 'react';
 import { defaultDeviceName } from '../utils/remote.js';
-import { nextIndex, prevAction, estimateRemotePosition, shuffleOrder, isStaleOwnEcho } from '../utils/player.js';
+import { nextIndex, prevAction, estimateRemotePosition, shuffleOrder, isStaleOwnEcho, musicAllowedAt } from '../utils/player.js';
 import { getOfflineUrl } from './offlineSongs.js';
 
 const API = 'https://ghb.mnkjoshi.ca';
@@ -45,6 +45,9 @@ let state = {
     clockOffset: 0,       // serverNow - localNow
     duration: 0,
     shuffle: false,
+    // Music only plays (and its player only shows) on some pages — see
+    // musicAllowedAt and syncMusicRoute.
+    allowed: typeof window === 'undefined' || musicAllowedAt(window.location.pathname),
     originalQueue: null,  // queue order before shuffling, to restore on un-shuffle
     repeat: 'off',
     activeDevice: null,   // { id, name }
@@ -367,13 +370,25 @@ function resumeFromHold() {
 function restoreFromHold() {
     if (!holding) return;
     swapBack(false);
-    try { navigator.mediaSession.playbackState = 'paused'; } catch { /* unsupported */ }
+    if (state.allowed) {
+        try { navigator.mediaSession.playbackState = 'paused'; } catch { /* unsupported */ }
+    }
 }
 
 // Ask iOS for the music-playback audio session (Safari 17+).
 try { if (typeof navigator !== 'undefined' && navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* unsupported */ }
 
 function tryPlay() {
+    if (!state.allowed) {
+        // Outside the music area nothing gets to start the music — not a
+        // stray media key meant for the movie, not another device. Report
+        // paused so other devices see it didn't start.
+        if (isActiveHere() && !state.paused) {
+            set({ paused: true });
+            send({ paused: true, position: audio.currentTime || state.position || 0 });
+        }
+        return;
+    }
     audio.play().then(() => set({ blocked: false })).catch((e) => {
         if (e?.name === 'NotAllowedError') set({ blocked: true });
     });
@@ -397,13 +412,13 @@ if (audio) {
         if (holding) return;
         set({ paused: false, loading: false });
         report(true);
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        if ('mediaSession' in navigator && state.allowed) navigator.mediaSession.playbackState = 'playing';
         registerMediaActions();
         updatePositionState(true);
     });
     audio.addEventListener('pause', () => {
         if (holding) return;
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+        if ('mediaSession' in navigator && state.allowed) navigator.mediaSession.playbackState = 'paused';
         if (isActiveHere()) { set({ paused: true }); report(true); }
     });
     audio.addEventListener('waiting', () => { if (!holding) set({ loading: true }); });
@@ -418,7 +433,7 @@ if (audio) {
 // Lock-screen / Control Center scrubber.
 let lastPositionState = 0;
 function updatePositionState(force = false) {
-    if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState || !audio) return;
+    if (!state.allowed || !('mediaSession' in navigator) || !navigator.mediaSession.setPositionState || !audio) return;
     const now = Date.now();
     if (!force && now - lastPositionState < 5000) return;
     lastPositionState = now;
@@ -434,7 +449,7 @@ function updatePositionState(force = false) {
 }
 
 function updateMediaSession() {
-    if (!('mediaSession' in navigator)) return;
+    if (!state.allowed || !('mediaSession' in navigator)) return;
     const song = currentSong();
     if (!song) return;
     try {
@@ -456,6 +471,7 @@ function updateMediaSession() {
 // on every load and play, not just once at startup.
 function registerMediaActions() {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    if (!state.allowed) return releaseMediaSession();
     const handlers = {
         play: () => togglePlay(false),
         // Locked: hold rather than pause, so iOS doesn't freeze the app. While
@@ -476,6 +492,33 @@ function registerMediaActions() {
     }
 }
 registerMediaActions();
+
+// The page has ONE media session, shared with the movie player. Outside the
+// music area the music must let go of it entirely, or the lock screen /
+// AirPods / media keys meant for the movie end up starting the music.
+function releaseMediaSession() {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    for (const action of ['play', 'pause', 'previoustrack', 'nexttrack', 'seekto', 'seekbackward', 'seekforward']) {
+        try { navigator.mediaSession.setActionHandler(action, null); } catch { /* unsupported */ }
+    }
+    try { navigator.mediaSession.metadata = null; } catch { /* unsupported */ }
+}
+
+// Called on every navigation (main.jsx). Leaving the music area pauses music
+// playing here and hands the media session back to the page; coming back
+// re-arms it (without auto-playing).
+export function syncMusicRoute(pathname) {
+    const allowed = musicAllowedAt(pathname);
+    if (allowed === state.allowed) return;
+    set(allowed ? { allowed } : { allowed, expanded: false });
+    if (allowed) {
+        if (currentSong()) { updateMediaSession(); registerMediaActions(); }
+        return;
+    }
+    if (holding) restoreFromHold();
+    if (isActiveHere() && audio && !audio.paused) audio.pause();
+    releaseMediaSession();
+}
 
 // ── Actions (work from any device) ──────────────────────────────────────────
 
@@ -604,11 +647,6 @@ export function transferHere() {
     set({ activeDevice: me(), position: at, paused: false, dismissed: false });
     loadAndPlay(at, true);
     send({ activeDevice: me(), position: at, paused: false, index: state.index });
-}
-
-// Starting a video pauses the music if it's playing here.
-export function pauseForVideo() {
-    if (isActiveHere() && audio && !audio.paused) audio.pause();
 }
 
 export function setExpanded(open) { set({ expanded: !!open }); }

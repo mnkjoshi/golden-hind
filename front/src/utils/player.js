@@ -49,3 +49,11 @@ export const nextRepeatMode = (mode) => ({ off: 'all', all: 'one', one: 'off' }[
 export function isStaleOwnEcho({ updatedBy, clientId, activeHere, audioLoaded, firstSnapshot }) {
     return !firstSnapshot && !!audioLoaded && !!activeHere && !!clientId && updatedBy === clientId;
 }
+
+// Where music may play and its player may show: the music section, the home
+// screen, and the Downloads list (its songs play through the player). Never
+// on a movie/episode page or anywhere else.
+export function musicAllowedAt(pathname) {
+    const p = String(pathname || '').replace(/\/+$/, '') || '/';
+    return p === '/app' || p === '/music' || p.startsWith('/music/') || p === '/downloads';
+}
