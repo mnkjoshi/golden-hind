@@ -100,11 +100,12 @@ test('buildSingleVariantMaster assembles a valid master playlist', () => {
     assert.equal(lines[lines.length - 1], '/proxy/hls?url=enc');
 });
 
-test('hlsLanguageCode maps names and tags, with index-based fallback', () => {
+test('hlsLanguageCode maps names and tags; unknown is always und', () => {
     assert.equal(hlsLanguageCode({ language: 'English' }, 0), 'en');
     assert.equal(hlsLanguageCode({ language: 'Spanish' }, 1), 'es');
     assert.equal(hlsLanguageCode({ language: 'fr' }, 2), 'fr');         // direct 2-letter tag
     assert.equal(hlsLanguageCode({ file: '/subs/portuguese.vtt' }, 3), 'pt'); // from filename
-    assert.equal(hlsLanguageCode({ language: 'Klingon' }, 0), 'en');   // unknown, first track → en
-    assert.equal(hlsLanguageCode({ language: 'Klingon' }, 4), 'und');  // unknown, later track → und
+    // Never guess English: a mislabelled first track hijacked "English"
+    assert.equal(hlsLanguageCode({ language: 'Klingon' }, 0), 'und');
+    assert.equal(hlsLanguageCode({ language: 'Klingon' }, 4), 'und');
 });
