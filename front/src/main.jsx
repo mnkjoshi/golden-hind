@@ -37,6 +37,8 @@ import {
   RouterProvider,
 } from "react-router-dom";
 
+import { syncMusicRoute } from './player/musicPlayer.js';
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -155,6 +157,10 @@ const keepOffline = () => {
 keepOffline();
 window.addEventListener('offline', keepOffline);
 router.subscribe(keepOffline);
+
+// Music only plays / shows on home, the music section and Downloads.
+syncMusicRoute(window.location.pathname);
+router.subscribe((routerState) => syncMusicRoute(routerState.location.pathname));
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
