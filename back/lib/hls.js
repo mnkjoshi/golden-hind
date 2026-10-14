@@ -93,5 +93,7 @@ export function hlsLanguageCode(sub, index) {
     const directTag = raw.match(/\b([a-z]{2})(?:[-_][a-z]{2})?\b/)?.[1];
     if (directTag && languageMap.some(([tag]) => tag === directTag)) return directTag;
     const found = languageMap.find(([, re]) => re.test(text));
-    return found?.[0] || (index === 0 ? 'en' : 'und');
+    // Unknown stays 'und': guessing 'en' for the first track made players
+    // pick e.g. Arabic when asked for English.
+    return found?.[0] || 'und';
 }

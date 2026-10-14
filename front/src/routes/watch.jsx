@@ -21,6 +21,19 @@ const SERVERS = [
 // While this browser is remote-controlling another device, the watch route
 // renders the remote transport UI instead of playing locally — so every
 // existing Watch button in the app becomes a "play on <device>" button.
+// Subtitle language to put first (the last one picked in the player).
+const preferredSubtitleLang = () => localStorage.getItem('subtitleLang') || 'en';
+
+// Proxied HLS URL for a LookMovie stream. Native HLS (iOS) gets subtitles as
+// manifest renditions, referenced by a server-side key — the list itself
+// made URLs too long to load.
+function lookmovieStreamUrl(url, subs, subsKey) {
+    if (!Hls.isSupported() && subs.length > 0 && subsKey) {
+        return `https://ghb.mnkjoshi.ca/proxy/hls-with-subs?url=${encodeURIComponent(url)}&subsKey=${encodeURIComponent(subsKey)}`;
+    }
+    return `https://ghb.mnkjoshi.ca/proxy/hls?url=${encodeURIComponent(url)}`;
+}
+
 export default function Watch() {
     return getRemoteTarget() ? <RemotePlayback /> : <LocalWatch />;
 }
@@ -881,18 +894,14 @@ function LocalWatch() {
         axios({
             method: 'post',
             url: 'https://ghb.mnkjoshi.ca/server/lookmovie',
-            data: { user, token, id, season, episode }
+            data: { user, token, id, season, episode, subLang: preferredSubtitleLang() }
         }).then(r => {
             // if (r.data.dbg) console.group('[LookMovie Debug]'), r.data.dbg.forEach(l => console.log(l)), console.groupEnd();
             if (r.data.success) {
                 setLmFailedFor(k => (k === epKey ? null : k));
                 const subs = r.data.subtitles || [];
                 setLmSubtitles(subs);
-                if (!Hls.isSupported() && subs.length > 0) {
-                    setLmUrl(`https://ghb.mnkjoshi.ca/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}`);
-                } else {
-                    setLmUrl(`https://ghb.mnkjoshi.ca/proxy/hls?url=${encodeURIComponent(r.data.url)}`);
-                }
+                setLmUrl(lookmovieStreamUrl(r.data.url, subs, r.data.subsKey));
             } else {
                 fail();
             }
@@ -942,13 +951,11 @@ function LocalWatch() {
         const u = localStorage.getItem('user'), t = localStorage.getItem('token');
         if (!u || !t) return;
         const timer = setTimeout(() => {
-            axios.post('https://ghb.mnkjoshi.ca/server/lookmovie', { user: u, token: t, id, season: nextSe, episode: nextEp })
+            axios.post('https://ghb.mnkjoshi.ca/server/lookmovie', { user: u, token: t, id, season: nextSe, episode: nextEp, subLang: preferredSubtitleLang() })
                 .then(r => {
                     if (r.data?.success && r.data.url) {
                         const subs = r.data.subtitles || [];
-                        const url = (!Hls.isSupported() && subs.length > 0)
-                            ? `https://ghb.mnkjoshi.ca/proxy/hls-with-subs?url=${encodeURIComponent(r.data.url)}&subs=${encodeURIComponent(JSON.stringify(subs))}`
-                            : `https://ghb.mnkjoshi.ca/proxy/hls?url=${encodeURIComponent(r.data.url)}`;
+                        const url = lookmovieStreamUrl(r.data.url, subs, r.data.subsKey);
                         prefetchRef.current = { key, url, subtitles: subs };
                     }
                 })
@@ -1024,33 +1031,6 @@ function LocalWatch() {
         });
         video.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', handleAirplayChange);
 
-        const subtitleLangCode = (sub, index) => {
-            const raw = String(sub.language || sub.lang || sub.label || '').toLowerCase();
-            const file = String(sub.file || sub.url || '').toLowerCase();
-            const text = `${raw} ${file}`;
-            const languageMap = [
-                ['en', /\b(en|eng|english)\b/],
-                ['es', /\b(es|spa|spanish|espanol|español)\b/],
-                ['fr', /\b(fr|fre|fra|french)\b/],
-                ['de', /\b(de|ger|deu|german)\b/],
-                ['it', /\b(it|ita|italian)\b/],
-                ['pt', /\b(pt|por|portuguese)\b/],
-                ['nl', /\b(nl|dut|nld|dutch)\b/],
-                ['ru', /\b(ru|rus|russian)\b/],
-                ['uk', /\b(uk|ukr|ukrainian)\b/],
-                ['cs', /\b(cs|cze|ces|czech)\b/],
-                ['el', /\b(el|gre|ell|greek)\b/],
-                ['hi', /\b(hi|hin|hindi)\b/],
-                ['id', /\b(id|ind|indonesian)\b/],
-                ['ja', /\b(ja|jpn|japanese)\b/],
-                ['ko', /\b(ko|kor|korean)\b/],
-                ['zh', /\b(zh|chi|zho|chinese)\b/],
-            ];
-            const directTag = raw.match(/\b([a-z]{2})(?:[-_][a-z]{2})?\b/)?.[1];
-            if (directTag && languageMap.some(([tag]) => tag === directTag)) return directTag;
-            return languageMap.find(([, re]) => re.test(text))?.[0] || (index === 0 ? 'en' : 'und');
-        };
-
         // Hls.js/desktop uses HTML text tracks. Native iOS uses HLS subtitle
         // renditions injected into the manifest instead; mixing both creates
         // duplicate menu items and can leave AVPlayer selecting a non-rendering track.
@@ -1061,13 +1041,14 @@ function LocalWatch() {
                 const rawSub = String(sub.file || sub.url || '');
                 if (!rawSub.startsWith('/') && !rawSub.startsWith('http')) return;
                 const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
+                // The server curates the list: unique labels, real language
+                // codes (lowercase, as Plyr compares them), viewer's first.
                 const trackEl = document.createElement('track');
                 trackEl.kind = 'subtitles';
-                trackEl.label = sub.language || sub.lang || `Track ${trackIndex + 1}`;
-                trackEl.srclang = subtitleLangCode(sub, trackIndex);
+                trackEl.label = sub.language || `Track ${trackIndex + 1}`;
+                trackEl.srclang = String(sub.lang || 'und').toLowerCase();
                 trackEl.src = `https://ghb.mnkjoshi.ca/proxy/subtitle?url=${encodeURIComponent(absSubUrl)}`;
                 if (trackIndex === 0) trackEl.default = true;
-                const isDefaultTrack = trackIndex === 0;
                 trackEl.addEventListener('load', () => {
                     const offset = subOffsetRef.current;
                     if (offset !== 0 && trackEl.track?.cues) {
@@ -1076,10 +1057,12 @@ function LocalWatch() {
                             cue.endTime = Math.max(0, cue.endTime + offset);
                         });
                     }
-                    if (isDefaultTrack && trackEl.track) trackEl.track.mode = 'showing';
                 });
+                // No forcing mode='showing' here: Plyr picks and renders the
+                // active track itself. Forcing the first one on made the
+                // browser draw it natively on top of whatever you chose — the
+                // "stuck in Arabic" bug.
                 video.appendChild(trackEl);
-                if (isDefaultTrack && trackEl.track) trackEl.track.mode = 'showing';
                 trackIndex++;
             });
         }
@@ -1089,6 +1072,14 @@ function LocalWatch() {
             : `playbackPos_${id}`;
 
         const initPlyr = () => {
+            // Plyr keeps its own saved caption language (it could hold a bad
+            // code from the old mislabelled tracks); start it on ours.
+            try {
+                const plyrStore = JSON.parse(localStorage.getItem('plyr') || '{}');
+                if (plyrStore.language !== preferredSubtitleLang()) {
+                    localStorage.setItem('plyr', JSON.stringify({ ...plyrStore, language: preferredSubtitleLang() }));
+                }
+            } catch { /* corrupt store: Plyr rewrites it */ }
             const savedVolume = parseFloat(localStorage.getItem('playerVolume'));
             const savedSpeed = parseFloat(localStorage.getItem('playerSpeed'));
             const localPos = parseFloat(localStorage.getItem(posKey) || '0');
@@ -1099,7 +1090,7 @@ function LocalWatch() {
             const player = new Plyr(video, {
                 controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'captions', 'settings', 'pip', 'fullscreen'],
                 settings: ['captions', 'quality', 'speed'],
-                captions: { active: uniqueSubs.length > 0, update: true, language: 'sub0' },
+                captions: { active: uniqueSubs.length > 0, update: true, language: preferredSubtitleLang() },
                 ratio: '16:9',
                 keyboard: { focused: false, global: false },
                 fullscreen: { enabled: true, fallback: true, iosNative: true },
@@ -1346,6 +1337,17 @@ function LocalWatch() {
                         }
                     }
                 }
+            });
+
+            // Remember the subtitle language you pick (taps in the captions
+            // menu only — Plyr also switches on its own while loading); the
+            // next stream asks the server to put it first.
+            container.addEventListener('click', (e) => {
+                if (!e.target.closest?.('[data-plyr="language"]')) return;
+                setTimeout(() => {
+                    const lang = player.language;
+                    if (lang && lang !== 'und') localStorage.setItem('subtitleLang', String(lang).toLowerCase());
+                }, 0);
             });
 
             // Persist volume and speed preferences across sessions

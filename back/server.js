@@ -20,7 +20,7 @@ const execFileAsync = promisify(execFile);
 
 // Pure helpers extracted for unit testing (see back/lib + back/test).
 import { slugify, rewriteHlsManifest, hlsLanguageCode } from './lib/hls.js';
-import { normalizeToVtt } from './lib/subtitles.js';
+import { normalizeToVtt, curateSubtitles, subtitlesKey } from './lib/subtitles.js';
 import { generateToken as GenerateToken, generatePartyCode } from './lib/codes.js';
 import { detectShowChanges, collectShowFollowers } from './lib/notifications.js';
 import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, deviceSummary, collectStaleDevices } from './lib/remote.js';
@@ -2637,7 +2637,13 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
     if (!raw) return res.status(400).send('Missing url');
     const url = decodeURIComponent(raw);
     let subs = [];
-    try { subs = JSON.parse(decodeURIComponent(rawSubs || '[]')); } catch {}
+    if (req.query.subsKey) {
+        // A curated list cached by /server/lookmovie (lost on restart: the
+        // stream still plays, just without subtitles until it's reloaded).
+        subs = subsCache.get(String(req.query.subsKey))?.subs || [];
+    } else {
+        try { subs = JSON.parse(decodeURIComponent(rawSubs || '[]')); } catch {}
+    }
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
@@ -2658,7 +2664,7 @@ app.get('/proxy/hls-with-subs', async (req, res) => {
                 const absSubUrl = rawSub.startsWith('http') ? rawSub : `https://www.lookmovie2.to${rawSub}`;
                 const playlistUri = `https://ghb.mnkjoshi.ca/proxy/subtitle-playlist?url=${encodeURIComponent(absSubUrl)}`;
                 const name = (sub.language || sub.lang || `Track ${i + 1}`).replace(/"/g, "'");
-                const lang = hlsLanguageCode(sub, i);
+                const lang = sub.lang && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(sub.lang) ? sub.lang : hlsLanguageCode(sub, i);
                 return `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",DEFAULT=${i === 0 ? 'YES' : 'NO'},AUTOSELECT=${i === 0 ? 'YES' : 'NO'},FORCED=NO,URI="${playlistUri}",LANGUAGE="${lang}"`;
             });
 
@@ -2716,16 +2722,35 @@ async function resolveLookmovieStream(id, season, episode, dbg) {
     return { streamUrl, subtitles, title, year, mediaType };
 }
 
+// Curated subtitle lists, keyed by subtitlesKey(), for iOS manifests
+// (/proxy/hls-with-subs?subsKey=) — the full list no longer fits in a URL.
+const SUBS_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const subsCache = new Map(); // key -> { subs, at }
+function rememberSubtitles(subs) {
+    const key = subtitlesKey(subs);
+    subsCache.delete(key);
+    subsCache.set(key, { subs, at: Date.now() });
+    for (const [k, v] of subsCache) {
+        if (subsCache.size <= 500 && Date.now() - v.at < SUBS_CACHE_TTL_MS) break;
+        subsCache.delete(k);
+    }
+    return key;
+}
+
 app.post('/server/lookmovie', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    const { user, token, id, season, episode } = request.body;
+    const { user, token, id, season, episode, subLang } = request.body;
     if (!await Authenticate(user, token)) return response.status(202).send("UNV");
 
     const dbg = [];
     try {
-        const { streamUrl, subtitles } = await resolveLookmovieStream(id, season, episode, dbg);
-        response.json({ success: true, url: streamUrl, subtitles, dbg });
+        const { streamUrl, subtitles: rawSubs } = await resolveLookmovieStream(id, season, episode, dbg);
+        // Hundreds of unordered tracks → one per language (a few for the
+        // viewer's), the viewer's language first, real codes, unique labels.
+        const subtitles = curateSubtitles(rawSubs, subLang || 'en');
+        const subsKey = subtitles.length ? rememberSubtitles(subtitles) : null;
+        response.json({ success: true, url: streamUrl, subtitles, subsKey, dbg });
     } catch (error) {
         logError(user, '/server/lookmovie', error).catch(() => {});
         dbg.push(`ERROR: ${error.message}`);
