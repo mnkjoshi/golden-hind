@@ -1106,26 +1106,35 @@
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    border: 1.5px solid rgba(255,255,255,0.3);
+    border: 1.5px solid rgba(255,255,255,0.25);
     background: none;
-    color: rgba(255,255,255,0.35);
+    color: rgba(255,255,255,0.3);
     font-size: 15px;
     cursor: pointer;
     transition: all 0.15s;
-    opacity: 0;
 }
-.detail-episode-row:hover .detail-ep-watched-btn,
-.detail-ep-watched-btn.on { opacity: 1; }
 .detail-ep-watched-btn:hover { border-color: #3fb950; color: #3fb950; }
 .detail-ep-watched-btn.on {
     background: #3fb950;
     border-color: #3fb950;
     color: #0a0e27;
 }
-.detail-episode-row.watched .detail-episode-thumb img { opacity: 0.45; }
-.detail-episode-row.watched .detail-episode-title { color: rgba(255,255,255,0.55); }
+.detail-ep-watched-btn.on:hover { background: #2ea043; border-color: #2ea043; color: #0a0e27; }
 
-@media (hover: none) {
-    /* Touch devices have no hover — keep the toggle always visible */
-    .detail-ep-watched-btn { opacity: 1; }
+.detail-episode-watched-badge {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    z-index: 1;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: #3fb950;
+    color: #0a0e27;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    pointer-events: none;
 }
+.detail-episode-row.watched .detail-episode-thumb img { opacity: 0.4; }
+.detail-episode-row.watched .detail-episode-title,
+.detail-episode-row.watched .detail-episode-overview { color: rgba(255,255,255,0.45); }

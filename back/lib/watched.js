@@ -45,3 +45,19 @@ export function seasonSummary(watchedMap, season, episodeNumbers) {
         allWatched: nums.length > 0 && watchedCount === nums.length,
     };
 }
+
+// Fraction of an episode after which a saved playback position counts as
+// watched. Most people stop at the credits or take up-next before the
+// player's `ended` event fires, so the end alone misses most episodes.
+export const WATCHED_THRESHOLD = 0.9;
+
+// Watched-map key for a position save, or null when it isn't a TV episode
+// past the threshold. posKey looks like playbackPos_<contentId>_s<n>_e<n>.
+export function watchedKeyFromPosition(posKey, contentId, position, duration) {
+    if (typeof posKey !== 'string' || !contentId) return null;
+    const m = posKey.match(/^playbackPos_(.+)_s(\d+)_e(\d+)$/);
+    if (!m || m[1] !== String(contentId)) return null;
+    const pos = Number(position), dur = Number(duration);
+    if (!(dur > 0) || !(pos >= 0) || pos / dur < WATCHED_THRESHOLD) return null;
+    return episodeKey(m[2], m[3]);
+}

@@ -26,7 +26,8 @@ import { detectShowChanges, collectShowFollowers } from './lib/notifications.js'
 import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, deviceSummary, collectStaleDevices } from './lib/remote.js';
 import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from './lib/recs.js';
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
-import { buildWatchedUpdate } from './lib/watched.js';
+import { buildWatchedUpdate, watchedKeyFromPosition } from './lib/watched.js';
+import { cleanEpisode, cleanSeason } from './lib/text.js';
 import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
 import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar.js';
 import { emailKey, emailFromKey, isValidUsername, isValidEmail } from './lib/accounts.js';
@@ -577,7 +578,7 @@ app.post('/eretrieve', async (request, response) => {
             });
     
             response.status(200)
-            response.send(JSON.stringify(apiResponse.data))
+            response.send(JSON.stringify(cleanEpisode(apiResponse.data)))
         } catch(error) {
             logError(user, '/eretrieve', error).catch(() => {});
             console.log(error)
@@ -680,8 +681,9 @@ app.post('/season', async (request, response) => {
             if (seasonCache.has(cacheKey)) return response.status(200).json(seasonCache.get(cacheKey));
             const url = `https://api.themoviedb.org/3/tv/${seriesId}/season/${seasonNumber}?api_key=${process.env.TMDB_Credentials}`;
             const apiResponse = await axios.get(url);
-            seasonCache.set(cacheKey, apiResponse.data);
-            response.status(200).json(apiResponse.data);
+            const season = cleanSeason(apiResponse.data);
+            seasonCache.set(cacheKey, season);
+            response.status(200).json(season);
         } catch (error) {
             console.log(error);
             response.status(202).send("UKE");
@@ -982,6 +984,11 @@ app.post('/position/update', async (request, response) => {
             const ratio = Number(pct);
             const clamped = isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : (dur > 0 ? Math.min(1, pos / dur) : 0);
             await db.ref(`users/${user}/positionsPct/${contentId}`).set(+clamped.toFixed(4));
+            // Near the end of an episode counts as watched on the detail page.
+            const watchedKey = watchedKeyFromPosition(posKey, contentId, pos, dur);
+            if (watchedKey) {
+                await db.ref(`users/${user}/watched/${contentId}/${watchedKey}`).set(Date.now());
+            }
         }
         response.status(200).send("OK");
     } catch (error) {

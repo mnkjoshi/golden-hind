@@ -560,6 +560,7 @@ export default function Detail() {
                                                 ? <img src={`https://image.tmdb.org/t/p/w300/${ep.still_path}`} alt="" />
                                                 : <div className="detail-episode-no-thumb" />
                                             }
+                                            {isWatched && <span className="detail-episode-watched-badge">✓ Watched</span>}
                                             <div className="detail-episode-play-icon">▶</div>
                                         </div>
                                         <div className="detail-episode-info">
