@@ -692,7 +692,6 @@ p {
     position: fixed;
     width: 300px;
     max-width: 90vw;
-    transition: width 0.4s ease;
     background: rgba(20, 20, 20, 0.95);
     backdrop-filter: blur(15px);
     border: 2px solid #3FA3FF;
@@ -762,15 +761,31 @@ p {
     max-height: 4.05rem;
     overflow: hidden;
     margin: 0 0 0.75rem 0;
-    transition: max-height 0.4s ease;
 }
 
-.tooltip-overview-container.expanded {
-    max-height: 300px;
+/* Long descriptions scroll up slowly in place after a short pause; the bottom
+   edge fades while there's more text to come. */
+.tooltip-overview-container.waiting,
+.tooltip-overview-container.scrolling {
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 0.8rem), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 0.8rem), transparent);
 }
 
-.external-tooltip.expanded {
-    width: 480px;
+.tooltip-overview-container.scrolling .tooltip-overview,
+.tooltip-overview-container.done .tooltip-overview {
+    animation: tooltip-overview-scroll var(--scroll-duration) linear forwards;
+}
+
+@keyframes tooltip-overview-scroll {
+    from { transform: translateY(0); }
+    to   { transform: translateY(var(--scroll-distance)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tooltip-overview-container.scrolling .tooltip-overview,
+    .tooltip-overview-container.done .tooltip-overview {
+        animation-duration: 0.01s;
+    }
 }
 
 .tooltip-overview {
