@@ -29,6 +29,7 @@ import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats
 import { buildWatchedUpdate } from './lib/watched.js';
 import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
 import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar.js';
+import { emailKey, emailFromKey, isValidUsername, isValidEmail } from './lib/accounts.js';
 import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
@@ -236,6 +237,17 @@ app.post('/register', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { username, password, email } = request.body
+
+    if (!isValidUsername(username)) {
+        response.status(202);
+        response.send("IUN"); //Invalid username
+        return
+    }
+    if (!isValidEmail(email)) {
+        response.status(202);
+        response.send("IE"); //Invalid email
+        return
+    }
 
     try { //Check if username is taken!
 
@@ -1775,6 +1787,8 @@ app.post('/admin/create-user', async (request, response) => {
     if (!await AuthenticateAdmin(user, token)) {
         return response.status(403).send("Forbidden");
     }
+    if (!isValidUsername(newUsername)) { response.status(200).send("IUN"); return; }
+    if (!isValidEmail(newEmail)) { response.status(200).send("IE"); return; }
     try {
         const exists = await CheckUser(newUsername, newEmail);
         if (exists === 1) { response.status(200).send("UNT"); return; }
@@ -1788,8 +1802,7 @@ app.post('/admin/create-user', async (request, response) => {
             continues: "[]",
             token: newToken,
         });
-        const escapedEmail = newEmail.replace(".", "@@@");
-        await db.ref(`emails/${escapedEmail}`).set({ user: newUsername });
+        await db.ref(`emails/${emailKey(newEmail)}`).set({ user: newUsername });
         response.status(200).send("UCS");
     } catch (error) {
         logError('manav', '/admin/create-user', error).catch(() => {});
@@ -2289,9 +2302,7 @@ async function Register(username, password, email) {
             token: newToken,
         })
 
-        email = email.replace(".", "@@@")
-
-        db.ref(`emails/${email}`).set({ 
+        db.ref(`emails/${emailKey(email)}`).set({ 
             user: username,
         })
 
@@ -2314,8 +2325,7 @@ async function CheckUser(username, email) {
         return 1
     }
 
-    email = email.replace(".", "@@@")
-    const EmailSnapshot = await db.ref(`emails/${email}`).once('value');
+    const EmailSnapshot = await db.ref(`emails/${emailKey(email)}`).once('value');
     if (EmailSnapshot.exists()) {
         return 2
     }
@@ -2330,7 +2340,7 @@ async function OfferVerify(username, token, email) {
         email = EmailSnapshot.val();
     }
 
-    email = email.replace("@@@", ".");
+    email = emailFromKey(email);
 
     const link = "https://the-golden-hind.web.app/auth/" + token;
 

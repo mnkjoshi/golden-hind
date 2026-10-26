@@ -130,7 +130,13 @@ function Attempt(Which, Username, Password, Email, navigate) {
             Notify("Error", "Username is taken, try another name!")
             break;
           case "ET":
-            Notify("Error", "Username is taken, try another name!", "This email account is already registered! Try logging in?")
+            Notify("Error", "This email account is already registered! Try logging in?")
+            break;
+          case "IUN":
+            Notify("Error", "Usernames can't contain spaces at the ends or . # $ [ ] /")
+            break;
+          case "IE":
+            Notify("Error", "That email address isn't valid!")
             break;
           case "UCS":
             Notify("Success", "Account created successfully! Check your email and SPAM folder to verify!");

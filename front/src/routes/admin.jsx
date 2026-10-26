@@ -135,6 +135,12 @@ export default function Admin() {
                 case 'ET':
                     setCreateStatus('Email is already in use.');
                     break;
+                case 'IUN':
+                    setCreateStatus('Usernames can\'t contain spaces at the ends or . # $ [ ] /');
+                    break;
+                case 'IE':
+                    setCreateStatus('That email address isn\'t valid.');
+                    break;
                 default:
                     setCreateStatus('Unexpected response: ' + res.data);
             }
