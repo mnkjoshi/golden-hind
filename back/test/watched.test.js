@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { episodeKey, buildWatchedUpdate, seasonSummary } from '../lib/watched.js';
+import { episodeKey, buildWatchedUpdate, seasonSummary, watchedKeyFromPosition } from '../lib/watched.js';
 
 test('episodeKey builds path-safe keys and rejects junk', () => {
     assert.equal(episodeKey(1, 5), 's1e5');
@@ -34,4 +34,18 @@ test('seasonSummary counts only real episodes of that season', () => {
     assert.deepEqual(seasonSummary(map, 2, [1]), { total: 1, watchedCount: 1, allWatched: true });
     assert.deepEqual(seasonSummary(null, 1, [1]), { total: 1, watchedCount: 0, allWatched: false });
     assert.deepEqual(seasonSummary(map, 1, []), { total: 0, watchedCount: 0, allWatched: false });
+});
+
+test('watchedKeyFromPosition marks an episode past 90%', () => {
+    const posKey = 'playbackPos_t97546_s4_e9';
+    assert.equal(watchedKeyFromPosition(posKey, 't97546', 2340, 2580), 's4e9');
+    assert.equal(watchedKeyFromPosition(posKey, 't97546', 2580, 2580), 's4e9');
+});
+
+test('watchedKeyFromPosition ignores early positions, movies and mismatches', () => {
+    assert.equal(watchedKeyFromPosition('playbackPos_t97546_s4_e9', 't97546', 1000, 2580), null);
+    assert.equal(watchedKeyFromPosition('playbackPos_t97546_s4_e9', 't97546', 0, 0), null);
+    assert.equal(watchedKeyFromPosition('playbackPos_m550', 'm550', 7000, 7200), null);
+    assert.equal(watchedKeyFromPosition('playbackPos_t1_s1_e1', 't2', 99, 100), null);
+    assert.equal(watchedKeyFromPosition(undefined, 't1', 99, 100), null);
 });
