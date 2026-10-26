@@ -96,7 +96,8 @@ export default function App() {
     const [currentHeroTrailerKey, setCurrentHeroTrailerKey] = useState(null)
     const heroHoverTimerRef = useRef(null)
     const heroInlineTrailerCacheRef = useRef({})
-    const [tooltipExpanded, setTooltipExpanded] = useState(false)
+    // Long tooltip descriptions: { distance, duration, phase: 'waiting' | 'scrolling' | 'done' }.
+    const [tooltipScroll, setTooltipScroll] = useState(null)
     const tooltipScrollTimerRef = useRef(null)
     const overviewRef = useRef(null)
 
@@ -117,6 +118,8 @@ export default function App() {
     const cardHoverTargetRef = useRef(null)
     const cardTrailerCacheRef = useRef({})
     const lastMousePos = useRef({ x: 0, y: 0 })
+    // The card the tooltip/trailer preview belongs to, so both can follow it on scroll.
+    const hoverCardElRef = useRef(null)
 
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
@@ -507,19 +510,50 @@ export default function App() {
         return () => window.removeEventListener('mousemove', onMove);
     }, []);
 
+    // Long descriptions scroll slowly inside the tooltip instead of growing it.
     useEffect(() => {
         clearTimeout(tooltipScrollTimerRef.current);
-        setTooltipExpanded(false);
-        if (tooltip.visible && tooltip.data?.overview) {
+        setTooltipScroll(null);
+        const el = overviewRef.current;
+        const distance = tooltip.visible && el ? el.scrollHeight - (el.parentElement?.clientHeight ?? 0) : 0;
+        if (distance > 2) {
+            setTooltipScroll({ distance, duration: Math.max(3, distance / 12), phase: 'waiting' });
             tooltipScrollTimerRef.current = setTimeout(() => {
-                const el = overviewRef.current;
-                if (el && el.scrollHeight > (el.parentElement?.clientHeight ?? 0) + 2) {
-                    setTooltipExpanded(true);
-                }
+                setTooltipScroll(s => s && { ...s, phase: 'scrolling' });
             }, 1500);
         }
         return () => clearTimeout(tooltipScrollTimerRef.current);
     }, [tooltip.visible, tooltip.data]);
+
+    // Scrolling the page or a row moves cards out from under a stationary
+    // mouse without firing mouseleave, so keep the tooltip and trailer preview
+    // pinned to their card and close them once the cursor is no longer on it.
+    useEffect(() => {
+        if (!tooltip.visible && !activeCardPreview && !expandedCard) return;
+        let frame = 0;
+        const onScroll = () => {
+            cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(() => {
+                const el = hoverCardElRef.current;
+                const rect = el?.isConnected ? el.getBoundingClientRect() : null;
+                const { x, y } = lastMousePos.current;
+                if (!rect || x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                    dismissCardHover();
+                    return;
+                }
+                setActiveCardPreview(p => p && { ...p, rect });
+                setTooltip(t => t.visible ? { ...t, ...tooltipPosition(rect) } : t);
+            });
+        };
+        window.addEventListener('scroll', onScroll, { capture: true, passive: true });
+        window.addEventListener('resize', onScroll);
+        return () => {
+            cancelAnimationFrame(frame);
+            window.removeEventListener('scroll', onScroll, { capture: true });
+            window.removeEventListener('resize', onScroll);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tooltip.visible, !!activeCardPreview, !!expandedCard]);
 
     const handleCardEnter = (e, result, isWide, rowId) => {
         if (window.innerWidth <= 768) return;
@@ -535,6 +569,7 @@ export default function App() {
         // New card — cancel previous timer, clear any active preview immediately
         clearTimeout(cardHoverTimerRef.current);
         cardHoverTargetRef.current = uid;
+        hoverCardElRef.current = target;
         setExpandedCard(null);
         setActiveCardPreview(null);
 
@@ -578,6 +613,16 @@ export default function App() {
             setActiveCardPreview(null);
             setExpandedCard(null);
         }, 300);
+    };
+
+    const dismissCardHover = () => {
+        clearTimeout(cardLeaveTimerRef.current);
+        clearTimeout(cardHoverTimerRef.current);
+        cardHoverTargetRef.current = null;
+        hoverCardElRef.current = null;
+        setActiveCardPreview(null);
+        setExpandedCard(null);
+        hideTooltip();
     };
 
     const handleCardClick = (e, result) => {
@@ -678,9 +723,14 @@ export default function App() {
     }, [continueData, bookmarkData, myListData, trendingData, recentlyReviewed])
 
     // Tooltip functions
-    const showTooltip = (event, data) => {
-        if (window.innerWidth <= 768) return;
-        const rect = event.currentTarget.getBoundingClientRect();
+    const showTooltip = (event, data, anchor = event.currentTarget) => {
+        if (window.innerWidth <= 768 || !anchor) return;
+        hoverCardElRef.current = anchor;
+        setTooltip({ visible: true, data, ...tooltipPosition(anchor.getBoundingClientRect()) });
+    };
+
+    // Tooltip spot above the card (or below it near the top of the screen).
+    const tooltipPosition = (rect) => {
         const tooltipWidth = 300;
         const tooltipHeight = 280;
         const margin = 20;
@@ -694,8 +744,7 @@ export default function App() {
             x = window.innerWidth - tooltipWidth - margin;
         }
         if (y < margin) y = rect.bottom + margin;
-        
-        setTooltip({ visible: true, data, x, y });
+        return { x, y };
     };
     
     const hideTooltip = () => {
@@ -1596,7 +1645,7 @@ export default function App() {
                     <div
                         className="card-trailer-preview"
                         style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height }}
-                        onMouseEnter={(e) => { clearTimeout(cardLeaveTimerRef.current); showTooltip(e, result); }}
+                        onMouseEnter={(e) => { clearTimeout(cardLeaveTimerRef.current); showTooltip(e, result, hoverCardElRef.current); }}
                         onMouseLeave={() => { handleCardLeave(); hideTooltip(); }}
                     >
                         <iframe
@@ -1705,7 +1754,7 @@ export default function App() {
             {/* External Tooltip Component */}
             {tooltip.visible && tooltip.data && (
                 <div
-                    className={`external-tooltip${tooltipExpanded ? ' expanded' : ''}`}
+                    className="external-tooltip"
                     style={{
                         left: tooltip.x + 'px',
                         top: tooltip.y + 'px'
@@ -1725,8 +1774,13 @@ export default function App() {
                         </span>
                         <span className="tooltip-language">{tooltip.data.original_language?.toUpperCase()}</span>
                     </div>
-                    <div className={`tooltip-overview-container${tooltipExpanded ? ' expanded' : ''}`}>
-                        <p ref={overviewRef} className="tooltip-overview">
+                    <div className={`tooltip-overview-container${tooltipScroll ? ` ${tooltipScroll.phase}` : ''}`}>
+                        <p
+                            ref={overviewRef}
+                            className="tooltip-overview"
+                            style={tooltipScroll ? { '--scroll-distance': `-${tooltipScroll.distance}px`, '--scroll-duration': `${tooltipScroll.duration}s` } : undefined}
+                            onAnimationEnd={() => setTooltipScroll(s => s && { ...s, phase: 'done' })}
+                        >
                             {tooltip.data.overview || "No description available."}
                         </p>
                     </div>
