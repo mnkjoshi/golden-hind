@@ -1647,6 +1647,7 @@ export default function App() {
                         style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height }}
                         onMouseEnter={(e) => { clearTimeout(cardLeaveTimerRef.current); showTooltip(e, result, hoverCardElRef.current); }}
                         onMouseLeave={() => { handleCardLeave(); hideTooltip(); }}
+                        onClick={(e) => { dismissCardHover(); handleCardClick(e, result); }}
                     >
                         <iframe
                             src={`https://www.youtube.com/embed/${key}?autoplay=1&controls=0&disablekb=1&modestbranding=1&loop=1&playlist=${key}&mute=1&rel=0&iv_load_policy=3&fs=0`}
