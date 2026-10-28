@@ -2035,6 +2035,7 @@ p {
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
     animation: card-preview-in 0.3s ease forwards;
     pointer-events: auto;
+    cursor: pointer;
 }
 
 @keyframes card-preview-in {
