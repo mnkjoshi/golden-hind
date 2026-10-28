@@ -1765,6 +1765,27 @@ function LocalWatch() {
         }
     };
 
+    // Opening an episode marks it watched on any server (servers 2 and 3 are
+    // third-party embeds that never report progress); the bar button undoes it.
+    const [epWatched, setEpWatched] = useState(false);
+    const setEpisodeWatched = (watched) => {
+        setEpWatched(watched);
+        const u = localStorage.getItem('user'), t = localStorage.getItem('token');
+        if (!u || !t) return;
+        axios.post('https://ghb.mnkjoshi.ca/watched/update', {
+            user: u, token: t, contentId: id,
+            season: parseInt(season) || 1, episodes: [parseInt(episode) || 1], watched,
+        }).catch(() => {});
+    };
+    useEffect(() => {
+        if (id.slice(0, 1) !== 't' || !progressReady) return;
+        setEpWatched(false);
+        // Brief delay so stepping through episodes with the arrows doesn't mark each one.
+        const timer = setTimeout(() => setEpisodeWatched(true), 2000);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, season, episode, progressReady]);
+
     // Keep a live snapshot of playback state so event handler closures never go stale
     useEffect(() => {
         playbackStateRef.current = { autoNext, episode, season, maxEp, maxSe };
@@ -2402,6 +2423,21 @@ function LocalWatch() {
                                     <path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z"/>
                                 </svg>
                                 <span>Auto Next</span>
+                            </button>
+                        )}
+                        {type === 'tv' && (
+                            <button
+                                className={`wbar-btn${epWatched ? ' on' : ''}`}
+                                onClick={() => setEpisodeWatched(!epWatched)}
+                                title={epWatched ? 'Mark this episode unwatched' : 'Mark this episode watched'}
+                            >
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                    {epWatched
+                                        ? <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                        : <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                                    }
+                                </svg>
+                                <span>{epWatched ? 'Watched' : 'Unwatched'}</span>
                             </button>
                         )}
                         {parseInt(provider) === 1 && castSupported && (
