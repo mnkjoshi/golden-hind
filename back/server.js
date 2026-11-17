@@ -31,6 +31,7 @@ import { cleanEpisode, cleanSeason } from './lib/text.js';
 import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
 import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar.js';
 import { emailKey, emailFromKey, isValidUsername, isValidEmail } from './lib/accounts.js';
+import { buildReviewArchiveUpdate } from './lib/reviews.js';
 import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
@@ -1199,6 +1200,7 @@ app.post('/review', async (req, res) => {
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { user, token, contentId, rating, text } = req.body;
     if (!await Authenticate(user, token)) return res.status(202).send("UNV");
+    if (await CommentsDisabled(user)) return res.status(403).json({ error: 'Comments are disabled for this account' });
 
     const r = parseInt(rating);
     if (!contentId || isNaN(r) || r < 1 || r > 5) return res.status(400).json({ error: 'Invalid data' });
@@ -1213,22 +1215,41 @@ app.post('/review', async (req, res) => {
     res.json({ success: true });
 });
 
+async function loadReviews(contentId) {
+    if (!contentId) return [];
+    const snap = await admin.database().ref(`reviews/${contentId}`).once('value');
+    const val = snap.val();
+    return val ? Object.values(val).sort((a, b) => b.timestamp - a.timestamp) : [];
+}
+
 app.get('/reviews', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    const { contentId } = req.query;
-    if (!contentId) return res.json({ reviews: [] });
-
-    const db = admin.database();
-    const snap = await db.ref(`reviews/${contentId}`).once('value');
-    const val = snap.val();
-    const reviews = val
-        ? Object.values(val).sort((a, b) => b.timestamp - a.timestamp)
-        : [];
-    res.json({ reviews });
+    res.json({ reviews: await loadReviews(req.query.contentId) });
 });
 
-app.get('/recently-reviewed', async (req, res) => {
+// Signed-in variant used by the app: accounts in no-comment mode get nothing.
+app.post('/reviews', async (req, res) => {
+    const { user, token, contentId } = req.body;
+    if (user && await Authenticate(user, token) && await CommentsDisabled(user)) {
+        return res.json({ reviews: [], commentsDisabled: true });
+    }
+    res.json({ reviews: await loadReviews(contentId) });
+});
+
+app.post('/recently-reviewed', async (req, res) => {
+    const { user, token } = req.body;
+    if (user && await Authenticate(user, token) && await CommentsDisabled(user)) {
+        return res.json({ items: [], commentsDisabled: true });
+    }
+    recentlyReviewed(req, res);
+});
+
+app.get('/recently-reviewed', (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    recentlyReviewed(req, res);
+});
+
+async function recentlyReviewed(req, res) {
     try {
         const db = admin.database();
         const snap = await db.ref('reviews').once('value');
@@ -1262,7 +1283,7 @@ app.get('/recently-reviewed', async (req, res) => {
         console.error('[recently-reviewed]', e.message);
         res.status(500).json({ items: [] });
     }
-});
+}
 
 app.post('/track', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
@@ -1432,7 +1453,8 @@ app.post('/admin/data', async (request, response) => {
         const introConfig = introCfgSnap.val() || { enabled: true, version: 1 };
         const introSeenCount = Object.values(usersVal)
             .filter(u => (u.introSeenVersion || 0) >= (introConfig.version || 1)).length;
-        response.status(200).json({ errors, analytics, users, watchTotals, watchTotalAll, introConfig, introSeenCount });
+        const noCommentUsers = users.filter(u => usersVal[u]?.noComments === true);
+        response.status(200).json({ errors, analytics, users, watchTotals, watchTotalAll, introConfig, introSeenCount, noCommentUsers });
     } catch (error) {
         logError('manav', '/admin/data', error).catch(() => {});
         response.status(200).json({ errors: [], analytics: [], users: [], fetchError: error.message });
@@ -1786,6 +1808,40 @@ async function handleRecommendations(request, response, mode) {
 
 app.post('/recommendations/lifetime', (request, response) => handleRecommendations(request, response, 'lifetime'));
 app.post('/recommendations/recent', (request, response) => handleRecommendations(request, response, 'recent'));
+
+// No-comment mode: the account can't see or post reviews.
+app.post('/admin/set-no-comments', async (request, response) => {
+    const { user, token, targetUser, enabled } = request.body;
+    if (!await AuthenticateAdmin(user, token)) return response.status(403).send("Forbidden");
+    if (!isValidUsername(targetUser)) return response.status(400).send("Invalid user");
+    try {
+        const db = admin.database();
+        if (!(await db.ref(`users/${targetUser}`).once('value')).exists()) return response.status(404).send("No such user");
+        await db.ref(`users/${targetUser}/noComments`).set(enabled ? true : null);
+        response.status(200).json({ noComments: !!enabled });
+    } catch (error) {
+        logError('manav', '/admin/set-no-comments', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
+
+// Move every review a user has written into reviewsArchive/<user>, hiding it
+// from all titles while keeping it restorable.
+app.post('/admin/archive-reviews', async (request, response) => {
+    const { user, token, targetUser } = request.body;
+    if (!await AuthenticateAdmin(user, token)) return response.status(403).send("Forbidden");
+    if (!isValidUsername(targetUser)) return response.status(400).send("Invalid user");
+    try {
+        const db = admin.database();
+        const snap = await db.ref('reviews').once('value');
+        const { update, count } = buildReviewArchiveUpdate(snap.val(), targetUser, Date.now());
+        if (count > 0) await db.ref().update(update);
+        response.status(200).json({ archived: count });
+    } catch (error) {
+        logError('manav', '/admin/archive-reviews', error).catch(() => {});
+        response.status(500).send(error.message);
+    }
+});
 
 app.post('/admin/create-user', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
@@ -2378,6 +2434,11 @@ async function OfferVerify(username, token, email) {
         .catch((error) => console.error('[verify] Email error:', error?.response?.body || error.message));
 }
 
+
+async function CommentsDisabled(user) {
+    const snap = await admin.database().ref(`users/${user}/noComments`).once('value');
+    return snap.val() === true;
+}
 
 async function AuthenticateAdmin(user, token) {
     if (user !== 'manav') return false;

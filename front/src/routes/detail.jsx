@@ -70,6 +70,8 @@ export default function Detail() {
     const trailerTimerRef = useRef(null);
 
     const [reviews, setReviews] = useState([]);
+    // Accounts in no-comment mode don't get the reviews section at all.
+    const [commentsDisabled, setCommentsDisabled] = useState(false);
     const [reviewRating, setReviewRating] = useState(0);
     const [reviewHover, setReviewHover] = useState(0);
     const [reviewText, setReviewText] = useState('');
@@ -77,8 +79,11 @@ export default function Detail() {
 
     // Fetch reviews
     useEffect(() => {
-        axios.get(`${API}/reviews?contentId=${id}`)
-            .then(r => setReviews(r.data.reviews || []))
+        axios.post(`${API}/reviews`, { user, token, contentId: id })
+            .then(r => {
+                setReviews(r.data.reviews || []);
+                setCommentsDisabled(!!r.data.commentsDisabled);
+            })
             .catch(() => {});
     }, [id]);
 
@@ -592,6 +597,7 @@ export default function Detail() {
                 )}
 
                 {/* Reviews */}
+                {!commentsDisabled && (
                 <div className="detail-reviews-section">
                     <h2 className="detail-section-heading">Reviews</h2>
                     {reviews.length > 0 && (
@@ -654,6 +660,7 @@ export default function Detail() {
                         ))}
                     </div>
                 </div>
+                )}
             </div>
 
             <div className="detail-footer-pad" />
