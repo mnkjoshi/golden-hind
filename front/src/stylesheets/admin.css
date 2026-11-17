@@ -682,3 +682,38 @@
 .intro-admin-btn.primary { background: rgba(63, 185, 80, 0.15); border-color: #3fb950; color: #3fb950; }
 .intro-admin-btn.danger { background: rgba(248, 81, 73, 0.12); border-color: #f85149; color: #f85149; }
 .intro-admin-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* No-comment mode badge and per-user moderation controls */
+.chip-no-comments {
+    font-size: 11px;
+    color: #f85149;
+    background: rgba(248, 81, 73, 0.12);
+    border-radius: 10px;
+    padding: 1px 7px;
+}
+
+.admin-moderation {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-moderation-btn {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #e6edf3;
+    font-size: 12.5px;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+.admin-moderation-btn:hover:not(:disabled) { border-color: #79c0ff; color: #79c0ff; }
+.admin-moderation-btn.on { border-color: #f85149; color: #f85149; background: rgba(248, 81, 73, 0.1); }
+.admin-moderation-btn.danger:hover:not(:disabled) { border-color: #f85149; color: #f85149; }
+.admin-moderation-btn:disabled { opacity: 0.5; cursor: default; }
+
+.admin-moderation-status {
+    font-size: 12px;
+    color: #8b949e;
+}

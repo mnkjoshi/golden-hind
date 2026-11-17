@@ -382,7 +382,7 @@ export default function App() {
 
                 // Recently reviewed by users — no cache, always fresh
                 setRecentlyReviewedLoading(true);
-                axios.get('https://ghb.mnkjoshi.ca/recently-reviewed')
+                axios.post('https://ghb.mnkjoshi.ca/recently-reviewed', { user, token })
                     .then(r => setRecentlyReviewed(r.data.items || []))
                     .catch(() => setRecentlyReviewed([]))
                     .finally(() => setRecentlyReviewedLoading(false));

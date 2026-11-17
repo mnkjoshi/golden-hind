@@ -44,6 +44,8 @@ export default function Admin() {
     const [userActivity, setUserActivity] = useState(null);
     const [userActivityLoading, setUserActivityLoading] = useState(false);
     const [introBusy, setIntroBusy] = useState(false);
+    const [moderationBusy, setModerationBusy] = useState(false);
+    const [moderationStatus, setModerationStatus] = useState('');
 
     const user = localStorage.getItem('user');
     const token = localStorage.getItem('token');
@@ -96,7 +98,33 @@ export default function Admin() {
         setLoading(false);
     };
 
+    const setNoComments = async (targetUser, enabled) => {
+        setModerationBusy(true);
+        setModerationStatus('');
+        try {
+            await axios.post(`${BASE_URL}/admin/set-no-comments`, { user, token, targetUser, enabled });
+            await fetchData();
+        } catch (e) {
+            setModerationStatus('Error: ' + (e.response?.data || e.message));
+        }
+        setModerationBusy(false);
+    };
+
+    const archiveReviews = async (targetUser) => {
+        if (!window.confirm(`Archive all of ${targetUser}'s reviews? They'll be hidden from every title.`)) return;
+        setModerationBusy(true);
+        setModerationStatus('');
+        try {
+            const res = await axios.post(`${BASE_URL}/admin/archive-reviews`, { user, token, targetUser });
+            setModerationStatus(`Archived ${res.data.archived} review${res.data.archived === 1 ? '' : 's'}.`);
+        } catch (e) {
+            setModerationStatus('Error: ' + (e.response?.data || e.message));
+        }
+        setModerationBusy(false);
+    };
+
     const openUserActivity = async (targetUser) => {
+        setModerationStatus('');
         setSelectedUser(targetUser);
         setUserActivity(null);
         setUserActivityLoading(true);
@@ -169,6 +197,7 @@ export default function Admin() {
     const analytics = (data?.analytics || []).filter(e => e.event !== 'page_view');
     const users = data?.users || [];
     const watchTotals = data?.watchTotals || {};
+    const noCommentUsers = data?.noCommentUsers || [];
     const watchTotalAll = data?.watchTotalAll || 0;
 
     const eventCounts = analytics.reduce((acc, e) => {
@@ -415,6 +444,7 @@ export default function Admin() {
                                     {u === 'manav' && <span className="chip-crown">★</span>}
                                     <span className="chip-name">{u}</span>
                                     {watchTotals[u] > 0 && <span className="chip-watchtime">{formatWatchTime(watchTotals[u])}</span>}
+                                    {noCommentUsers.includes(u) && <span className="chip-no-comments">no comments</span>}
                                 </button>
                             ))}
                         </div>
@@ -437,6 +467,23 @@ export default function Admin() {
                             </div>
                         ) : (
                             <div className="admin-modal-body">
+                                <div className="admin-moderation">
+                                    <button
+                                        className={`admin-moderation-btn${noCommentUsers.includes(selectedUser) ? ' on' : ''}`}
+                                        disabled={moderationBusy}
+                                        onClick={() => setNoComments(selectedUser, !noCommentUsers.includes(selectedUser))}
+                                    >
+                                        {noCommentUsers.includes(selectedUser) ? 'No-comment mode: on' : 'No-comment mode: off'}
+                                    </button>
+                                    <button
+                                        className="admin-moderation-btn danger"
+                                        disabled={moderationBusy}
+                                        onClick={() => archiveReviews(selectedUser)}
+                                    >
+                                        Archive all reviews
+                                    </button>
+                                    {moderationStatus && <span className="admin-moderation-status">{moderationStatus}</span>}
+                                </div>
                                 <div className="admin-activity-stats">
                                     <div className="admin-activity-stat">
                                         <div className="admin-activity-stat-value">{formatWatchTime(userActivity?.totalSeconds || 0)}</div>
