@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     useMusicPlayer, currentSong, isActiveHere, displayPosition, remoteIsStale, coverUrl, deviceName,
-    togglePlay, next, prev, seek, setShuffle, setRepeat, transferHere, setExpanded, setQueueOpen, streamUrl,
+    togglePlay, next, prev, seek, setShuffle, setRepeat, transferHere, setExpanded, setQueueOpen, setLyricsOpen, streamUrl,
 } from '../player/musicPlayer.js';
 import { formatClock } from '../utils/remote.js';
 import { nextRepeatMode } from '../utils/player.js';
@@ -14,6 +14,7 @@ import CoverArt from './coverArt.jsx';
 import Scrubber from './scrubber.jsx';
 import { openPlaylistPicker } from '../player/playlists.js';
 import QueuePanel from './queuePanel.jsx';
+import LyricsPanel from './lyricsPanel.jsx';
 
 const I = {
     down: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>,
@@ -27,6 +28,7 @@ const I = {
     more: <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></svg>,
     playlistAdd: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h12M3 12h12M3 18h7M18 14v7M14.5 17.5h7" /></svg>,
     download: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 21h16" /></svg>,
+    lyrics: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8M8 13h5" /></svg>,
     queue: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h13M3 12h13M3 18h9" /><path d="M17 15.5v5l4-2.5-4-2.5z" fill="currentColor" /></svg>,
 };
 
@@ -88,7 +90,7 @@ export default function FullPlayer() {
     // Swipe down anywhere outside the seek bar / menu to dismiss: past 110px,
     // or a quick flick of any real distance.
     const onTouchStart = (e) => {
-        if (closing || e.target.closest('.scrubber, .fp-menu, .fp-queue')) return;
+        if (closing || e.target.closest('.scrubber, .fp-menu, .fp-queue, .fp-lyrics')) return;
         touchStart.current = { y: e.touches[0].clientY, t: performance.now() };
     };
     const onTouchMove = (e) => {
@@ -135,7 +137,7 @@ export default function FullPlayer() {
                 </div>
             </div>
 
-            {s.queueOpen ? <QueuePanel /> : (
+            {s.queueOpen ? <QueuePanel /> : s.lyricsOpen ? <LyricsPanel /> : (
                 <>
                     <div className="fp-art-wrap">
                         <CoverArt key={song.videoId} className={`fp-art${paused ? ' paused' : ''}`} videoId={song.videoId} />
@@ -182,6 +184,13 @@ export default function FullPlayer() {
                         <button className="fp-here" onClick={transferHere}>Play here</button>
                     </>
                 )}
+                <button
+                    className={`fp-icon fp-lyrics-btn${s.lyricsOpen ? ' on' : ''}`}
+                    onClick={() => setLyricsOpen(!s.lyricsOpen)}
+                    aria-label={s.lyricsOpen ? 'Hide lyrics' : 'Show lyrics'}
+                    aria-pressed={s.lyricsOpen}
+                    title="Lyrics"
+                >{I.lyrics}</button>
                 <button
                     className={`fp-icon fp-queue-btn${s.queueOpen ? ' on' : ''}`}
                     onClick={() => setQueueOpen(!s.queueOpen)}

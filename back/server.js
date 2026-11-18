@@ -28,6 +28,7 @@ import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
 import { buildWatchedUpdate, watchedKeyFromPosition } from './lib/watched.js';
 import { nextUpEpisode, showStructure, seasonProgress } from './lib/nextUp.js';
+import { cleanLyricsQuery, pickLyrics } from './lib/lyrics.js';
 import { cleanEpisode, cleanSeason } from './lib/text.js';
 import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
 import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar.js';
@@ -3833,6 +3834,63 @@ app.post('/music/listen', express.text({ type: 'text/plain' }), async (req, res)
     } catch (e) {
         logError(user, '/music/listen', e).catch(() => {});
         res.status(500).json({ error: 'Could not save' });
+    }
+});
+
+// ── Lyrics (LRCLIB) ─────────────────────────────────────────────────────────
+// Time-synced lyrics when LRCLIB has them, plain text otherwise. Cached per
+// video (including "none found", so misses aren't looked up again and again).
+const lyricsCache = new Map();   // videoId -> { ts, value }
+const LYRICS_TTL_MS = 7 * 24 * 3600 * 1000;
+const LYRICS_MISS_TTL_MS = 24 * 3600 * 1000;
+const LRCLIB_HEADERS = { 'User-Agent': 'golden-hind (https://github.com/mnkjoshi/golden-hind)' };
+
+async function findLyrics({ title, artist, duration }) {
+    const { track, artist: who } = cleanLyricsQuery(title, artist);
+    if (!track) return null;
+    const get = async (params) => {
+        try {
+            const r = await axios.get('https://lrclib.net/api/get', { params, headers: LRCLIB_HEADERS, timeout: 8000 });
+            return pickLyrics(r.data);
+        } catch { return null; }
+    };
+    // Exact match first (with the length when we know it), then a search.
+    if (who && duration > 0) {
+        const hit = await get({ track_name: track, artist_name: who, duration: Math.round(duration) });
+        if (hit) return hit;
+    }
+    if (who) {
+        const hit = await get({ track_name: track, artist_name: who });
+        if (hit) return hit;
+    }
+    try {
+        const r = await axios.get('https://lrclib.net/api/search', {
+            params: who ? { track_name: track, artist_name: who } : { q: track },
+            headers: LRCLIB_HEADERS,
+            timeout: 8000,
+        });
+        const list = Array.isArray(r.data) ? r.data : [];
+        const best = list.find(x => x.syncedLyrics) || list.find(x => x.plainLyrics);
+        return pickLyrics(best);
+    } catch {
+        return null;
+    }
+}
+
+app.post('/music/lyrics', async (req, res) => {
+    const { user, token, videoId, title, artist, duration } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!/^[A-Za-z0-9_-]{11}$/.test(String(videoId || ''))) return res.status(400).json({ error: 'videoId required' });
+    const hit = lyricsCache.get(videoId);
+    if (hit && Date.now() - hit.ts < (hit.value ? LYRICS_TTL_MS : LYRICS_MISS_TTL_MS)) return res.json(hit.value || { none: true });
+    try {
+        const value = await findLyrics({ title: String(title || '').slice(0, 300), artist: String(artist || '').slice(0, 200), duration: Number(duration) || 0 });
+        if (lyricsCache.size >= 2000) lyricsCache.delete(lyricsCache.keys().next().value);
+        lyricsCache.set(videoId, { ts: Date.now(), value });
+        res.json(value || { none: true });
+    } catch (e) {
+        logError(user, '/music/lyrics', e).catch(() => {});
+        res.json({ none: true });
     }
 });
 
