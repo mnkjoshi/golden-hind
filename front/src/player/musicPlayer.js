@@ -59,6 +59,7 @@ let state = {
     error: '',
     expanded: false,      // full-screen player open (phone-style "Now Playing")
     queueOpen: false,     // full player showing the queue instead of the cover
+    lyricsOpen: false,    // …or the lyrics (only one of the two at a time)
     dismissed: false,     // bar hidden on this device (closed, or app just reopened)
 };
 const listeners = new Set();
@@ -709,10 +710,11 @@ export function transferHere() {
     send({ activeDevice: me(), position: at, paused: false, index: state.index });
 }
 
-export function setExpanded(open) { set(open ? { expanded: true } : { expanded: false, queueOpen: false }); }
-export function setQueueOpen(open) { set({ queueOpen: !!open }); }
+export function setExpanded(open) { set(open ? { expanded: true } : { expanded: false, queueOpen: false, lyricsOpen: false }); }
+export function setQueueOpen(open) { set({ queueOpen: !!open, ...(open ? { lyricsOpen: false } : {}) }); }
+export function setLyricsOpen(open) { set({ lyricsOpen: !!open, ...(open ? { queueOpen: false } : {}) }); }
 // Straight to the queue in the full player (from the mini bar).
-export function openQueue() { set({ expanded: true, queueOpen: true, dismissed: false }); }
+export function openQueue() { set({ expanded: true, queueOpen: true, lyricsOpen: false, dismissed: false }); }
 
 // ── Queue editing (works from any device) ───────────────────────────────────
 // The playing song stays put, so the playing device keeps its audio loaded.
