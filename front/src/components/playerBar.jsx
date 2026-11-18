@@ -141,6 +141,7 @@ export default function PlayerBar() {
             </div>
 
             <div className="player-right">
+                <button className="player-icon-btn player-queue-btn" onClick={openQueue} title="Queue" aria-label="Show queue">{Icon.queue}</button>
                 <button className="player-icon-btn player-options-btn" onClick={() => setOptionsOpen(true)} aria-label="More options">{Icon.more}</button>
                 <button className="player-icon-btn player-close-btn" onClick={closePlayer} aria-label="Close player" title="Close player">{Icon.close}</button>
                 {!here && (
@@ -148,7 +149,6 @@ export default function PlayerBar() {
                         {Icon.device}<span>Play here</span>
                     </button>
                 )}
-                <button className="player-icon-btn player-desktop" onClick={openQueue} title="Queue" aria-label="Show queue">{Icon.queue}</button>
                 <a className="player-icon-btn player-desktop" href={streamUrl(song.videoId, true)} title="Download MP3" aria-label="Download MP3">{Icon.download}</a>
                 {here && (
                     <div className="player-volume player-desktop">
@@ -195,7 +195,6 @@ function OptionsSheet({ song, here, onClose }) {
                 </span>
             </div>
             <button onClick={() => { sheet.close(); setExpanded(true); }}>Open player</button>
-            <button onClick={() => { sheet.close(); openQueue(); }}>Queue</button>
             <button onClick={() => sheet.close(() => openPlaylistPicker(song))}>Add to playlist</button>
             <a href={streamUrl(song.videoId, true)} onClick={() => sheet.close()}>Download MP3</a>
             <button onClick={togglePhone} disabled={phoneBusy}>{phoneBusy ? 'Saving…' : onPhone ? 'Remove from this device' : 'Save to this device'}</button>

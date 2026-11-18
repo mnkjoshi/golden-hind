@@ -1235,10 +1235,12 @@
     body.has-tabbar { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
     body.has-tabbar.has-music-player { padding-bottom: calc(122px + env(safe-area-inset-bottom, 0px)); }
     body.has-tabbar .player-bar { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar .mx-select-bar,
     body.has-tabbar .remote-mini-bar,
     body.has-tabbar .new-recs-pill,
     body.has-tabbar .stats-promo-pill { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
     body.has-tabbar .stats-promo-pill.raised { bottom: calc(118px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar.has-music-player .mx-select-bar,
     body.has-tabbar.has-music-player .remote-mini-bar,
     body.has-tabbar.has-music-player .new-recs-pill,
     body.has-tabbar.has-music-player .stats-promo-pill { bottom: calc(134px + env(safe-area-inset-bottom, 0px)); }

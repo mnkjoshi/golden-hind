@@ -107,12 +107,14 @@ function useMusicLibrary() {
         if (playing?.videoId === list[index].videoId && player.queue.length === list.length) return togglePlay();
         playQueue(list, index);
     };
-    // Add to the end of the queue (or start playing it if nothing is queued).
-    const queueSong = (song) => {
+    // Add to the end of the queue (or start playing them if nothing is queued).
+    const queueSongs = (songs) => {
+        if (!songs?.length) return;
         const wasEmpty = !player.queue.length;
-        addSongsToQueue([song]);
-        if (!wasEmpty) flash(`Added "${song.title}" to the queue`, 2500);
+        addSongsToQueue(songs);
+        if (!wasEmpty) flash(songs.length === 1 ? `Added "${songs[0].title}" to the queue` : `Added ${songs.length} songs to the queue`, 2500);
     };
+    const queueSong = (song) => queueSongs([song]);
     const shufflePlay = (list) => {
         if (!list?.length) return;
         playQueue(list, Math.floor(Math.random() * list.length), { shuffle: true });
@@ -206,7 +208,7 @@ function useMusicLibrary() {
 
     return {
         user, library, loadLibrary, offlineIds, offlineBusy, zipBusy, rowBusy, status, player, playing,
-        playFrom, shufflePlay, queueSong, toggleOffline, saveAllOffline, downloadZip, downloadSong, removeSong, isSaved, toggleSaved,
+        playFrom, shufflePlay, queueSong, queueSongs, toggleOffline, saveAllOffline, downloadZip, downloadSong, removeSong, isSaved, toggleSaved,
     };
 }
 
@@ -255,11 +257,66 @@ function Shell({ children }) {
     );
 }
 
-// One row in a song list: cover, title/artist, now-playing indicator.
-function SongRow({ song, isPlaying, playingNow, onPlay, children }) {
+// Press and hold (mouse or finger) without moving: calls onLongPress, and
+// the click that ends that press is swallowed so it doesn't also play.
+const LONG_PRESS_MS = 450;
+function useLongPress(onLongPress) {
+    const timer = useRef(null);
+    const start = useRef(null);
+    const fired = useRef(false);
+    const clear = () => { clearTimeout(timer.current); timer.current = null; };
+    useEffect(() => clear, []);
+    if (!onLongPress) return { handlers: {}, consumeClick: () => false };
+    return {
+        handlers: {
+            onPointerDown: (e) => {
+                if (e.button > 0) return;
+                fired.current = false;
+                start.current = { x: e.clientX, y: e.clientY };
+                clear();
+                timer.current = setTimeout(() => {
+                    timer.current = null;
+                    fired.current = true;
+                    try { navigator.vibrate?.(12); } catch { /* unsupported */ }
+                    onLongPress();
+                }, LONG_PRESS_MS);
+            },
+            onPointerMove: (e) => {
+                if (timer.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 8) clear();
+            },
+            onPointerUp: clear,
+            onPointerLeave: clear,
+            onPointerCancel: clear,
+            // A held finger on phones would otherwise open the browser's menu.
+            onContextMenu: (e) => { if (fired.current || timer.current) e.preventDefault(); },
+        },
+        consumeClick: () => {
+            if (!fired.current) return false;
+            fired.current = false;
+            return true;
+        },
+    };
+}
+
+// One row in a song list: cover, title/artist, now-playing indicator. With
+// onLongPress, holding the row starts selecting; while `selecting`, a tap
+// calls onPlay (the list toggles the song) and a checkmark replaces the actions.
+function SongRow({ song, isPlaying, playingNow, onPlay, onLongPress, selecting = false, selected = false, children }) {
+    const press = useLongPress(onLongPress);
     return (
-        <div className={`mx-row${isPlaying ? ' playing' : ''}`}>
-            <button className="mx-row-main" onClick={onPlay} aria-label={`Play ${song.title}`}>
+        <div className={`mx-row${isPlaying ? ' playing' : ''}${selecting ? ' selecting' : ''}${selected ? ' selected' : ''}`}>
+            <button
+                className="mx-row-main"
+                onClick={(e) => { if (!press.consumeClick()) onPlay(e); }}
+                aria-label={selecting ? `${selected ? 'Deselect' : 'Select'} ${song.title}` : `Play ${song.title}`}
+                aria-pressed={selecting ? selected : undefined}
+                {...press.handlers}
+            >
+                {onLongPress && (
+                    <span className="mx-row-check" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 12.5 4 4L18 8.5" /></svg>
+                    </span>
+                )}
                 <CoverArt className="mx-row-cover" videoId={song.videoId} />
                 <span className="mx-row-text">
                     <span className="mx-row-title">
@@ -269,7 +326,7 @@ function SongRow({ song, isPlaying, playingNow, onPlay, children }) {
                     {(song.artist || song.channel) && <span className="mx-row-artist">{song.artist || song.channel}</span>}
                 </span>
             </button>
-            {children}
+            {children && <div className="mx-row-actions" aria-hidden={selecting || undefined}>{children}</div>}
         </div>
     );
 }
@@ -562,7 +619,19 @@ export function MusicLibrary() {
     const [view, setView] = useState(() => (localStorage.getItem('musicLibraryView') === 'playlists' ? 'playlists' : 'songs'));
     const { playlists } = usePlaylists();
     const [newName, setNewName] = useState(null); // null = not creating
+    // Long-press selection: null = not selecting, else the selected videoIds.
+    // The bar keeps the last count while it slides away.
+    const [selected, setSelected] = useState(null);
+    const lastCount = useRef(0);
+    if (selected) lastCount.current = selected.size;
     useEffect(() => { refreshPlaylists(); }, []);
+    const isSelecting = !!selected;
+    useEffect(() => {
+        if (!isSelecting) return;
+        const onKey = (e) => { if (e.key === 'Escape') setSelected(null); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [isSelecting]);
     const list = useMemo(() => {
         const all = [...(m.library || [])].sort((SORTS[sort] || SORTS.recent).fn);
         return onlyDownloaded ? all.filter(s => m.offlineIds.has(s.videoId)) : all;
@@ -579,6 +648,12 @@ export function MusicLibrary() {
         navigate(`/music/playlist/${id}`);
     };
     const onDevice = (m.library || []).filter(s => m.offlineIds.has(s.videoId)).length;
+    const toggleSelected = (id) => setSelected(prev => {
+        const next = new Set(prev || []);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next.size ? next : null;
+    });
+    const selectedSongs = () => list.filter(s => selected?.has(s.videoId));
 
     return (
         <Shell>
@@ -652,14 +727,17 @@ export function MusicLibrary() {
             ) : list.length === 0 ? (
                 <div className="music-results-state">Nothing downloaded to this device yet.</div>
             ) : (
-                <div className="mx-list">
+                <div className={`mx-list${selected ? ' selecting' : ''}`}>
                     {list.map((s, i) => (
                         <SongRow
                             key={s.videoId}
                             song={s}
                             isPlaying={m.playing?.videoId === s.videoId}
                             playingNow={!m.player.paused}
-                            onPlay={() => m.playFrom(list, i)}
+                            onPlay={() => (selected ? toggleSelected(s.videoId) : m.playFrom(list, i))}
+                            onLongPress={() => (selected ? toggleSelected(s.videoId) : setSelected(new Set([s.videoId])))}
+                            selecting={!!selected}
+                            selected={!!selected?.has(s.videoId)}
                         >
                             <button
                                 className={`mx-icon-btn${m.offlineIds.has(s.videoId) ? ' on' : ''}`}
@@ -671,7 +749,6 @@ export function MusicLibrary() {
                                 {m.offlineBusy === s.videoId ? <div className="music-spinner" /> : m.offlineIds.has(s.videoId) ? Icon.savedCheck : Icon.saveCircle}
                             </button>
                             <button className="mx-icon-btn" onClick={() => m.queueSong(s)} aria-label={`Add ${s.title} to the queue`} title="Add to queue">{Icon.queueAdd}</button>
-                            <button className="mx-icon-btn" onClick={() => openPlaylistPicker(s)} aria-label={`Add ${s.title} to a playlist`} title="Add to playlist">{Icon.playlistAdd}</button>
                             <button className="mx-icon-btn mx-desktop" onClick={() => m.downloadSong(s)} disabled={!!m.rowBusy} aria-label={`Download ${s.title}`} title="Download MP3">
                                 {m.rowBusy === s.videoId ? <div className="music-spinner" /> : Icon.download}
                             </button>
@@ -680,6 +757,20 @@ export function MusicLibrary() {
                     ))}
                 </div>
             )}
+            <div className={`mx-select-bar${selected ? ' open' : ''}`} role="toolbar" aria-label="Selected songs" aria-hidden={!selected}>
+                <button className="mx-select-close" onClick={() => setSelected(null)} aria-label="Stop selecting" tabIndex={selected ? 0 : -1}>{Icon.close}</button>
+                <span className="mx-select-count">{lastCount.current} selected</span>
+                <button
+                    className="mx-select-action"
+                    tabIndex={selected ? 0 : -1}
+                    onClick={() => { m.queueSongs(selectedSongs()); setSelected(null); }}
+                >{Icon.queueAdd}<span>Add to queue</span></button>
+                <button
+                    className="mx-select-action primary"
+                    tabIndex={selected ? 0 : -1}
+                    onClick={() => { openPlaylistPicker(selectedSongs()); setSelected(null); }}
+                >{Icon.playlistAdd}<span>Add to playlist</span></button>
+            </div>
             </>}
         </Shell>
     );

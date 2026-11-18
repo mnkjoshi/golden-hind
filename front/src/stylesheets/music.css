@@ -878,3 +878,73 @@
 .confirm-pop-cancel { background: rgba(255, 255, 255, 0.1); color: #fff; }
 .confirm-pop-ok { background: #f85149; color: #fff; }
 .mx-icon-btn.confirming { color: #fff; background: rgba(255, 255, 255, 0.1); }
+
+/* ── Long-press selection (Library) ── */
+.mx-row { transition: background 0.18s ease; }
+.mx-row-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; transition: opacity 0.18s ease, transform 0.18s ease; }
+.mx-row.selecting .mx-row-actions { opacity: 0; transform: translateX(8px); pointer-events: none; }
+.mx-row-main { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* The checkmark slot stays collapsed until selecting, then grows in */
+.mx-row-check {
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 0; height: 24px; margin-right: -12px; border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.35); color: transparent;
+    opacity: 0; transform: scale(0.6);
+    transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1), margin 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.18s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease, border-color 0.15s ease;
+    box-sizing: border-box;
+}
+.mx-row-check svg { width: 14px; height: 14px; }
+.mx-row.selecting .mx-row-check { width: 24px; margin-right: 0; opacity: 1; transform: scale(1); }
+.mx-row.selected .mx-row-check { background: #3FA3FF; border-color: #3FA3FF; color: #0a0e27; animation: mx-check-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.mx-row.selected { background: rgba(63, 163, 255, 0.1); }
+@keyframes mx-check-pop { 50% { transform: scale(1.18); } }
+
+.mx-select-bar {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: min(560px, calc(100vw - 24px));
+    box-sizing: border-box;
+    padding: 8px 8px 8px 6px;
+    border-radius: 14px;
+    background: rgba(28, 33, 45, 0.97);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(12px);
+    transform: translate(-50%, calc(100% + 40px));
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+}
+.mx-select-bar.open { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.mx-select-close {
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 36px; height: 36px; border: none; border-radius: 50%; background: none; color: #8b949e; cursor: pointer;
+}
+.mx-select-close:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.mx-select-close svg { width: 18px; height: 18px; }
+.mx-select-count { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: #fff; white-space: nowrap; }
+.mx-select-action {
+    display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+    padding: 8px 12px; border: none; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1); color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+.mx-select-action:hover { background: rgba(255, 255, 255, 0.18); }
+.mx-select-action:active { transform: scale(0.96); }
+.mx-select-action.primary { background: #3FA3FF; color: #0a0e27; }
+.mx-select-action.primary:hover { background: #64b5ff; }
+.mx-select-action svg { width: 17px; height: 17px; }
+@media (max-width: 420px) {
+    .mx-select-action span { display: none; }
+    .mx-select-action { padding: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mx-select-bar, .mx-row-check, .mx-row-actions { transition-duration: 0.01s; }
+    .mx-row.selected .mx-row-check { animation: none; }
+}
