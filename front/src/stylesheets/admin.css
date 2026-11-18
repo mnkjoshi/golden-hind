@@ -442,7 +442,8 @@
 .event-pill.event-search { color: #79c0ff; border-color: rgba(121, 192, 255, 0.4); }
 .event-pill.event-watch { color: #f0b429; border-color: rgba(240, 180, 41, 0.4); }
 .event-pill.event-detail_view { color: #d2a8ff; border-color: rgba(210, 168, 255, 0.4); }
-.event-pill.event-music_view { color: #ff7eb6; border-color: rgba(255, 126, 182, 0.4); }
+.event-pill.event-music_view,
+.event-pill.event-music_play { color: #ff7eb6; border-color: rgba(255, 126, 182, 0.4); }
 .event-pill.event-book_page,
 .event-pill.event-book_search,
 .event-pill.event-book_download { color: #ffa657; border-color: rgba(255, 166, 87, 0.4); }
