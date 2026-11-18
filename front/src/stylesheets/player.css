@@ -21,6 +21,7 @@
 }
 /* Keep page content and other bottom-anchored UI clear of the bar */
 body.has-music-player { padding-bottom: 76px; }
+body.has-music-player .mx-select-bar,
 body.has-music-player .remote-mini-bar,
 body.has-music-player .new-recs-pill,
 body.has-music-player .stats-promo-pill { bottom: calc(94px + env(safe-area-inset-bottom, 0px)); }
@@ -366,6 +367,7 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
     .player-options-btn { display: flex !important; }
 
     body.has-tabbar.has-music-player { padding-bottom: calc(172px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar.has-music-player .mx-select-bar,
     body.has-tabbar.has-music-player .remote-mini-bar,
     body.has-tabbar.has-music-player .new-recs-pill,
     body.has-tabbar.has-music-player .stats-promo-pill { bottom: calc(176px + env(safe-area-inset-bottom, 0px)); }
@@ -465,6 +467,7 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
     .player-here-btn { padding: 7px; }
     /* Floating, so the page only needs room to scroll past it */
     body.has-music-player { padding-bottom: 150px; }
+    body.has-music-player .mx-select-bar,
     body.has-music-player .remote-mini-bar,
     body.has-music-player .new-recs-pill,
     body.has-music-player .stats-promo-pill { bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
@@ -630,13 +633,52 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
 
 .fq-row {
     position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 6px 4px;
     border-radius: 8px;
+    min-height: 0;
+    touch-action: pan-y;   /* vertical scroll stays native; sideways is the swipe */
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
 }
 .fq-list.dragging .fq-row { transition: transform 0.15s ease; }
+.fq-list.no-anim .fq-row { transition: none; }
+.fq-row.swiping { cursor: grabbing; }
+
+/* Each row sits in a one-row grid so it can collapse smoothly: removed rows
+   slide out sideways, then shrink to nothing while the rows below glide up;
+   added rows grow in and fade up. */
+.fq-item {
+    position: relative;
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.2s ease 0.18s;
+}
+.fq-item.leaving { grid-template-rows: 0fr; overflow: hidden; pointer-events: none; }
+.fq-item.entering { overflow: hidden; animation: fq-enter 0.36s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes fq-enter {
+    from { grid-template-rows: 0fr; opacity: 0; transform: translateY(-4px); }
+    to   { grid-template-rows: 1fr; opacity: 1; transform: none; }
+}
+.fq-swipe-bg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    border-radius: 8px;
+    background: rgba(248, 81, 73, 0.55);
+    color: #fff;
+    overflow: hidden;
+    transition: background 0.15s ease;
+}
+.fq-swipe-bg.left { left: 0; justify-content: flex-start; padding-left: 14px; }
+.fq-swipe-bg.right { right: 0; justify-content: flex-end; padding-right: 14px; }
+.fq-swipe-bg.armed { background: #f85149; }
+.fq-swipe-bg svg { width: 20px; height: 20px; flex-shrink: 0; transition: transform 0.15s ease; }
+.fq-swipe-bg.armed svg { transform: scale(1.15); }
 .fq-list.dragging .fq-row.lifted {
     transition: none;
     z-index: 2;
@@ -666,5 +708,11 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
 
 @media (prefers-reduced-motion: reduce) {
     .fp-queue { animation-duration: 0.01s; }
-    .fq-list.dragging .fq-row { transition-duration: 0.01s; }
+    .fq-list.dragging .fq-row, .fq-row, .fq-item { transition-duration: 0.01s; }
+    .fq-item.entering { animation-duration: 0.01s; }
+}
+
+/* Queue button on the mini player (desktop and phones) */
+@media (max-width: 760px) {
+    .player-queue-btn svg { width: 19px; height: 19px; }
 }

@@ -1,5 +1,5 @@
 // "Add to playlist" sheet. Mounted once (from the Topbar); opened from any
-// song via openPlaylistPicker(song).
+// song via openPlaylistPicker(song), or for a selection via openPlaylistPicker([songs]).
 // eslint flags React as unused, but JSX here compiles with the classic runtime.
 import React, { useEffect, useState } from 'react';
 import { usePlaylists, refreshPlaylists, addToPlaylist, createPlaylist, closePlaylistPicker } from '../player/playlists.js';
@@ -7,12 +7,17 @@ import CoverArt from './coverArt.jsx';
 import Sheet, { useSheet } from './sheet.jsx';
 
 export default function PlaylistPicker() {
-    const { playlists, pickerSong: song } = usePlaylists();
-    // Keyed by song so each opening starts fresh (name field, "Added" state).
-    return song ? <PickerSheet key={song.videoId} song={song} playlists={playlists} /> : null;
+    const { playlists, pickerSong } = usePlaylists();
+    const songs = pickerSong ? [].concat(pickerSong) : [];
+    // Keyed by the songs so each opening starts fresh (name field, "Added" state).
+    return songs.length
+        ? <PickerSheet key={songs.map(s => s.videoId).join(',')} songs={songs} playlists={playlists} />
+        : null;
 }
 
-function PickerSheet({ song, playlists }) {
+function PickerSheet({ songs, playlists }) {
+    const song = songs[0];
+    const many = songs.length > 1;
     const sheet = useSheet(closePlaylistPicker);
     const [naming, setNaming] = useState(false);
     const [name, setName] = useState('');
@@ -24,7 +29,7 @@ function PickerSheet({ song, playlists }) {
     const add = async (p) => {
         if (busy) return;
         setBusy(true);
-        try { await addToPlaylist(p.id, song); setDone(p.name); setTimeout(() => sheet.close(), 700); }
+        try { await addToPlaylist(p.id, songs); setDone(p.name); setTimeout(() => sheet.close(), 700); }
         finally { setBusy(false); }
     };
     const create = async () => {
@@ -32,7 +37,7 @@ function PickerSheet({ song, playlists }) {
         if (!n || busy) return;
         setBusy(true);
         try {
-            await createPlaylist(n, [song.videoId]);
+            await createPlaylist(n, [...new Set(songs.map(s => s.videoId))]);
             setDone(n);
             setTimeout(() => sheet.close(), 700);
         } finally { setBusy(false); }
@@ -44,7 +49,7 @@ function PickerSheet({ song, playlists }) {
                 <CoverArt className="player-sheet-cover" videoId={song.videoId} />
                 <span className="player-meta">
                     <span className="player-title">Add to playlist</span>
-                    <span className="player-artist">{song.title}</span>
+                    <span className="player-artist">{many ? `${songs.length} songs` : song.title}</span>
                 </span>
             </div>
             {done ? (
@@ -68,11 +73,11 @@ function PickerSheet({ song, playlists }) {
                     )}
                     <div className="pl-picker-list">
                         {(playlists || []).map(p => {
-                            const has = p.songs.includes(song.videoId);
+                            const has = songs.every(x => p.songs.includes(x.videoId));
                             return (
                                 <button key={p.id} onClick={() => add(p)} disabled={has || busy}>
                                     <span>{p.name}</span>
-                                    <span className="pl-picker-meta">{has ? 'Already added' : `${p.songs.length} songs`}</span>
+                                    <span className="pl-picker-meta">{has ? (many ? 'All already added' : 'Already added') : `${p.songs.length} songs`}</span>
                                 </button>
                             );
                         })}
