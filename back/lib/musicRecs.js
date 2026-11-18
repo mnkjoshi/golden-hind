@@ -31,13 +31,16 @@ const libraryList = (library) => Object.entries(library || {})
     .filter(s => s.title)
     .sort((a, b) => b.addedAt - a.addedAt);
 
-export function isMusicPowerUser(listens, library = null, t = POWER_USER) {
+// Why someone qualifies: 'listening', 'library', or null if they don't.
+export function musicPowerUserReason(listens, library = null, t = POWER_USER) {
     const list = toList(listens);
     const total = list.reduce((sum, s) => sum + s.seconds, 0);
     const songs = list.filter(s => s.seconds >= t.minSongSeconds).length;
-    if (songs >= t.minSongs && total >= t.minTotalSeconds) return true;
-    return Object.keys(library || {}).length >= t.minLibrarySongs;
+    if (songs >= t.minSongs && total >= t.minTotalSeconds) return 'listening';
+    if (Object.keys(library || {}).length >= t.minLibrarySongs) return 'library';
+    return null;
 }
+export const isMusicPowerUser = (listens, library = null, t = POWER_USER) => !!musicPowerUserReason(listens, library, t);
 
 // Most-listened and most-recent songs (the recent list skips anything already
 // in the top list so each prompt section adds signal). While listening

@@ -33,7 +33,8 @@ import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar
 import { emailKey, emailFromKey, isValidUsername, isValidEmail } from './lib/accounts.js';
 import { buildReviewArchiveUpdate } from './lib/reviews.js';
 import { sanitizeListenReport, aggregateListening } from './lib/listening.js';
-import { isMusicPowerUser, pickMusicSeeds, buildMusicRecPrompt, parseMusicRecResponse, songKey, musicRecsNeedRefresh } from './lib/musicRecs.js';
+import { errorSignature, registerAlertMessage, alertsSince } from './lib/alerts.js';
+import { isMusicPowerUser, musicPowerUserReason, pickMusicSeeds, buildMusicRecPrompt, parseMusicRecResponse, songKey, musicRecsNeedRefresh } from './lib/musicRecs.js';
 import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
@@ -241,46 +242,30 @@ app.post('/register', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     const { username, password, email } = request.body
+    // Every attempt (and how it went) pops up for the admin.
+    const reply = (code) => {
+        adminAlert('signup', String(username || ''), registerAlertMessage(username, email, code)).catch(() => {});
+        response.status(202);
+        response.send(code);
+    };
 
-    if (!isValidUsername(username)) {
-        response.status(202);
-        response.send("IUN"); //Invalid username
-        return
-    }
-    if (!isValidEmail(email)) {
-        response.status(202);
-        response.send("IE"); //Invalid email
-        return
-    }
+    if (!isValidUsername(username)) return reply("IUN"); //Invalid username
+    if (!isValidEmail(email)) return reply("IE"); //Invalid email
 
     try { //Check if username is taken!
-
         const Existence = await CheckUser(username, email);
-
-        if (Existence === 1) {
-            response.status(202);
-            response.send("UNT"); //Username is taken
-            return
-        } else if (Existence === 2) {
-            response.status(202);
-            response.send("ET"); //Email is taken
-            return
-        }
+        if (Existence === 1) return reply("UNT"); //Username is taken
+        if (Existence === 2) return reply("ET"); //Email is taken
     } catch(error) {
-        response.status(202);
-        response.send(error.message);
-        return
+        return reply(error.message);
     }
 
     try { //Try registering the user!
-        const worked = await Register(username, password, email)
+        await Register(username, password, email)
     } catch (error) {
-        response.status(202);
-        response.send(error.message)
-        return
+        return reply(error.message);
     }
-    response.status(202);
-    response.send("UCS") //User created successfully
+    reply("UCS") //User created successfully
 });
 
 app.post('/verify', async (request, response) => {
@@ -1061,6 +1046,7 @@ app.post('/prefs/set', async (request, response) => {
     try {
         const db = admin.database();
         await db.ref(`users/${user}/prefs/${key}`).set(value);
+        adminAlert('settings', user, `${user} changed a setting: ${key.slice(0, 40)} → ${JSON.stringify(value)?.slice(0, 40)}`).catch(() => {});
         response.status(200).send("OK");
     } catch (error) {
         logError(user, '/prefs/set', error).catch(() => {});
@@ -1427,11 +1413,13 @@ app.post('/admin/data', async (request, response) => {
     }
     try {
         const db = admin.database();
-        const [errorsSnap, analyticsSnap, usersSnap] = await Promise.all([
+        const [errorsSnap, analyticsSnap, usersSnap, alertsSnap] = await Promise.all([
             db.ref('admin/errors').orderByChild('timestamp').limitToLast(100).once('value'),
             db.ref('admin/analytics/events').orderByChild('timestamp').limitToLast(200).once('value'),
-            db.ref('users').once('value')
+            db.ref('users').once('value'),
+            db.ref('admin/alerts').orderByChild('timestamp').limitToLast(100).once('value'),
         ]);
+        const alerts = alertsSince(alertsSnap.val(), 0, 100).reverse();
         const errors = errorsSnap.val()
             ? Object.values(errorsSnap.val()).sort((a, b) => b.timestamp - a.timestamp)
             : [];
@@ -1464,7 +1452,7 @@ app.post('/admin/data', async (request, response) => {
             const listenSeconds = Math.round(Object.values(u?.music_listens || {}).reduce((sum, l) => sum + (Number(l?.seconds) || 0), 0));
             if (songs || playlists || listenSeconds) music[uname] = { songs, playlists, listenSeconds };
         }
-        response.status(200).json({ errors, analytics, users, watchTotals, watchTotalAll, introConfig, introSeenCount, noCommentUsers, music });
+        response.status(200).json({ errors, analytics, users, watchTotals, watchTotalAll, introConfig, introSeenCount, noCommentUsers, music, alerts });
     } catch (error) {
         logError('manav', '/admin/data', error).catch(() => {});
         response.status(200).json({ errors: [], analytics: [], users: [], fetchError: error.message });
@@ -1656,6 +1644,7 @@ app.post('/account/change-password', async (request, response) => {
         await db.ref(`users/${user}`).update({ password: newPassword });
         // Invalidate cache so new password takes effect
         userCache.delete(user);
+        adminAlert('settings', user, `${user} changed their password`).catch(() => {});
         response.status(200).send("PUS");
     } catch (error) {
         logError(user, '/account/change-password', error).catch(() => {});
@@ -1682,6 +1671,7 @@ app.post('/account/avatar', async (req, res) => {
         await fs.promises.rename(tmp, avatarPath(user));
         const version = Date.now();
         await admin.database().ref(`users/${user}/avatar`).set(version);
+        adminAlert('settings', user, `${user} changed their profile picture`).catch(() => {});
         res.json({ avatar: version });
     } catch (e) {
         logError(user, '/account/avatar', e).catch(() => {});
@@ -1695,6 +1685,7 @@ app.post('/account/avatar/delete', async (req, res) => {
     try {
         await fs.promises.rm(avatarPath(user), { force: true });
         await admin.database().ref(`users/${user}/avatar`).remove();
+        adminAlert('settings', user, `${user} removed their profile picture`).catch(() => {});
         res.json({ avatar: 0 });
     } catch (e) {
         logError(user, '/account/avatar/delete', e).catch(() => {});
@@ -1822,6 +1813,19 @@ async function handleRecommendations(request, response, mode) {
 
 app.post('/recommendations/lifetime', (request, response) => handleRecommendations(request, response, 'lifetime'));
 app.post('/recommendations/recent', (request, response) => handleRecommendations(request, response, 'recent'));
+
+// New alerts since a timestamp, for the admin's pop-ups (polled by the app).
+app.post('/admin/alerts', async (request, response) => {
+    const { user, token, since } = request.body;
+    if (!await AuthenticateAdmin(user, token)) return response.status(403).send("Forbidden");
+    try {
+        const after = Number(since) || 0;
+        const snap = await admin.database().ref('admin/alerts').orderByChild('timestamp').startAt(after + 1).limitToLast(50).once('value');
+        response.json({ alerts: alertsSince(snap.val(), after), serverNow: Date.now() });
+    } catch (error) {
+        response.json({ alerts: [], serverNow: Date.now() });
+    }
+});
 
 // No-comment mode: the account can't see or post reviews.
 app.post('/admin/set-no-comments', async (request, response) => {
@@ -2462,12 +2466,31 @@ async function AuthenticateAdmin(user, token) {
 async function logError(user, endpoint, error) {
     try {
         const db = admin.database();
+        const message = error?.message || String(error);
+        const now = Date.now();
         await db.ref('admin/errors').push({
             user: user || 'anonymous',
             endpoint,
-            message: error.message || String(error),
-            timestamp: Date.now()
+            message,
+            timestamp: now
         });
+        // The first time a kind of error shows up, it pops up for the admin.
+        const result = await db.ref(`admin/errorTypes/${errorSignature(endpoint, message)}`).transaction(cur => (cur
+            ? { ...cur, count: (cur.count || 0) + 1, lastSeen: now }
+            : { endpoint, message: message.slice(0, 300), firstSeen: now, lastSeen: now, count: 1 }));
+        if (result.committed && result.snapshot.val()?.count === 1) {
+            await adminAlert('error', user || 'anonymous', `New error on ${endpoint}: ${message.slice(0, 160)}`, { includeAdmin: true });
+        }
+    } catch (_) {}
+}
+
+// Pop-up notice for the admin (admin/alerts). The admin's own actions are
+// skipped, except errors.
+const ADMIN_USER = 'manav';
+async function adminAlert(type, user, message, { includeAdmin = false } = {}) {
+    if (user === ADMIN_USER && !includeAdmin) return;
+    try {
+        await admin.database().ref('admin/alerts').push({ type, user: user || 'anonymous', message, timestamp: Date.now() });
     } catch (_) {}
 }
 
@@ -3278,7 +3301,14 @@ app.post('/music/recommendations', async (req, res) => {
         ]);
         const listens = listensSnap.val();
         const library = librarySnap.val() || {};
-        if (!isMusicPowerUser(listens, library)) return res.json({ eligible: false });
+        const reason = musicPowerUserReason(listens, library);
+        if (!reason) return res.json({ eligible: false });
+        // First time qualifying: note it and tell the admin.
+        const flagRef = db.ref(`users/${user}/musicPowerUserAt`);
+        if (!(await flagRef.once('value')).exists()) {
+            await flagRef.set(Date.now());
+            adminAlert('power_user', user, `${user} became a music power user (${reason === 'library' ? `${Object.keys(library).length} songs in their library` : 'listening time'})`).catch(() => {});
+        }
         const cache = (await db.ref(`users/${user}/musicRecCache`).once('value')).val();
         let items = null;
         try { items = cache?.items ? JSON.parse(cache.items) : null; } catch { /* rebuilt below */ }
