@@ -53,3 +53,22 @@ export function aggregateListening(listens, top = 5) {
             .slice(0, top),
     };
 }
+
+// "Recently played" and "Most played" lists for the library (no times: those
+// only show on the stats page).
+export function listeningHistory(listens, limit = 50) {
+    const songs = Object.entries(listens || {})
+        .map(([videoId, l]) => ({
+            videoId,
+            title: l?.title || '',
+            artist: l?.artist || '',
+            seconds: Number(l?.seconds) || 0,
+            lastAt: Number(l?.lastAt) || 0,
+        }))
+        .filter(s => s.title && s.seconds > 0);
+    const strip = ({ videoId, title, artist }) => ({ videoId, title, artist });
+    return {
+        recent: [...songs].sort((a, b) => b.lastAt - a.lastAt).slice(0, limit).map(strip),
+        most: [...songs].sort((a, b) => b.seconds - a.seconds).slice(0, limit).map(strip),
+    };
+}

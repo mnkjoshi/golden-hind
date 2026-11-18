@@ -738,6 +738,15 @@ export function MusicLibrary() {
                             <button className="secondary" onClick={() => setNewName(null)}>Cancel</button>
                         </div>
                     )}
+                    {Object.entries(AUTO_PLAYLISTS).map(([autoId, a]) => (
+                        <button key={autoId} className="mx-pl-row" onClick={() => navigate(`/music/playlist/${autoId}`)}>
+                            <AutoCover icon={a.icon} className="mx-pl-cover" />
+                            <span className="mx-row-text">
+                                <span className="mx-row-title">{a.name}</span>
+                                <span className="mx-row-artist">Automatic playlist</span>
+                            </span>
+                        </button>
+                    ))}
                     {(playlists || []).map(p => (
                         <button key={p.id} className="mx-pl-row" onClick={() => navigate(`/music/playlist/${p.id}`)}>
                             <PlaylistCover songs={p.songs} className="mx-pl-cover" />
@@ -850,7 +859,72 @@ function PlaylistCover({ songs, className }) {
 
 // ── One playlist ─────────────────────────────────────────────────────────────
 
+// Automatic playlists built from listening history (/music/history).
+const AUTO_PLAYLISTS = {
+    'recently-played': { name: 'Recently played', key: 'recent', icon: 'clock', empty: 'Songs you play show up here.' },
+    'most-played': { name: 'Most played', key: 'most', icon: 'flame', empty: 'Your most-played songs show up here once you listen for a while.' },
+};
+const AUTO_ICONS = {
+    clock: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>,
+    flame: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.8.3 1.6 1 2.6 2 3 0-3 .2-5.6.8-8.2z" /></svg>,
+};
+function AutoCover({ icon, className }) {
+    return <div className={`${className} mx-auto-cover mx-auto-${icon}`}>{AUTO_ICONS[icon]}</div>;
+}
+
 export function MusicPlaylist() {
+    const { id } = useParams();
+    return AUTO_PLAYLISTS[id] ? <AutoPlaylist key={id} id={id} /> : <UserPlaylist />;
+}
+
+function AutoPlaylist({ id }) {
+    const navigate = useNavigate();
+    const m = useMusicLibrary();
+    const def = AUTO_PLAYLISTS[id];
+    const [songs, setSongs] = useState(null);
+    useEffect(() => {
+        const { user, token } = auth();
+        if (!user || !token) return;
+        axios.post(`${API}/music/history`, { user, token })
+            .then(r => setSongs(r.data?.[def.key] || []))
+            .catch(() => setSongs([]));
+    }, [def.key]);
+    if (!m.user) { navigate('/auth'); return null; }
+    const list = songs || [];
+
+    return (
+        <Shell>
+            <div className="mx-pl-hero">
+                <AutoCover icon={def.icon} className="mx-pl-hero-cover" />
+                <div className="mx-pl-hero-text">
+                    <span className="mx-pl-hero-label">Automatic playlist</span>
+                    <h1 className="mx-page-title mx-pl-name">{def.name}</h1>
+                    <span className="mx-lib-count">{songs === null ? '' : `${list.length} song${list.length === 1 ? '' : 's'}`}</span>
+                </div>
+            </div>
+            <div className="mx-actions">
+                <button className="mx-action primary" onClick={() => m.playFrom(list, 0)} disabled={!list.length}>{Icon.play}<span>Play</span></button>
+                <button className="mx-action" onClick={() => m.shufflePlay(list)} disabled={!list.length}>{Icon.shuffle}<span>Shuffle</span></button>
+                <button className="mx-action" onClick={() => m.queueSongs(list)} disabled={!list.length}>{Icon.queueAdd}<span>Queue all</span></button>
+            </div>
+            {songs === null ? (
+                <div className="music-results-state"><div className="music-spinner" /><span>Loading…</span></div>
+            ) : list.length === 0 ? (
+                <div className="mx-empty"><p>{def.empty}</p></div>
+            ) : (
+                <div className="mx-list">
+                    {list.map((s, i) => (
+                        <SongRow key={s.videoId} song={s} isPlaying={m.playing?.videoId === s.videoId} playingNow={!m.player.paused} onPlay={() => m.playFrom(list, i)}>
+                            <button className="mx-icon-btn" onClick={() => m.queueSong(s)} aria-label={`Add ${s.title} to the queue`} title="Add to queue">{Icon.queueAdd}</button>
+                        </SongRow>
+                    ))}
+                </div>
+            )}
+        </Shell>
+    );
+}
+
+function UserPlaylist() {
     const navigate = useNavigate();
     const { id } = useParams();
     const m = useMusicLibrary();

@@ -32,7 +32,7 @@ import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
 import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar.js';
 import { emailKey, emailFromKey, isValidUsername, isValidEmail } from './lib/accounts.js';
 import { buildReviewArchiveUpdate } from './lib/reviews.js';
-import { sanitizeListenReport, aggregateListening } from './lib/listening.js';
+import { sanitizeListenReport, aggregateListening, listeningHistory } from './lib/listening.js';
 import { errorSignature, registerAlertMessage, alertsSince } from './lib/alerts.js';
 import { isMusicPowerUser, musicPowerUserReason, pickMusicSeeds, buildMusicRecPrompt, parseMusicRecResponse, songKey, musicRecsNeedRefresh } from './lib/musicRecs.js';
 import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
@@ -3774,6 +3774,19 @@ app.post('/music/listen', express.text({ type: 'text/plain' }), async (req, res)
     } catch (e) {
         logError(user, '/music/listen', e).catch(() => {});
         res.status(500).json({ error: 'Could not save' });
+    }
+});
+
+// Recently played / Most played automatic playlists in the library.
+app.post('/music/history', async (req, res) => {
+    const { user, token } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const listens = (await admin.database().ref(`users/${user}/music_listens`).once('value')).val();
+        res.json(listeningHistory(listens));
+    } catch (e) {
+        logError(user, '/music/history', e).catch(() => {});
+        res.json({ recent: [], most: [] });
     }
 });
 

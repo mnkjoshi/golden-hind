@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeListenReport, aggregateListening } from '../lib/listening.js';
+import { sanitizeListenReport, aggregateListening, listeningHistory } from '../lib/listening.js';
 
 test('sanitizeListenReport keeps valid entries and rounds seconds', () => {
     assert.deepEqual(
@@ -36,4 +36,18 @@ test('aggregateListening totals, ranks songs and sums artists', () => {
 
 test('aggregateListening handles no data', () => {
     assert.deepEqual(aggregateListening(null), { totalSeconds: 0, songCount: 0, topSongs: [], topArtists: [] });
+});
+
+test('listeningHistory orders by last play and by time, without exposing times', () => {
+    const h = listeningHistory({
+        a: { seconds: 100, title: 'A', artist: 'X', lastAt: 30 },
+        b: { seconds: 900, title: 'B', artist: 'Y', lastAt: 10 },
+        c: { seconds: 50, title: 'C', artist: 'Z', lastAt: 20 },
+        d: { seconds: 0, title: 'D', artist: 'Z', lastAt: 40 },
+        e: { seconds: 70, title: '', artist: 'Z', lastAt: 50 },
+    });
+    assert.deepEqual(h.recent.map(s => s.videoId), ['a', 'c', 'b']);
+    assert.deepEqual(h.most.map(s => s.videoId), ['b', 'a', 'c']);
+    assert.deepEqual(h.most[0], { videoId: 'b', title: 'B', artist: 'Y' });
+    assert.deepEqual(listeningHistory(null), { recent: [], most: [] });
 });
