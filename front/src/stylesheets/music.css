@@ -977,3 +977,9 @@
 @media (max-width: 760px) {
     .mx-rec-queue { top: 92px; }
 }
+
+/* Automatic playlists (Recently played / Most played) */
+.mx-auto-cover { display: flex; align-items: center; justify-content: center; color: #fff; }
+.mx-auto-cover svg { width: 46%; height: 46%; }
+.mx-auto-clock { background: linear-gradient(135deg, #3FA3FF 0%, #6b4cff 100%); }
+.mx-auto-flame { background: linear-gradient(135deg, #ff7a45 0%, #ff3d77 100%); }
