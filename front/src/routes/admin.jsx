@@ -14,6 +14,16 @@ function describeEvent(evt) {
             return 'Logged on — fresh session';
         case 'search':
             return d.query ? `Searched "${d.query}"` : 'Searched';
+        case 'detail_view':
+            return `Opened ${d.name || d.id || 'a title'}`;
+        case 'music_view':
+            return `Music · ${d.page || '/music'}`;
+        case 'book_page':
+            return 'Opened Books';
+        case 'book_search':
+            return d.query ? `Searched books for "${d.query}"` : 'Searched books';
+        case 'book_download':
+            return `Downloaded ${d.title || 'a book'}${d.author ? ` by ${d.author}` : ''}`;
         case 'watch':
             if (d.name) {
                 return d.type === 'tv' && d.season
@@ -30,6 +40,11 @@ const EVENT_LABELS = {
     session_start: 'Session',
     search: 'Search',
     watch: 'Watch',
+    detail_view: 'Details',
+    music_view: 'Music',
+    book_page: 'Books',
+    book_search: 'Book search',
+    book_download: 'Book download',
 };
 
 export default function Admin() {

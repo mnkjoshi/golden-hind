@@ -32,6 +32,7 @@ import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
 import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar.js';
 import { emailKey, emailFromKey, isValidUsername, isValidEmail } from './lib/accounts.js';
 import { buildReviewArchiveUpdate } from './lib/reviews.js';
+import { sanitizeListenReport, aggregateListening } from './lib/listening.js';
 import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
@@ -1539,7 +1540,10 @@ app.post('/stats/wrapped', async (request, response) => {
     if (!await Authenticate(user, token)) return response.status(202).send("UNV");
     try {
         const db = admin.database();
-        const snap = await db.ref(`users/${user}/watch_sessions`).once('value');
+        const [snap, listensSnap] = await Promise.all([
+            db.ref(`users/${user}/watch_sessions`).once('value'),
+            db.ref(`users/${user}/music_listens`).once('value'),
+        ]);
         const sessions = snap.val() ? Object.values(snap.val()) : [];
         const agg = aggregateWatchSessions(sessions);
 
@@ -1559,6 +1563,7 @@ app.post('/stats/wrapped', async (request, response) => {
             ...agg,
             topTitles: enriched,
             genres: genreBreakdown(enriched),
+            music: aggregateListening(listensSnap.val()),
         });
     } catch (error) {
         logError(user, '/stats/wrapped', error).catch(() => {});
@@ -3593,6 +3598,33 @@ app.post('/music/player/update', express.text({ type: 'text/plain' }), async (re
     } catch (e) {
         logError(user, '/music/player/update', e).catch(() => {});
         res.status(500).json({ error: 'Could not update the player' });
+    }
+});
+
+// Listening time from the playing device, about once a minute per song
+// (users/{u}/music_listens/{videoId}); only the stats page reads it. Accepts
+// text/plain JSON for the sendBeacon flush when the app closes.
+app.post('/music/listen', express.text({ type: 'text/plain' }), async (req, res) => {
+    let body = req.body;
+    if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
+    const { user, token, listens } = body || {};
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    const clean = sanitizeListenReport(listens);
+    if (Object.keys(clean).length === 0) return res.json({ ok: true });
+    try {
+        const now = Date.now();
+        const update = {};
+        for (const [id, l] of Object.entries(clean)) {
+            update[`${id}/seconds`] = admin.database.ServerValue.increment(l.seconds);
+            if (l.title) update[`${id}/title`] = l.title;
+            if (l.artist) update[`${id}/artist`] = l.artist;
+            update[`${id}/lastAt`] = now;
+        }
+        await admin.database().ref(`users/${user}/music_listens`).update(update);
+        res.json({ ok: true });
+    } catch (e) {
+        logError(user, '/music/listen', e).catch(() => {});
+        res.status(500).json({ error: 'Could not save' });
     }
 });
 

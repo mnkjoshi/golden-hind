@@ -387,3 +387,9 @@
 .stats-content { padding-top: calc(106px + env(safe-area-inset-top, 0px)); }
 @media (max-width: 760px) { .stats-content { padding-top: calc(78px + env(safe-area-inset-top, 0px)); } }
 @media (max-width: 800px) { .stats-content { padding-top: calc(62px + max(0px, calc(env(safe-area-inset-top, 0px) - 12px))); } }
+
+/* Music listening (from the music player's listening time) */
+.stats-music-hero { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+.stats-music-hero .stats-hero-number { font-size: 34px; }
+.stats-music-sub { margin: 0 0 10px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.55); }
+.stats-music-cover { width: 46px; height: 46px; object-fit: cover; }

@@ -376,6 +376,51 @@ function restoreFromHold() {
     }
 }
 
+// ── Listening time (only the stats page shows it) ──────────────────────────
+// The playing device adds up how long each song actually played: between two
+// timeupdates it counts the smaller of the clock and position change, so a
+// seek or a throttled background tab doesn't inflate it. Sent about once a
+// minute, on pause/end, and by beacon when the app closes.
+const LISTEN_FLUSH_MS = 60000;
+const LISTEN_MAX_PER_REPORT = 180;   // the server's per-song cap
+let listenPending = {};   // videoId -> seconds not yet sent
+let listenMark = null;    // { id, at, pos } at the previous timeupdate
+let lastListenFlush = Date.now();
+
+function countListening() {
+    if (!audio || audio.paused || holding || !isActiveHere() || !loadedId) { listenMark = null; return; }
+    const now = Date.now();
+    const pos = audio.currentTime || 0;
+    if (listenMark?.id === loadedId) {
+        const d = Math.min((now - listenMark.at) / 1000, pos - listenMark.pos);
+        if (d > 0 && d < 30) listenPending[loadedId] = (listenPending[loadedId] || 0) + d;
+    }
+    listenMark = { id: loadedId, at: now, pos };
+    if (now - lastListenFlush > LISTEN_FLUSH_MS) flushListening();
+}
+
+function flushListening(beacon = false) {
+    lastListenFlush = Date.now();
+    const listens = {};
+    for (const [id, seconds] of Object.entries(listenPending)) {
+        if (seconds < 1) continue;
+        const sent = Math.min(seconds, LISTEN_MAX_PER_REPORT);
+        const song = state.songs[id] || {};
+        listens[id] = { seconds: sent, title: song.title || '', artist: song.artist || '' };
+        if (seconds - sent > 0) listenPending[id] = seconds - sent;
+        else delete listenPending[id];
+    }
+    if (!Object.keys(listens).length) return;
+    const { user, token } = auth();
+    if (!user || !token) return;
+    const body = { user, token, listens };
+    if (beacon && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        navigator.sendBeacon(`${API}/music/listen`, new Blob([JSON.stringify(body)], { type: 'text/plain' }));
+    } else {
+        axios.post(`${API}/music/listen`, body).catch(() => {});
+    }
+}
+
 // Ask iOS for the music-playback audio session (Safari 17+).
 try { if (typeof navigator !== 'undefined' && navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* unsupported */ }
 
@@ -398,6 +443,7 @@ function tryPlay() {
 if (audio) {
     audio.addEventListener('timeupdate', () => {
         if (holding || !isActiveHere()) return;
+        countListening();
         set({ position: audio.currentTime || 0 });
         report();
         updatePositionState();
@@ -418,12 +464,18 @@ if (audio) {
         updatePositionState(true);
     });
     audio.addEventListener('pause', () => {
+        listenMark = null;
+        flushListening();
         if (holding) return;
         if ('mediaSession' in navigator && state.allowed) navigator.mediaSession.playbackState = 'paused';
         if (isActiveHere()) { set({ paused: true }); report(true); }
     });
     audio.addEventListener('waiting', () => { if (!holding) set({ loading: true }); });
-    audio.addEventListener('ended', () => { if (!holding && isActiveHere()) next(true); });
+    audio.addEventListener('ended', () => {
+        listenMark = null;
+        flushListening();
+        if (!holding && isActiveHere()) next(true);
+    });
     audio.addEventListener('error', () => {
         if (holding) { restoreFromHold(); return; }
         if (!audio.src) return;
@@ -691,6 +743,7 @@ export function closePlayer() {
 // only request that survives page teardown; it can't send JSON cross-origin,
 // so the body goes as text/plain (the server accepts that for this route).
 if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', () => flushListening(true));
     window.addEventListener('pagehide', () => {
         if (!isActiveHere() || !audio || audio.paused || !navigator.sendBeacon) return;
         const { user, token } = auth();
