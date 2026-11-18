@@ -2,8 +2,13 @@
 // playing, then "Up next" — drag the handle to reorder, × to remove, tap a
 // song to jump to it — plus a picker for adding songs from the library.
 // Edits go through musicPlayer.js, so they sync to every device.
+
+// Holding a dragged song this close to the list's top or bottom edge scrolls
+// it, faster the closer to the edge (up to EDGE_SPEED px per frame).
+const EDGE_PX = 64;
+const EDGE_SPEED = 14;
 // eslint flags React as unused, but JSX here compiles with the classic runtime.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     useMusicPlayer, currentSong, playIndex, moveInQueue, removeFromQueue, addSongsToQueue,
     cachedLibrary, refreshLibrary,
@@ -21,23 +26,54 @@ const I = {
 export default function QueuePanel() {
     const s = useMusicPlayer();
     const [adding, setAdding] = useState(false);
-    // { from, startY, dy, h } while a row is being dragged by its handle
+    // { from, startY, y, startScroll, scroll, h } while a row is being dragged
+    // by its handle. The row follows the pointer plus however far the list
+    // has scrolled underneath it since the drag began.
     const [drag, setDrag] = useState(null);
+    const scrollRef = useRef(null);
+    const dragRef = useRef(null);
+    dragRef.current = drag;
+    const dragging = !!drag;
     const song = currentSong(s);
     const base = s.index + 1;   // queue position of the first "Up next" row
     const upcoming = s.queue.slice(base);
 
+    // Auto-scroll while the pointer sits near an edge of the list.
+    useEffect(() => {
+        if (!dragging) return;
+        let frame;
+        const step = () => {
+            const el = scrollRef.current;
+            const d = dragRef.current;
+            if (el && d) {
+                const rect = el.getBoundingClientRect();
+                const into = d.y < rect.top + EDGE_PX ? -(rect.top + EDGE_PX - d.y)
+                    : d.y > rect.bottom - EDGE_PX ? d.y - (rect.bottom - EDGE_PX) : 0;
+                if (into) {
+                    el.scrollTop += Math.sign(into) * Math.min(EDGE_SPEED, Math.ceil(Math.abs(into) / EDGE_PX * EDGE_SPEED));
+                    const scroll = el.scrollTop;
+                    if (scroll !== d.scroll) setDrag(prev => prev && { ...prev, scroll });
+                }
+            }
+            frame = requestAnimationFrame(step);
+        };
+        frame = requestAnimationFrame(step);
+        return () => cancelAnimationFrame(frame);
+    }, [dragging]);
+
     if (adding) return <AddSongs onDone={() => setAdding(false)} />;
 
+    const dy = drag ? drag.y - drag.startY + (drag.scroll - drag.startScroll) : 0;
     const target = drag
-        ? Math.min(upcoming.length - 1, Math.max(0, drag.from + Math.round(drag.dy / drag.h)))
+        ? Math.min(upcoming.length - 1, Math.max(0, drag.from + Math.round(dy / drag.h)))
         : null;
     const startDrag = (e, from) => {
         const row = e.currentTarget.closest('.fq-row');
         e.currentTarget.setPointerCapture(e.pointerId);
-        setDrag({ from, startY: e.clientY, dy: 0, h: row.getBoundingClientRect().height });
+        const scroll = scrollRef.current?.scrollTop || 0;
+        setDrag({ from, startY: e.clientY, y: e.clientY, startScroll: scroll, scroll, h: row.getBoundingClientRect().height });
     };
-    const moveDrag = (e) => { if (drag) setDrag(d => ({ ...d, dy: e.clientY - d.startY })); };
+    const moveDrag = (e) => { if (drag) setDrag(d => ({ ...d, y: e.clientY })); };
     const endDrag = () => {
         if (!drag) return;
         if (target !== drag.from) moveInQueue(base + drag.from, base + target);
@@ -46,7 +82,7 @@ export default function QueuePanel() {
     // Rows between the dragged one and its target slide over to make room.
     const shiftFor = (i) => {
         if (!drag) return 0;
-        if (i === drag.from) return drag.dy;
+        if (i === drag.from) return dy;
         if (drag.from < i && i <= target) return -drag.h;
         if (target <= i && i < drag.from) return drag.h;
         return 0;
@@ -58,7 +94,7 @@ export default function QueuePanel() {
                 <span className="fq-heading">Queue</span>
                 <button className="fq-add-btn" onClick={() => setAdding(true)}>{I.plus}Add songs</button>
             </div>
-            <div className="fq-scroll">
+            <div className="fq-scroll" ref={scrollRef}>
                 {song && (
                     <>
                         <div className="fq-label">Now playing</div>
