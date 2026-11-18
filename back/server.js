@@ -27,6 +27,7 @@ import { isValidDeviceId, sanitizeDeviceName, sanitizeCommand, sanitizeState, de
 import { recSourceIds, recSourceKey, recCacheIsFresh, parseCachedRecItems } from './lib/recs.js';
 import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats.js';
 import { buildWatchedUpdate, watchedKeyFromPosition } from './lib/watched.js';
+import { nextUpEpisode, showStructure, seasonProgress } from './lib/nextUp.js';
 import { cleanEpisode, cleanSeason } from './lib/text.js';
 import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
 import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar.js';
@@ -1572,6 +1573,64 @@ app.post('/stats/wrapped', async (request, response) => {
 // users/{u}/watched/{contentId} = { "s<season>e<episode>": timestamp }.
 // Stored as a native RTDB object (not a JSON string) so bulk season updates
 // are one atomic multi-path write with no read-modify-write race.
+
+// ── Next up ─────────────────────────────────────────────────────────────────
+// Which episode to offer per show (Continue Watching + the detail page's Play).
+// Season structure is cached for a few hours so newly aired episodes show up.
+const showStructureCache = new Map();   // tmdbId -> { ts, data }
+const SHOW_STRUCTURE_TTL_MS = 6 * 60 * 60 * 1000;
+async function getShowStructure(tmdbId) {
+    const hit = showStructureCache.get(tmdbId);
+    if (hit && Date.now() - hit.ts < SHOW_STRUCTURE_TTL_MS) return hit.data;
+    const r = await axios.get(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${process.env.TMDB_Credentials}`, { timeout: 10000 });
+    const data = showStructure(r.data);
+    if (showStructureCache.size >= 1000) showStructureCache.delete(showStructureCache.keys().next().value);
+    showStructureCache.set(tmdbId, { ts: Date.now(), data });
+    return data;
+}
+
+app.post('/next-up', async (request, response) => {
+    const { user, token, ids } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    const tvIds = (Array.isArray(ids) ? ids : []).map(String).filter(id => /^t\d{1,12}$/.test(id)).slice(0, 40);
+    const db = admin.database();
+    const result = {};
+    await Promise.all(tvIds.map(async (id) => {
+        try {
+            const [progressSnap, watchedSnap, structure] = await Promise.all([
+                db.ref(`users/${user}/progress/${id}`).once('value'),
+                db.ref(`users/${user}/watched/${id}`).once('value'),
+                getShowStructure(id.slice(1)),
+            ]);
+            const [ps, pe] = String(progressSnap.val()?.status || '').split(';').map(Number);
+            const progress = ps >= 1 && pe >= 1 ? { season: ps, episode: pe } : null;
+            let positionPct = null;
+            if (progress) {
+                const pos = (await db.ref(`users/${user}/positions/playbackPos_${id}_s${ps}_e${pe}`).once('value')).val();
+                if (pos?.duration > 0) positionPct = pos.position / pos.duration;
+            }
+            const next = nextUpEpisode({ ...structure, progress, watched: watchedSnap.val() || {}, positionPct });
+            if (next) result[id] = next;
+        } catch { /* skip this show */ }
+    }));
+    response.json(result);
+});
+
+// How far into each episode of one season (for the detail page's bars).
+app.post('/position/season', async (request, response) => {
+    const { user, token, contentId, season } = request.body;
+    if (!await Authenticate(user, token)) return response.status(202).send("UNV");
+    const s = parseInt(season);
+    if (!/^t\d{1,12}$/.test(String(contentId || '')) || !(s >= 0)) return response.status(400).json({});
+    try {
+        const prefix = `playbackPos_${contentId}_s${s}_e`;
+        const snap = await admin.database().ref(`users/${user}/positions`).orderByKey().startAt(prefix).endAt(prefix + '\uf8ff').once('value');
+        response.json(seasonProgress(snap.val(), contentId, s));
+    } catch (error) {
+        logError(user, '/position/season', error).catch(() => {});
+        response.json({});
+    }
+});
 
 app.post('/watched/get', async (request, response) => {
     response.setHeader("Access-Control-Allow-Credentials", "true");

@@ -37,6 +37,16 @@ const POPULAR_GENRES = [
 // Uses media_type when present (set by GetInfo on the server) and falls back
 // to the number_of_episodes heuristic for raw TMDB trending payloads that
 // don't go through GetInfo.
+// "Next · S2 E6" / "Resume · S2 E5" on Continue Watching cards (from /next-up).
+function NextUpLabel({ next }) {
+    if (!next) return null;
+    return (
+        <span className={`card-next-up ${next.kind}`}>
+            {next.kind === 'next' ? 'Next' : next.kind === 'resume' ? 'Resume' : 'Start'} · S{next.season} E{next.episode}
+        </span>
+    );
+}
+
 function CardProgressBar({ result }) {
     if (!result || !result.id) return null;
     const isTv = result.media_type
@@ -61,6 +71,7 @@ export default function App() {
     const [, setPctVersion] = useState(0)
     const [bookmarkData, setBookmarkData] = useState(null)
     const [continueData, setContinueData] = useState(null)
+    const [nextUp, setNextUp] = useState({})   // "t<id>" -> { season, episode, kind }
     const [myListData, setMyListData] = useState(null)
     const [trendingData, setTrendingData] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -123,6 +134,18 @@ export default function App() {
 
     let user = localStorage.getItem("user")
     let token = localStorage.getItem("token")
+
+    // Next episode for each show in Continue Watching.
+    const continueTvKey = (continueData || [])
+        .filter(r => (r.media_type ? r.media_type === 'tv' : r.number_of_episodes != null))
+        .map(r => 't' + r.id).join(',');
+    useEffect(() => {
+        if (!continueTvKey || !user || !token) return;
+        axios.post('https://ghb.mnkjoshi.ca/next-up', { user, token, ids: continueTvKey.split(',') })
+            .then(r => { if (r.data && typeof r.data === 'object') setNextUp(r.data); })
+            .catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [continueTvKey]);
 
     // Ask the server whether to show the welcome video (enabled + not yet seen
     // by this user at the current version). Cross-device via the user record.
@@ -1191,6 +1214,7 @@ export default function App() {
                                             decoding="async"
                                         />
                                         <CardProgressBar result={result} />
+                                        <NextUpLabel next={nextUp['t' + result.id]} />
                                         <div className="card-overlay">
                                             <div className="card-info">
                                                 <h3 className="card-title">{result.name || result.title || "Untitled"}</h3>
