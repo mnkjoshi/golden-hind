@@ -57,3 +57,51 @@ export function musicAllowedAt(pathname) {
     const p = String(pathname || '').replace(/\/+$/, '') || '/';
     return p === '/app' || p === '/music' || p.startsWith('/music/') || p === '/downloads';
 }
+
+// ── Queue editing ("Up next") ───────────────────────────────────────────────
+// Each takes { queue, index, originalQueue } and returns the same shape with
+// `index` still on the song that's playing. originalQueue (the order to
+// restore when shuffle is turned off) gains added songs and loses removed
+// ones; a manual reorder only changes the shuffled order.
+
+export const MAX_QUEUE = 500;   // matches the server's sanitizePlayerUpdate
+
+export function moveQueueItem(q, from, to) {
+    const { queue, index } = q;
+    const n = queue.length;
+    if (from === to || from < 0 || to < 0 || from >= n || to >= n) return q;
+    const next = queue.slice();
+    const [id] = next.splice(from, 1);
+    next.splice(to, 0, id);
+    let i = index;
+    if (from === index) i = to;
+    else if (from < index && to >= index) i = index - 1;
+    else if (from > index && to <= index) i = index + 1;
+    return { ...q, queue: next, index: i };
+}
+
+// The playing song can't be removed (skip it instead).
+export function removeQueueItem(q, at) {
+    const { queue, index, originalQueue } = q;
+    if (at < 0 || at >= queue.length || at === index) return q;
+    const id = queue[at];
+    let original = originalQueue;
+    if (original) {
+        const k = original.indexOf(id);
+        if (k !== -1) original = original.filter((_, i) => i !== k);
+    }
+    return { ...q, queue: queue.filter((_, i) => i !== at), index: at < index ? index - 1 : index, originalQueue: original };
+}
+
+// Add ids at the end, or right after the playing song with { next: true }.
+export function addToQueue(q, ids, { next = false } = {}) {
+    const { queue, index, originalQueue } = q;
+    const add = (ids || []).slice(0, Math.max(0, MAX_QUEUE - queue.length));
+    if (!add.length) return q;
+    const at = next ? Math.min(index + 1, queue.length) : queue.length;
+    return {
+        ...q,
+        queue: [...queue.slice(0, at), ...add, ...queue.slice(at)],
+        originalQueue: originalQueue ? [...originalQueue, ...add] : originalQueue,
+    };
+}

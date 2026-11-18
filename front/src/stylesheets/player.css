@@ -577,3 +577,94 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
 }
 /* The ⋯ dropdown hangs over the cover art, so the top row stacks above it */
 .fp > .fp-top { z-index: 5; }
+
+/* ── Queue (full player, in place of the cover) ── */
+.fp-queue-btn { margin-left: auto; color: rgba(255, 255, 255, 0.75); }
+.fp-queue-btn svg { width: 22px; height: 22px; }
+.fp-queue-btn.on { color: #3FA3FF; }
+
+.fp-queue {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: fp-queue-in 0.22s ease;
+}
+@keyframes fp-queue-in { from { opacity: 0; transform: translateY(8px); } }
+.fq-head { display: flex; align-items: center; gap: 8px; }
+.fq-heading { font-size: 20px; font-weight: 800; margin-right: auto; }
+.fq-add-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: none; border-radius: 999px; padding: 7px 14px;
+    background: rgba(255, 255, 255, 0.14); color: #fff;
+    font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.fq-add-btn:hover { background: rgba(255, 255, 255, 0.22); }
+.fq-add-btn svg { width: 15px; height: 15px; }
+.fq-back { display: flex; border: none; background: none; color: #fff; padding: 4px; cursor: pointer; }
+.fq-back svg { width: 22px; height: 22px; }
+.fq-search {
+    width: 100%; box-sizing: border-box; padding: 9px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3); color: #fff; font: inherit; font-size: 14px;
+}
+.fq-search:focus { outline: none; border-color: #3FA3FF; }
+.fq-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    margin: 0 -6px;
+    padding: 0 6px;
+}
+.fq-label {
+    margin: 10px 0 4px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
+}
+.fq-empty { margin: 8px 0; font-size: 14px; color: rgba(255, 255, 255, 0.6); }
+
+.fq-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 4px;
+    border-radius: 8px;
+}
+.fq-list.dragging .fq-row { transition: transform 0.15s ease; }
+.fq-list.dragging .fq-row.lifted {
+    transition: none;
+    z-index: 2;
+    background: rgba(40, 40, 42, 0.95);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.fq-main {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+    border: none; background: none; color: inherit; padding: 0; text-align: left; cursor: pointer; font: inherit;
+}
+.fq-cover { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; flex-shrink: 0; background: rgba(255, 255, 255, 0.08); }
+.fq-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.fq-title, .fq-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fq-title { font-size: 14.5px; font-weight: 600; }
+.fq-artist { font-size: 12.5px; color: rgba(255, 255, 255, 0.65); }
+.fq-now .fq-title { color: #3FA3FF; }
+.fq-icon {
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 36px; height: 36px; border: none; border-radius: 50%;
+    background: none; color: rgba(255, 255, 255, 0.6); cursor: pointer;
+}
+.fq-icon:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.fq-icon.on { color: #3FA3FF; }
+.fq-icon svg { width: 18px; height: 18px; }
+.fq-grip { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.fq-list.dragging .fq-grip { cursor: grabbing; }
+
+@media (prefers-reduced-motion: reduce) {
+    .fp-queue { animation-duration: 0.01s; }
+    .fq-list.dragging .fq-row { transition-duration: 0.01s; }
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextIndex, prevAction, estimateRemotePosition, nextRepeatMode, shuffleOrder, isStaleOwnEcho, musicAllowedAt } from '../src/utils/player.js';
+import { nextIndex, prevAction, estimateRemotePosition, nextRepeatMode, shuffleOrder, isStaleOwnEcho, musicAllowedAt, moveQueueItem, removeQueueItem, addToQueue, MAX_QUEUE } from '../src/utils/player.js';
 
 describe('nextIndex', () => {
     it('steps forward and stops or wraps at the end', () => {
@@ -95,5 +95,60 @@ describe('musicAllowedAt', () => {
         for (const p of ['/watch/m27205', '/watch/t1396/1/2', '/downloads/play/abc', '/detail/m27205', '/search', '/books', '/stats', '/', '', null, '/musical']) {
             expect(musicAllowedAt(p)).toBe(false);
         }
+    });
+});
+
+describe('moveQueueItem', () => {
+    const q = { queue: ['a', 'b', 'c', 'd', 'e'], index: 1, originalQueue: null };
+    it('reorders upcoming songs without touching the playing one', () => {
+        expect(moveQueueItem(q, 4, 2)).toEqual({ queue: ['a', 'b', 'e', 'c', 'd'], index: 1, originalQueue: null });
+        expect(moveQueueItem(q, 2, 4)).toEqual({ queue: ['a', 'b', 'd', 'e', 'c'], index: 1, originalQueue: null });
+    });
+    it('keeps index on the playing song when moves cross it', () => {
+        expect(moveQueueItem(q, 0, 3)).toEqual({ queue: ['b', 'c', 'd', 'a', 'e'], index: 0, originalQueue: null });
+        expect(moveQueueItem(q, 4, 0)).toEqual({ queue: ['e', 'a', 'b', 'c', 'd'], index: 2, originalQueue: null });
+        expect(moveQueueItem(q, 1, 3).index).toBe(3);
+    });
+    it('ignores out-of-range and no-op moves', () => {
+        expect(moveQueueItem(q, 2, 2)).toBe(q);
+        expect(moveQueueItem(q, 2, 9)).toBe(q);
+        expect(moveQueueItem(q, -1, 0)).toBe(q);
+    });
+});
+
+describe('removeQueueItem', () => {
+    it('removes an upcoming song', () => {
+        expect(removeQueueItem({ queue: ['a', 'b', 'c'], index: 0, originalQueue: null }, 2))
+            .toEqual({ queue: ['a', 'b'], index: 0, originalQueue: null });
+    });
+    it('shifts index when removing an earlier song', () => {
+        expect(removeQueueItem({ queue: ['a', 'b', 'c'], index: 2, originalQueue: null }, 0))
+            .toEqual({ queue: ['b', 'c'], index: 1, originalQueue: null });
+    });
+    it('never removes the playing song', () => {
+        const q = { queue: ['a', 'b'], index: 1, originalQueue: null };
+        expect(removeQueueItem(q, 1)).toBe(q);
+    });
+    it('drops the song from the unshuffled order too', () => {
+        expect(removeQueueItem({ queue: ['c', 'a', 'b'], index: 0, originalQueue: ['a', 'b', 'c'] }, 1))
+            .toEqual({ queue: ['c', 'b'], index: 0, originalQueue: ['b', 'c'] });
+    });
+});
+
+describe('addToQueue', () => {
+    const q = { queue: ['a', 'b', 'c'], index: 0, originalQueue: null };
+    it('appends to the end by default', () => {
+        expect(addToQueue(q, ['x', 'y'])).toEqual({ queue: ['a', 'b', 'c', 'x', 'y'], index: 0, originalQueue: null });
+    });
+    it('inserts after the playing song with next', () => {
+        expect(addToQueue(q, ['x'], { next: true })).toEqual({ queue: ['a', 'x', 'b', 'c'], index: 0, originalQueue: null });
+    });
+    it('adds to the unshuffled order when shuffled', () => {
+        expect(addToQueue({ ...q, originalQueue: ['c', 'b', 'a'] }, ['x']).originalQueue).toEqual(['c', 'b', 'a', 'x']);
+    });
+    it('stops at the queue limit', () => {
+        const full = { queue: Array.from({ length: MAX_QUEUE }, (_, i) => 'v' + i), index: 0, originalQueue: null };
+        expect(addToQueue(full, ['x'])).toBe(full);
+        expect(addToQueue(q, [])).toBe(q);
     });
 });

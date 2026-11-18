@@ -11,7 +11,7 @@ import Topbar from "../components/topbar.jsx";
 import CoverArt from "../components/coverArt.jsx";
 import ConfirmButton from '../components/confirmButton.jsx';
 import '../stylesheets/music.css';
-import { useMusicPlayer, playQueue, currentSong, togglePlay, cachedLibrary, reopenPlayer } from '../player/musicPlayer.js';
+import { useMusicPlayer, playQueue, currentSong, togglePlay, cachedLibrary, reopenPlayer, addSongsToQueue } from '../player/musicPlayer.js';
 import { usePlaylists, refreshPlaylists, createPlaylist, updatePlaylist, deletePlaylist, openPlaylistPicker } from '../player/playlists.js';
 import { listOffline, saveOffline, removeOffline } from '../player/offlineSongs.js';
 
@@ -59,6 +59,7 @@ const Icon = {
     heart: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" /></svg>,
     heartFilled: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" /></svg>,
     plus: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>,
+    queueAdd: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h13M3 12h13M3 18h9" /><path d="M17 15.5v5l4-2.5-4-2.5z" fill="currentColor" /></svg>,
     playlistAdd: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h12M3 12h12M3 18h7M17 14v7M13.5 17.5h7" /></svg>,
     edit: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>,
     trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" /></svg>,
@@ -104,6 +105,12 @@ function useMusicLibrary() {
         if (!list?.length) return;
         if (playing?.videoId === list[index].videoId && player.queue.length === list.length) return togglePlay();
         playQueue(list, index);
+    };
+    // Add to the end of the queue (or start playing it if nothing is queued).
+    const queueSong = (song) => {
+        const wasEmpty = !player.queue.length;
+        addSongsToQueue([song]);
+        if (!wasEmpty) flash(`Added "${song.title}" to the queue`, 2500);
     };
     const shufflePlay = (list) => {
         if (!list?.length) return;
@@ -198,7 +205,7 @@ function useMusicLibrary() {
 
     return {
         user, library, loadLibrary, offlineIds, offlineBusy, zipBusy, rowBusy, status, player, playing,
-        playFrom, shufflePlay, toggleOffline, saveAllOffline, downloadZip, downloadSong, removeSong, isSaved, toggleSaved,
+        playFrom, shufflePlay, queueSong, toggleOffline, saveAllOffline, downloadZip, downloadSong, removeSong, isSaved, toggleSaved,
     };
 }
 
@@ -660,6 +667,7 @@ export function MusicLibrary() {
                             >
                                 {m.offlineBusy === s.videoId ? <div className="music-spinner" /> : m.offlineIds.has(s.videoId) ? Icon.savedCheck : Icon.saveCircle}
                             </button>
+                            <button className="mx-icon-btn" onClick={() => m.queueSong(s)} aria-label={`Add ${s.title} to the queue`} title="Add to queue">{Icon.queueAdd}</button>
                             <button className="mx-icon-btn" onClick={() => openPlaylistPicker(s)} aria-label={`Add ${s.title} to a playlist`} title="Add to playlist">{Icon.playlistAdd}</button>
                             <button className="mx-icon-btn mx-desktop" onClick={() => m.downloadSong(s)} disabled={!!m.rowBusy} aria-label={`Download ${s.title}`} title="Download MP3">
                                 {m.rowBusy === s.videoId ? <div className="music-spinner" /> : Icon.download}
@@ -759,6 +767,7 @@ export function MusicPlaylist() {
                 <div className="mx-list">
                     {songs.map((s, i) => (
                         <SongRow key={s.videoId} song={s} isPlaying={m.playing?.videoId === s.videoId} playingNow={!m.player.paused} onPlay={() => m.playFrom(songs, i)}>
+                            <button className="mx-icon-btn" onClick={() => m.queueSong(s)} aria-label={`Add ${s.title} to the queue`} title="Add to queue">{Icon.queueAdd}</button>
                             <ConfirmButton className="mx-icon-btn" onConfirm={() => removeFromPlaylist(s.videoId)} message="Remove from this playlist?" aria-label={`Remove ${s.title} from this playlist`} title="Remove from playlist">{Icon.close}</ConfirmButton>
                         </SongRow>
                     ))}
