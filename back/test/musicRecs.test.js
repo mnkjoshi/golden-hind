@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    isMusicPowerUser, pickMusicSeeds, buildMusicRecPrompt, songKey, parseMusicRecResponse, musicRecsNeedRefresh,
+    isMusicPowerUser, musicPowerUserReason, pickMusicSeeds, buildMusicRecPrompt, songKey, parseMusicRecResponse, musicRecsNeedRefresh,
 } from '../lib/musicRecs.js';
 
 const listens = (n, seconds, start = 0) => Object.fromEntries(
@@ -86,4 +86,11 @@ test('musicRecsNeedRefresh: missing, or a day old — never sooner', () => {
     assert.equal(musicRecsNeedRefresh({}, 0), true);
     assert.equal(musicRecsNeedRefresh({ ts: 0 }, 23 * h), false);
     assert.equal(musicRecsNeedRefresh({ ts: 0 }, 24 * h), true);
+});
+
+test('musicPowerUserReason says why someone qualifies', () => {
+    assert.equal(musicPowerUserReason(listens(15, 600)), 'listening');
+    const lib = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`lib${String(i).padStart(8, '0')}`, { title: `T${i}` }]));
+    assert.equal(musicPowerUserReason(null, lib), 'library');
+    assert.equal(musicPowerUserReason(null, null), null);
 });

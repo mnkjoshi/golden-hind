@@ -3,6 +3,7 @@ import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import Topbar from "../components/topbar.jsx";
 import { formatWatchTime } from '../utils/format.js';
+import { ALERT_LABELS } from '../components/adminAlerts.jsx';
 
 const BASE_URL = 'https://ghb.mnkjoshi.ca';
 
@@ -217,6 +218,7 @@ export default function Admin() {
     const watchTotals = data?.watchTotals || {};
     const noCommentUsers = data?.noCommentUsers || [];
     const music = data?.music || {};
+    const alerts = data?.alerts || [];
     const watchTotalAll = data?.watchTotalAll || 0;
 
     const eventCounts = analytics.reduce((acc, e) => {
@@ -302,6 +304,13 @@ export default function Admin() {
                         {errors.length > 0 && <span className="tab-badge error">{errors.length}</span>}
                     </button>
                     <button
+                        className={`admin-tab ${tab === 'alerts' ? 'active' : ''}`}
+                        onClick={() => setTab('alerts')}
+                    >
+                        Alerts
+                        <span className="tab-badge">{alerts.length}</span>
+                    </button>
+                    <button
                         className={`admin-tab ${tab === 'analytics' ? 'active' : ''}`}
                         onClick={() => setTab('analytics')}
                     >
@@ -348,6 +357,29 @@ export default function Admin() {
                                         ))}
                                     </tbody>
                                 </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ALERTS TAB — the same notices that pop up */}
+                {tab === 'alerts' && (
+                    <div className="admin-panel">
+                        <h2 className="panel-title">Alerts <span className="panel-subtitle-inline">(last 100)</span></h2>
+                        {alerts.length === 0 ? (
+                            <div className="admin-empty">
+                                <span className="admin-empty-icon">✓</span>
+                                <p>Nothing yet. Sign-ups, settings changes, new errors and new power users show up here.</p>
+                            </div>
+                        ) : (
+                            <div className="admin-alert-list">
+                                {alerts.map(a => (
+                                    <div key={a.id} className="admin-alert-row">
+                                        <span className={`event-pill alert-pill alert-${a.type}`}>{ALERT_LABELS[a.type] || a.type}</span>
+                                        <span className="admin-alert-row-msg">{a.message}</span>
+                                        <span className="admin-alert-row-time">{new Date(a.timestamp).toLocaleString()}</span>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>

@@ -11,6 +11,7 @@ import { formatWatchTime, formatRelativeTime } from '../utils/format.js';
 import RemoteControl from './remote.jsx';
 import PlayerBar from './playerBar.jsx';
 import PlaylistPicker from './playlistPicker.jsx';
+import AdminAlerts from './adminAlerts.jsx';
 import UserAvatar, { AvatarEditor, useMyAvatarVersion, refreshMyAvatar } from './userAvatar.jsx';
 
 const GLITCH_FRAMES = [TextLogoGlitch1, TextLogoGlitch2, TextLogoGlitch3, TextLogoGlitch4, TextLogoGlitch5];
@@ -356,6 +357,7 @@ export default function Topbar() {
         <>
             <PlayerBar />
             <PlaylistPicker />
+            <AdminAlerts />
             <nav className={`modern-topbar ${isScrolled ? 'scrolled' : ''}`}>
                 <div className="topbar-content">
                     {/* Logo */}
