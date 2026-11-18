@@ -12,6 +12,7 @@ import { useSyncExternalStore } from 'react';
 import { defaultDeviceName } from '../utils/remote.js';
 import { nextIndex, prevAction, estimateRemotePosition, shuffleOrder, isStaleOwnEcho, musicAllowedAt, moveQueueItem, removeQueueItem, addToQueue } from '../utils/player.js';
 import { getOfflineUrl } from './offlineSongs.js';
+import { track } from '../utils/analytics.js';
 
 const API = 'https://ghb.mnkjoshi.ca';
 const REPORT_EVERY_MS = 10000;
@@ -255,6 +256,7 @@ function applyRemote(s) {
 // ── Local audio ─────────────────────────────────────────────────────────────
 
 let loadedId = null;
+let lastLoggedPlay = null;   // song last logged to the activity log (once per song start)
 
 async function loadAndPlay(startAt = 0, autoplay = true) {
     if (!audio) return;
@@ -457,6 +459,11 @@ if (audio) {
     });
     audio.addEventListener('playing', () => {
         if (holding) return;
+        if (isActiveHere() && loadedId && loadedId !== lastLoggedPlay) {
+            lastLoggedPlay = loadedId;
+            const song = state.songs[loadedId] || {};
+            track('music_play', { videoId: loadedId, title: song.title || '', artist: song.artist || '' });
+        }
         set({ paused: false, loading: false });
         report(true);
         if ('mediaSession' in navigator && state.allowed) navigator.mediaSession.playbackState = 'playing';

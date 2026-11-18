@@ -18,6 +18,8 @@ function describeEvent(evt) {
             return `Opened ${d.name || d.id || 'a title'}`;
         case 'music_view':
             return `Music · ${d.page || '/music'}`;
+        case 'music_play':
+            return `Played ${d.title || d.videoId || 'a song'}${d.artist ? ` by ${d.artist}` : ''}`;
         case 'book_page':
             return 'Opened Books';
         case 'book_search':
@@ -42,6 +44,7 @@ const EVENT_LABELS = {
     watch: 'Watch',
     detail_view: 'Details',
     music_view: 'Music',
+    music_play: 'Song',
     book_page: 'Books',
     book_search: 'Book search',
     book_download: 'Book download',
