@@ -10,7 +10,7 @@
 import axios from 'axios';
 import { useSyncExternalStore } from 'react';
 import { defaultDeviceName } from '../utils/remote.js';
-import { nextIndex, prevAction, estimateRemotePosition, shuffleOrder, isStaleOwnEcho, musicAllowedAt } from '../utils/player.js';
+import { nextIndex, prevAction, estimateRemotePosition, shuffleOrder, isStaleOwnEcho, musicAllowedAt, moveQueueItem, removeQueueItem, addToQueue } from '../utils/player.js';
 import { getOfflineUrl } from './offlineSongs.js';
 
 const API = 'https://ghb.mnkjoshi.ca';
@@ -57,6 +57,7 @@ let state = {
     loading: false,
     error: '',
     expanded: false,      // full-screen player open (phone-style "Now Playing")
+    queueOpen: false,     // full player showing the queue instead of the cover
     dismissed: false,     // bar hidden on this device (closed, or app just reopened)
 };
 const listeners = new Set();
@@ -649,7 +650,31 @@ export function transferHere() {
     send({ activeDevice: me(), position: at, paused: false, index: state.index });
 }
 
-export function setExpanded(open) { set({ expanded: !!open }); }
+export function setExpanded(open) { set(open ? { expanded: true } : { expanded: false, queueOpen: false }); }
+export function setQueueOpen(open) { set({ queueOpen: !!open }); }
+// Straight to the queue in the full player (from the mini bar).
+export function openQueue() { set({ expanded: true, queueOpen: true, dismissed: false }); }
+
+// ── Queue editing (works from any device) ───────────────────────────────────
+// The playing song stays put, so the playing device keeps its audio loaded.
+
+function applyQueueEdit(edited) {
+    if (edited.queue === state.queue) return;
+    const patch = { queue: edited.queue, index: edited.index, originalQueue: edited.originalQueue || null };
+    set(patch);
+    send(patch);
+}
+
+export const moveInQueue = (from, to) => applyQueueEdit(moveQueueItem(state, from, to));
+export const removeFromQueue = (at) => applyQueueEdit(removeQueueItem(state, at));
+
+// Nothing queued yet: start playing the songs instead.
+export function addSongsToQueue(songs, opts) {
+    if (!songs?.length) return;
+    if (!state.queue.length) return playQueue(songs, 0, { shuffle: false });
+    mergeSongs(songs);
+    applyQueueEdit(addToQueue(state, songs.map(s => s.videoId), opts));
+}
 
 // Bring a dismissed player back, opened full-screen ("Jump back in").
 export function reopenPlayer() { set({ dismissed: false, expanded: true }); }

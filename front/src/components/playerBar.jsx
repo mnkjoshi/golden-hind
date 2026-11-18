@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import {
     useMusicPlayer, ensureStarted, currentSong, isActiveHere, displayPosition,
     togglePlay, next, prev, seek, setShuffle, setRepeat, transferHere, remoteIsStale,
-    setVolume, getVolume, streamUrl, setExpanded, closePlayer,
+    setVolume, getVolume, streamUrl, setExpanded, closePlayer, openQueue,
 } from '../player/musicPlayer.js';
 import FullPlayer from './fullPlayer.jsx';
 import { listOffline, saveOffline, removeOffline } from '../player/offlineSongs.js';
@@ -29,6 +29,7 @@ const Icon = {
     download: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 21h16" /></svg>,
     close: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>,
     more: <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>,
+    queue: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h13M3 12h13M3 18h9" /><path d="M17 15.5v5l4-2.5-4-2.5z" fill="currentColor" /></svg>,
     volume: <svg viewBox="0 0 24 24" fill="none"><path d="M4.5 9.5v5H8l4.5 4v-13L8 9.5H4.5z" fill="currentColor" /><path d="M15.5 9.2a4.2 4.2 0 0 1 0 5.6M18 6.8a7.6 7.6 0 0 1 0 10.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>,
 };
 
@@ -147,6 +148,7 @@ export default function PlayerBar() {
                         {Icon.device}<span>Play here</span>
                     </button>
                 )}
+                <button className="player-icon-btn player-desktop" onClick={openQueue} title="Queue" aria-label="Show queue">{Icon.queue}</button>
                 <a className="player-icon-btn player-desktop" href={streamUrl(song.videoId, true)} title="Download MP3" aria-label="Download MP3">{Icon.download}</a>
                 {here && (
                     <div className="player-volume player-desktop">
@@ -193,6 +195,7 @@ function OptionsSheet({ song, here, onClose }) {
                 </span>
             </div>
             <button onClick={() => { sheet.close(); setExpanded(true); }}>Open player</button>
+            <button onClick={() => { sheet.close(); openQueue(); }}>Queue</button>
             <button onClick={() => sheet.close(() => openPlaylistPicker(song))}>Add to playlist</button>
             <a href={streamUrl(song.videoId, true)} onClick={() => sheet.close()}>Download MP3</a>
             <button onClick={togglePhone} disabled={phoneBusy}>{phoneBusy ? 'Saving…' : onPhone ? 'Remove from this device' : 'Save to this device'}</button>
