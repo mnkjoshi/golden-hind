@@ -3,11 +3,14 @@
 // Gemini call and the per-song YouTube lookups are never spent on anyone else.
 // Input is users/{u}/music_listens/{videoId} = { seconds, title, artist, lastAt }.
 
-// Thresholds for running recommendations at all.
+// Thresholds for running recommendations at all: enough listening, OR a big
+// enough library (listening time is only recorded from Nov 2026 on, so the
+// library is the only history for anything played before that).
 export const POWER_USER = {
     minSongs: 15,             // distinct songs, each played at least…
     minSongSeconds: 60,       // …this long
     minTotalSeconds: 2 * 3600,
+    minLibrarySongs: 40,      // users/{u}/songs
 };
 export const SEEDS_PER_LIST = 8;
 export const RECS_PER_LIST = 10;
@@ -22,21 +25,40 @@ const toList = (listens) => Object.entries(listens || {})
     }))
     .filter(s => s.seconds > 0 && s.title);
 
-export function isMusicPowerUser(listens, t = POWER_USER) {
+// Library songs, newest first: users/{u}/songs/{videoId} = { title, artist, addedAt }
+const libraryList = (library) => Object.entries(library || {})
+    .map(([videoId, s]) => ({ videoId, title: String(s?.title || '').trim(), artist: String(s?.artist || '').trim(), addedAt: Number(s?.addedAt) || 0 }))
+    .filter(s => s.title)
+    .sort((a, b) => b.addedAt - a.addedAt);
+
+export function isMusicPowerUser(listens, library = null, t = POWER_USER) {
     const list = toList(listens);
     const total = list.reduce((sum, s) => sum + s.seconds, 0);
     const songs = list.filter(s => s.seconds >= t.minSongSeconds).length;
-    return songs >= t.minSongs && total >= t.minTotalSeconds;
+    if (songs >= t.minSongs && total >= t.minTotalSeconds) return true;
+    return Object.keys(library || {}).length >= t.minLibrarySongs;
 }
 
 // Most-listened and most-recent songs (the recent list skips anything already
-// in the top list so each prompt section adds signal). `key` changes when
-// either list does, which is what makes a cached result stale.
-export function pickMusicSeeds(listens, n = SEEDS_PER_LIST) {
+// in the top list so each prompt section adds signal). While listening
+// history is thin, each list is topped up with recently added library songs.
+export function pickMusicSeeds(listens, library = null, n = SEEDS_PER_LIST) {
     const list = toList(listens);
-    const top = [...list].sort((a, b) => b.seconds - a.seconds).slice(0, n);
-    const topIds = new Set(top.map(s => s.videoId));
-    const recent = [...list].filter(s => !topIds.has(s.videoId)).sort((a, b) => b.lastAt - a.lastAt).slice(0, n);
+    const used = new Set();
+    const take = (candidates, out) => {
+        for (const s of candidates) {
+            if (out.length >= n) break;
+            if (used.has(s.videoId)) continue;
+            used.add(s.videoId);
+            out.push(s);
+        }
+        return out;
+    };
+    const lib = libraryList(library);
+    const top = take([...list].sort((a, b) => b.seconds - a.seconds), []);
+    const recent = take([...list].sort((a, b) => b.lastAt - a.lastAt), []);
+    take(lib, top);
+    take(lib, recent);
     return { top, recent, key: [...top, ...recent].map(s => s.videoId).join(',') };
 }
 

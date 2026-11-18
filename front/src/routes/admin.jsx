@@ -216,6 +216,7 @@ export default function Admin() {
     const users = data?.users || [];
     const watchTotals = data?.watchTotals || {};
     const noCommentUsers = data?.noCommentUsers || [];
+    const music = data?.music || {};
     const watchTotalAll = data?.watchTotalAll || 0;
 
     const eventCounts = analytics.reduce((acc, e) => {
@@ -462,6 +463,7 @@ export default function Admin() {
                                     {u === 'manav' && <span className="chip-crown">★</span>}
                                     <span className="chip-name">{u}</span>
                                     {watchTotals[u] > 0 && <span className="chip-watchtime">{formatWatchTime(watchTotals[u])}</span>}
+                                    {music[u]?.songs > 0 && <span className="chip-music" title="Songs in their music library">♪ {music[u].songs}</span>}
                                     {noCommentUsers.includes(u) && <span className="chip-no-comments">no comments</span>}
                                 </button>
                             ))}
@@ -510,6 +512,14 @@ export default function Admin() {
                                     <div className="admin-activity-stat">
                                         <div className="admin-activity-stat-value">{userActivity?.sessions?.length || 0}</div>
                                         <div className="admin-activity-stat-label">Sessions</div>
+                                    </div>
+                                    <div className="admin-activity-stat">
+                                        <div className="admin-activity-stat-value">{music[selectedUser]?.songs || 0}</div>
+                                        <div className="admin-activity-stat-label">Songs · {music[selectedUser]?.playlists || 0} playlists</div>
+                                    </div>
+                                    <div className="admin-activity-stat">
+                                        <div className="admin-activity-stat-value">{formatWatchTime(music[selectedUser]?.listenSeconds || 0)}</div>
+                                        <div className="admin-activity-stat-label">Listened</div>
                                     </div>
                                 </div>
                                 {(!userActivity?.sessions || userActivity.sessions.length === 0) ? (

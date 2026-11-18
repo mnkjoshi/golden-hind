@@ -619,6 +619,8 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    /* Rows slide sideways when swiped or removed; that must never scroll the list */
+    overflow-x: hidden;
     overscroll-behavior: contain;
     touch-action: pan-y;
     margin: 0 -6px;
@@ -653,9 +655,13 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
 .fq-item {
     position: relative;
     display: grid;
+    /* minmax(0, …): a grid item is otherwise as wide as its content, so a long
+       title would widen its row and push that row's buttons out of line */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 1fr;
     transition: grid-template-rows 0.2s ease 0.18s;
 }
+.fq-item > .fq-row { min-width: 0; }
 .fq-item.leaving { grid-template-rows: 0fr; overflow: hidden; pointer-events: none; }
 .fq-item.entering { overflow: hidden; animation: fq-enter 0.36s cubic-bezier(0.22, 1, 0.36, 1); }
 @keyframes fq-enter {
@@ -664,6 +670,7 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
 }
 .fq-swipe-bg {
     position: absolute;
+    max-width: 100%;
     top: 0;
     bottom: 0;
     display: flex;
