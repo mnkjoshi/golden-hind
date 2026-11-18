@@ -1456,7 +1456,15 @@ app.post('/admin/data', async (request, response) => {
         const introSeenCount = Object.values(usersVal)
             .filter(u => (u.introSeenVersion || 0) >= (introConfig.version || 1)).length;
         const noCommentUsers = users.filter(u => usersVal[u]?.noComments === true);
-        response.status(200).json({ errors, analytics, users, watchTotals, watchTotalAll, introConfig, introSeenCount, noCommentUsers });
+        // Music use per user: library size, playlists, recorded listening time.
+        const music = {};
+        for (const [uname, u] of Object.entries(usersVal)) {
+            const songs = Object.keys(u?.songs || {}).length;
+            const playlists = Object.keys(u?.playlists || {}).length;
+            const listenSeconds = Math.round(Object.values(u?.music_listens || {}).reduce((sum, l) => sum + (Number(l?.seconds) || 0), 0));
+            if (songs || playlists || listenSeconds) music[uname] = { songs, playlists, listenSeconds };
+        }
+        response.status(200).json({ errors, analytics, users, watchTotals, watchTotalAll, introConfig, introSeenCount, noCommentUsers, music });
     } catch (error) {
         logError('manav', '/admin/data', error).catch(() => {});
         response.status(200).json({ errors: [], analytics: [], users: [], fetchError: error.message });
@@ -3228,14 +3236,13 @@ async function mapLimit(items, limit, fn) {
     return out;
 }
 
-async function refreshMusicRecs(user, listens) {
+async function refreshMusicRecs(user, listens, library) {
     if (musicRecsInFlight.has(user)) return;
     if (Date.now() - (musicRecsLastFailure.get(user) || 0) < MUSIC_RECS_RETRY_MS) return;
     musicRecsInFlight.add(user);
     try {
         const db = admin.database();
-        const seeds = pickMusicSeeds(listens);
-        const library = (await db.ref(`users/${user}/songs`).once('value')).val() || {};
+        const seeds = pickMusicSeeds(listens, library);
         // Never recommend something they already have or have played.
         const knownIds = new Set([...Object.keys(library), ...Object.keys(listens || {})]);
         const known = new Set([...Object.values(library), ...Object.values(listens || {})].map(x => songKey(x?.title, x?.artist)));
@@ -3265,13 +3272,18 @@ app.post('/music/recommendations', async (req, res) => {
     if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
     try {
         const db = admin.database();
-        const listens = (await db.ref(`users/${user}/music_listens`).once('value')).val();
-        if (!isMusicPowerUser(listens)) return res.json({ eligible: false });
+        const [listensSnap, librarySnap] = await Promise.all([
+            db.ref(`users/${user}/music_listens`).once('value'),
+            db.ref(`users/${user}/songs`).once('value'),
+        ]);
+        const listens = listensSnap.val();
+        const library = librarySnap.val() || {};
+        if (!isMusicPowerUser(listens, library)) return res.json({ eligible: false });
         const cache = (await db.ref(`users/${user}/musicRecCache`).once('value')).val();
         let items = null;
         try { items = cache?.items ? JSON.parse(cache.items) : null; } catch { /* rebuilt below */ }
         const stale = !items || musicRecsNeedRefresh(cache, Date.now());
-        if (stale && process.env.GEMINI_API_KEY) refreshMusicRecs(user, listens);
+        if (stale && process.env.GEMINI_API_KEY) refreshMusicRecs(user, listens, library);
         res.json({
             eligible: true,
             favourites: items?.favourites || [],

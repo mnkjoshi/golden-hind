@@ -16,6 +16,12 @@ test('isMusicPowerUser needs enough songs and enough total time', () => {
     assert.equal(isMusicPowerUser(null), false);
 });
 
+test('isMusicPowerUser also accepts a big library', () => {
+    const lib = (n) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`lib${String(i).padStart(8, '0')}`, { title: `T${i}`, artist: 'A', addedAt: i }]));
+    assert.equal(isMusicPowerUser(null, lib(40)), true);
+    assert.equal(isMusicPowerUser(listens(3, 60), lib(39)), false);
+});
+
 test('pickMusicSeeds takes top by time and recent by last play, without overlap', () => {
     const l = {
         a: { seconds: 900, title: 'A', artist: 'X', lastAt: 1 },
@@ -23,10 +29,24 @@ test('pickMusicSeeds takes top by time and recent by last play, without overlap'
         c: { seconds: 500, title: 'C', artist: 'Z', lastAt: 40 },
         d: { seconds: 50, title: 'D', artist: 'W', lastAt: 30 },
     };
-    const seeds = pickMusicSeeds(l, 2);
+    const seeds = pickMusicSeeds(l, null, 2);
     assert.deepEqual(seeds.top.map(s => s.videoId), ['a', 'c']);
     assert.deepEqual(seeds.recent.map(s => s.videoId), ['b', 'd']);
     assert.equal(seeds.key, 'a,c,b,d');
+});
+
+test('pickMusicSeeds tops up thin history with the newest library songs', () => {
+    const l = { a: { seconds: 300, title: 'A', artist: 'X', lastAt: 5 } };
+    const lib = {
+        a: { title: 'A', artist: 'X', addedAt: 1 },
+        n1: { title: 'N1', artist: 'Y', addedAt: 30 },
+        n2: { title: 'N2', artist: 'Y', addedAt: 20 },
+        n3: { title: 'N3', artist: 'Z', addedAt: 10 },
+    };
+    const seeds = pickMusicSeeds(l, lib, 2);
+    assert.deepEqual(seeds.top.map(s => s.videoId), ['a', 'n1']);
+    assert.deepEqual(seeds.recent.map(s => s.videoId), ['n2', 'n3']);
+    assert.deepEqual(pickMusicSeeds(null, lib, 2).top.map(s => s.videoId), ['n1', 'n2']);
 });
 
 test('buildMusicRecPrompt lists both seed groups and asks for JSON', () => {

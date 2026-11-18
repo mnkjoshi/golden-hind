@@ -723,3 +723,13 @@
     font-size: 12px;
     color: #8b949e;
 }
+
+.chip-music {
+    font-size: 11px;
+    color: #ff7eb6;
+    background: rgba(255, 126, 182, 0.12);
+    border-radius: 10px;
+    padding: 1px 7px;
+}
+.admin-activity-stats { flex-wrap: wrap; }
+.admin-activity-stat { min-width: 110px; }
