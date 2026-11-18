@@ -333,11 +333,58 @@ function SongRow({ song, isPlaying, playingNow, onPlay, onLongPress, selecting =
 
 // ── Home ─────────────────────────────────────────────────────────────────────
 
+// Recommendations for people who listen a lot (the server decides who
+// qualifies and rebuilds them at most once a day). Everyone else gets
+// { eligible: false } and the shelves simply don't appear.
+function useMusicRecs() {
+    const [recs, setRecs] = useState(null);
+    useEffect(() => {
+        const { user, token } = auth();
+        if (!user || !token) return;
+        let retry;
+        const load = (again) => axios.post(`${API}/music/recommendations`, { user, token })
+            .then(r => {
+                setRecs(r.data);
+                // First build runs in the background on the server; look once more.
+                if (again && r.data?.building) retry = setTimeout(() => load(false), 30000);
+            })
+            .catch(() => {});
+        load(true);
+        return () => clearTimeout(retry);
+    }, []);
+    return recs?.eligible ? recs : null;
+}
+
+function RecShelf({ title, songs, m }) {
+    if (!songs?.length) return null;
+    return (
+        <section className="mx-section">
+            <div className="mx-section-head">
+                <h2>{title}</h2>
+                <button onClick={() => m.playFrom(songs, 0)}>Play all</button>
+            </div>
+            <div className="mx-shelf">
+                {songs.map((s, i) => (
+                    <div key={s.videoId} className="mx-card mx-rec-card">
+                        <button className="mx-rec-play" onClick={() => m.playFrom(songs, i)} aria-label={`Play ${s.title}`}>
+                            <CoverArt className="mx-card-cover" videoId={s.videoId} />
+                            <span className="mx-card-title">{s.title}</span>
+                            <span className="mx-card-sub">{s.artist}</span>
+                        </button>
+                        <button className="mx-rec-queue" onClick={() => m.queueSong(s)} aria-label={`Add ${s.title} to the queue`} title="Add to queue">{Icon.queueAdd}</button>
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+}
+
 export default function MusicHome() {
     const navigate = useNavigate();
     const m = useMusicLibrary();
     const library = m.library || [];
     const artists = useArtists(library);
+    const recs = useMusicRecs();
     if (!m.user) { navigate('/auth'); return null; }
 
     const hour = new Date().getHours();
@@ -372,6 +419,17 @@ export default function MusicHome() {
                                 <span className="mx-jump-artist">{now.artist}</span>
                             </span>
                         </button>
+                    )}
+
+                    {recs && (
+                        <>
+                            <RecShelf
+                                title={recs.because ? `Because you play ${recs.because.artist || recs.because.title}` : 'Picked for you'}
+                                songs={recs.favourites}
+                                m={m}
+                            />
+                            <RecShelf title="Fresh picks" songs={recs.recent} m={m} />
+                        </>
                     )}
 
                     <section className="mx-section">

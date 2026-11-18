@@ -948,3 +948,32 @@
     .mx-select-bar, .mx-row-check, .mx-row-actions { transition-duration: 0.01s; }
     .mx-row.selected .mx-row-check { animation: none; }
 }
+
+/* ── Recommendation shelves (power listeners) ── */
+.mx-rec-card { position: relative; animation: mx-rec-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+.mx-rec-card:nth-child(2) { animation-delay: 40ms; }
+.mx-rec-card:nth-child(3) { animation-delay: 80ms; }
+.mx-rec-card:nth-child(4) { animation-delay: 120ms; }
+.mx-rec-card:nth-child(n+5) { animation-delay: 160ms; }
+@keyframes mx-rec-in { from { opacity: 0; transform: translateY(8px); } }
+.mx-rec-play {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%;
+    padding: 0; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.mx-rec-queue {
+    position: absolute; top: 112px; right: 6px;
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border: none; border-radius: 50%;
+    background: rgba(10, 14, 39, 0.75); color: #fff; cursor: pointer;
+    opacity: 0; transform: scale(0.85);
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+.mx-rec-queue svg { width: 16px; height: 16px; }
+.mx-rec-card:hover .mx-rec-queue, .mx-rec-queue:focus-visible { opacity: 1; transform: scale(1); }
+.mx-rec-queue:hover { background: #3FA3FF; color: #0a0e27; }
+@media (hover: none) { .mx-rec-queue { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .mx-rec-card { animation: none; } }
+
+@media (max-width: 760px) {
+    .mx-rec-queue { top: 92px; }
+}
