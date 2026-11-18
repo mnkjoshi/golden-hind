@@ -33,6 +33,7 @@ import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar
 import { emailKey, emailFromKey, isValidUsername, isValidEmail } from './lib/accounts.js';
 import { buildReviewArchiveUpdate } from './lib/reviews.js';
 import { sanitizeListenReport, aggregateListening } from './lib/listening.js';
+import { isMusicPowerUser, pickMusicSeeds, buildMusicRecPrompt, parseMusicRecResponse, songKey, musicRecsNeedRefresh } from './lib/musicRecs.js';
 import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
@@ -3175,6 +3176,112 @@ app.post('/music/search', async (req, res) => {
         logError(user, '/music/search', e).catch(() => {});
         const f = ytFailure(e, 'Search failed. Try again in a moment.');
         res.status(f.status).json({ error: f.error });
+    }
+});
+
+// ── Music recommendations (power users only) ────────────────────────────────
+// users/{u}/musicRecCache = { items: JSON { favourites, recent, because }, ts, inputKey }
+// Gemini suggests songs from the user's most-played and recent listening;
+// each is then found on YouTube Music. Rebuilt at most once a day, in the
+// background — requests always get the cached list straight away.
+const musicRecsInFlight = new Set();
+const musicRecsLastFailure = new Map();   // user -> time; don't hammer Gemini after an error
+const MUSIC_RECS_RETRY_MS = 60 * 60 * 1000;
+
+async function askGeminiForSongs(prompt, maxRetries = 2) {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            const resp = await axios.post(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
+                { contents: [{ parts: [{ text: prompt }] }] },
+                { timeout: 60000 },
+            );
+            return resp.data.candidates[0].content.parts[0].text;
+        } catch (e) {
+            if (e?.response?.status !== 503 || attempt > maxRetries) throw e;
+            await new Promise(r => setTimeout(r, 1500 * attempt));
+        }
+    }
+}
+
+// A suggested { title, artist } → the matching official song on YouTube Music.
+async function resolveRecSong({ title, artist }) {
+    const q = sanitizeSearchQuery(`${artist} ${title}`);
+    if (!q) return null;
+    try {
+        const { stdout } = await runYtDlp(['--flat-playlist', '--playlist-end', '1', '--dump-json', '--no-warnings',
+            `https://music.youtube.com/search?q=${encodeURIComponent(q)}#songs`], 20000);
+        const [hit] = parseYtSearchOutput(stdout, { official: true });
+        return hit ? { videoId: hit.videoId, title: hit.title || title, artist } : null;
+    } catch {
+        return null;
+    }
+}
+
+// Runs fn over items, `limit` at a time (yt-dlp searches are heavy).
+async function mapLimit(items, limit, fn) {
+    const out = new Array(items.length);
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (next < items.length) { const i = next++; out[i] = await fn(items[i]); }
+    }));
+    return out;
+}
+
+async function refreshMusicRecs(user, listens) {
+    if (musicRecsInFlight.has(user)) return;
+    if (Date.now() - (musicRecsLastFailure.get(user) || 0) < MUSIC_RECS_RETRY_MS) return;
+    musicRecsInFlight.add(user);
+    try {
+        const db = admin.database();
+        const seeds = pickMusicSeeds(listens);
+        const library = (await db.ref(`users/${user}/songs`).once('value')).val() || {};
+        // Never recommend something they already have or have played.
+        const knownIds = new Set([...Object.keys(library), ...Object.keys(listens || {})]);
+        const known = new Set([...Object.values(library), ...Object.values(listens || {})].map(x => songKey(x?.title, x?.artist)));
+
+        const picks = parseMusicRecResponse(await askGeminiForSongs(buildMusicRecPrompt(seeds)), known);
+        const resolve = async (list) => (await mapLimit(list, 3, resolveRecSong))
+            .filter(song => song && !knownIds.has(song.videoId) && knownIds.add(song.videoId));
+        const favourites = await resolve(picks.favourites);
+        const recent = await resolve(picks.recent);
+        if (!favourites.length && !recent.length) throw new Error('No recommendations resolved');
+
+        const top = seeds.top[0];
+        const items = { favourites, recent, because: top ? { title: top.title, artist: top.artist } : null };
+        await db.ref(`users/${user}/musicRecCache`).set({ items: JSON.stringify(items), ts: Date.now(), inputKey: seeds.key });
+        musicRecsLastFailure.delete(user);
+    } catch (e) {
+        musicRecsLastFailure.set(user, Date.now());
+        console.error('[music/recommendations] refresh failed:', e.message);
+        logError(user, '/music/recommendations refresh', e).catch(() => {});
+    } finally {
+        musicRecsInFlight.delete(user);
+    }
+}
+
+app.post('/music/recommendations', async (req, res) => {
+    const { user, token } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const db = admin.database();
+        const listens = (await db.ref(`users/${user}/music_listens`).once('value')).val();
+        if (!isMusicPowerUser(listens)) return res.json({ eligible: false });
+        const cache = (await db.ref(`users/${user}/musicRecCache`).once('value')).val();
+        let items = null;
+        try { items = cache?.items ? JSON.parse(cache.items) : null; } catch { /* rebuilt below */ }
+        const stale = !items || musicRecsNeedRefresh(cache, Date.now());
+        if (stale && process.env.GEMINI_API_KEY) refreshMusicRecs(user, listens);
+        res.json({
+            eligible: true,
+            favourites: items?.favourites || [],
+            recent: items?.recent || [],
+            because: items?.because || null,
+            building: !items && musicRecsInFlight.has(user),
+        });
+    } catch (e) {
+        logError(user, '/music/recommendations', e).catch(() => {});
+        res.json({ eligible: false });
     }
 });
 
