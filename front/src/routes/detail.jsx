@@ -64,6 +64,10 @@ export default function Detail() {
 
     const [resumeSeason, setResumeSeason] = useState(null);
     const [resumeEpisode, setResumeEpisode] = useState(null);
+    // Server's pick for Play: { season, episode, kind: 'resume' | 'next' | 'start' }
+    const [nextUp, setNextUp] = useState(null);
+    // How far into each episode of the selected season (episode -> 0..1)
+    const [seasonPct, setSeasonPct] = useState({});
     const [overviewExpanded, setOverviewExpanded] = useState(false);
     const [isOverviewClamped, setIsOverviewClamped] = useState(false);
     const overviewRef = useRef(null);
@@ -116,6 +120,29 @@ export default function Detail() {
             .catch(() => {})
             .finally(() => setReviewSubmitting(false));
     };
+
+    useEffect(() => {
+        if (mediaType !== 'tv' || !user || !token) return;
+        setNextUp(null);
+        axios.post(`${API}/next-up`, { user, token, ids: [id] })
+            .then(r => {
+                const n = r.data?.[id];
+                if (!n) return;
+                setNextUp(n);
+                setSelectedSeason(n.season);
+            })
+            .catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
+
+    useEffect(() => {
+        if (mediaType !== 'tv' || !user || !token) return;
+        setSeasonPct({});
+        axios.post(`${API}/position/season`, { user, token, contentId: id, season: selectedSeason })
+            .then(r => setSeasonPct(r.data && typeof r.data === 'object' ? r.data : {}))
+            .catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, selectedSeason]);
 
     // Read resume position — try DB first, fall back to localStorage
     useEffect(() => {
@@ -209,6 +236,7 @@ export default function Detail() {
     }, [selectedSeason, detail]);
 
     const handlePlay = () => {
+        if (mediaType === 'tv' && nextUp) return handleEpisodePlay(nextUp.season, nextUp.episode);
         navigate(`/watch/${id}`);
         // watch.jsx reads resume position from localStorage itself
     };
@@ -256,6 +284,10 @@ export default function Detail() {
     };
 
     const getPlayLabel = () => {
+        if (mediaType === 'tv' && nextUp) {
+            const se = `S${nextUp.season} E${nextUp.episode}`;
+            return nextUp.kind === 'next' ? `Next: ${se}` : nextUp.kind === 'resume' ? `Resume ${se}` : `Play ${se}`;
+        }
         if (mediaType === 'tv') {
             const s = resumeSeason || 1;
             const e = resumeEpisode || 1;
@@ -568,6 +600,11 @@ export default function Detail() {
                                                 : <div className="detail-episode-no-thumb" />
                                             }
                                             {isWatched && <span className="detail-episode-watched-badge">✓ Watched</span>}
+                                            {seasonPct[ep.episode_number] > 0.02 && seasonPct[ep.episode_number] < 0.9 && (
+                                                <div className="detail-episode-progress" aria-label={`${Math.round(seasonPct[ep.episode_number] * 100)}% watched`}>
+                                                    <div style={{ width: `${seasonPct[ep.episode_number] * 100}%` }} />
+                                                </div>
+                                            )}
                                             <div className="detail-episode-play-icon">▶</div>
                                         </div>
                                         <div className="detail-episode-info">

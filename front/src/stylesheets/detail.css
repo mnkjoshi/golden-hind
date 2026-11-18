@@ -1138,3 +1138,16 @@
 .detail-episode-row.watched .detail-episode-thumb img { opacity: 0.4; }
 .detail-episode-row.watched .detail-episode-title,
 .detail-episode-row.watched .detail-episode-overview { color: rgba(255,255,255,0.45); }
+
+/* Partly watched episode: progress along the bottom of the thumbnail */
+.detail-episode-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    pointer-events: none;
+}
+.detail-episode-progress > div { height: 100%; background: #3FA3FF; }
