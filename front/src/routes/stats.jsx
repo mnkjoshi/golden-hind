@@ -5,6 +5,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import Topbar from '../components/topbar';
 import { formatWatchTime, formatRelativeTime } from '../utils/format.js';
+import CoverArt from '../components/coverArt.jsx';
 
 const API = 'https://ghb.mnkjoshi.ca';
 
@@ -232,7 +233,7 @@ export default function Stats() {
 
                 {loading && <div className="stats-hint">Charting the waters…</div>}
 
-                {!loading && (!data || data.sessionCount === 0) && (
+                {!loading && (!data || data.sessionCount === 0) && !(data?.music?.totalSeconds > 0) && (
                     <div className="stats-hint">
                         No voyages logged yet — watch something and check back.
                     </div>
@@ -335,6 +336,49 @@ export default function Stats() {
                             </div>
                         </div>
                     </>
+                )}
+
+                {!loading && data?.music?.totalSeconds > 0 && (introDone || !data.sessionCount) && (
+                    <div className="stats-section stats-music stats-anim" style={{ animationDelay: data.sessionCount ? '760ms' : '0ms' }}>
+                        <h2>Your music</h2>
+                        <div className="stats-music-hero">
+                            <span className="stats-hero-number">{formatWatchTime(data.music.totalSeconds)}</span>
+                            <span className="stats-hero-label">listened · {data.music.songCount} song{data.music.songCount === 1 ? '' : 's'}</span>
+                        </div>
+                        <div className="stats-columns">
+                            <div>
+                                <h3 className="stats-music-sub">Top songs</h3>
+                                <div className="stats-top-list">
+                                    {data.music.topSongs.map((t, i) => (
+                                        <div key={t.videoId} className="stats-top-row">
+                                            <span className="stats-top-rank">{i + 1}</span>
+                                            <CoverArt className="stats-top-poster stats-music-cover" videoId={t.videoId} />
+                                            <div className="stats-top-info">
+                                                <span className="stats-top-name">{t.title}</span>
+                                                <span className="stats-top-meta">{t.artist ? `${t.artist} · ` : ''}{formatWatchTime(t.seconds)}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            {data.music.topArtists.length > 0 && (
+                                <div>
+                                    <h3 className="stats-music-sub">Top artists</h3>
+                                    <div className="stats-top-list">
+                                        {data.music.topArtists.map((a, i) => (
+                                            <div key={a.name} className="stats-top-row">
+                                                <span className="stats-top-rank">{i + 1}</span>
+                                                <div className="stats-top-info">
+                                                    <span className="stats-top-name">{a.name}</span>
+                                                    <span className="stats-top-meta">{formatWatchTime(a.seconds)}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 )}
             </div>
         </div>

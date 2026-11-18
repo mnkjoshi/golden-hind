@@ -10,6 +10,7 @@ import Authenticate from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx";
 import CoverArt from "../components/coverArt.jsx";
 import ConfirmButton from '../components/confirmButton.jsx';
+import { track } from '../utils/analytics.js';
 import '../stylesheets/music.css';
 import { useMusicPlayer, playQueue, currentSong, togglePlay, cachedLibrary, reopenPlayer, addSongsToQueue } from '../player/musicPlayer.js';
 import { usePlaylists, refreshPlaylists, createPlaylist, updatePlaylist, deletePlaylist, openPlaylistPicker } from '../player/playlists.js';
@@ -241,6 +242,8 @@ function MusicNav() {
 }
 
 function Shell({ children }) {
+    const { pathname } = useLocation();
+    useEffect(() => { track('music_view', { page: pathname }); }, [pathname]);
     return (
         <div className="music-page">
             <Topbar />

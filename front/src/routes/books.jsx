@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios'
 import Authenticate  from "../components/authenticate.jsx";
 import Topbar from "../components/topbar.jsx"
+import { track } from '../utils/analytics.js'
 import '../stylesheets/books.css'
 
 
@@ -18,6 +19,7 @@ export default function Books() {
     const searched = state?.searched || "";
     
     const itemsPerPage = window.innerWidth < 800 ? 6 : 12;
+    useEffect(() => { track('book_page', {}); }, []);
     const user = localStorage.getItem("user");
     const token = localStorage.getItem("token");
     
@@ -31,6 +33,7 @@ export default function Books() {
         
         if (searched && searched !== currentSearch) {
             setLoading(true);
+            track('book_search', { query: searched });
             axios({
                 method: 'get',
                 url: `https://ghb.mnkjoshi.ca/book-search?q=${encodeURIComponent(searched)}`
@@ -169,7 +172,7 @@ export default function Books() {
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="book-download-btn"
-                                        onClick={(e) => e.stopPropagation()}
+                                        onClick={(e) => { e.stopPropagation(); track('book_download', { title: book.title || '', author: book.author || '' }); }}
                                     >
                                         Download
                                     </a>

@@ -3,6 +3,7 @@ import axios from 'axios';
 import React, { useEffect, useState, useRef } from 'react';
 import Topbar from '../components/topbar';
 import { sendRemotePreview } from '../components/remote.jsx';
+import { track } from '../utils/analytics.js';
 
 const API = 'https://ghb.mnkjoshi.ca';
 
@@ -166,6 +167,7 @@ export default function Detail() {
             axios.post(`${API}/home-mini`, { user, token }),
         ]).then(([detailRes, trailerRes, similarRes, miniRes]) => {
             setDetail(detailRes.data);
+            track('detail_view', { id, name: detailRes.data?.title || detailRes.data?.name || '' });
             if (trailerRes.data?.key) setTrailerKey(trailerRes.data.key);
             if (Array.isArray(similarRes.data)) setSimilarData(similarRes.data);
             try {
