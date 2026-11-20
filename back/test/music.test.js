@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
     sanitizeSearchQuery, formatDuration, parseYtSearchOutput,
     artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs,
-    buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate,
+    buildTrackTags, coverCandidates, buildMp3FfmpegArgs, buildMp3EncodeArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate,
     sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId,
 } from '../lib/music.js';
 
@@ -245,4 +245,16 @@ test('playlist helpers validate names, songs, and ids', () => {
     assert.ok(isValidPlaylistId('-NxAbC_12-z'));
     assert.ok(!isValidPlaylistId('../etc'));
     assert.ok(!isValidPlaylistId(''));
+});
+
+test('buildMp3EncodeArgs encodes stdin to an untagged MP3', () => {
+    assert.deepEqual(buildMp3EncodeArgs('/tmp/raw.mp3'), ['-y', '-i', 'pipe:0', '-vn', '-codec:a', 'libmp3lame', '-q:a', '2', '-f', 'mp3', '/tmp/raw.mp3']);
+});
+
+test('buildMp3FfmpegArgs can re-wrap an encoded MP3 without re-encoding', () => {
+    const args = buildMp3FfmpegArgs({ title: 'T', artist: 'A' }, '/tmp/c.jpg', '/tmp/out.mp3', { input: '/tmp/raw.mp3', copyAudio: true });
+    assert.deepEqual(args.slice(0, 3), ['-y', '-i', '/tmp/raw.mp3']);
+    assert.ok(args.includes('copy'));
+    assert.ok(!args.includes('libmp3lame'));
+    assert.ok(args.includes('attached_pic'));
 });

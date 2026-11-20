@@ -279,6 +279,15 @@ async function loadAndPlay(startAt = 0, autoplay = true) {
     if (autoplay) tryPlay();
 }
 
+// A new song started: have the server get the next two ready, so skipping
+// (or the song ending) starts the next one straight away.
+function prefetchUpcoming() {
+    const ids = [1, 2].map(n => state.queue[state.index + n]).filter(id => id && id !== loadedId);
+    const { user, token } = auth();
+    if (!ids.length || !user || !token) return;
+    axios.post(`${API}/music/prefetch`, { user, token, videoIds: [...new Set(ids)] }).catch(() => {});
+}
+
 // ── Background hold ─────────────────────────────────────────────────────────
 // iOS freezes a web app a few seconds after its audio pauses in the
 // background (a separate Web Audio keep-alive gets cut off too, ~12s in), and
@@ -464,6 +473,7 @@ if (audio) {
             lastLoggedPlay = loadedId;
             const song = state.songs[loadedId] || {};
             track('music_play', { videoId: loadedId, title: song.title || '', artist: song.artist || '' });
+            prefetchUpcoming();
         }
         set({ paused: false, loading: false });
         report(true);

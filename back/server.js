@@ -37,7 +37,7 @@ import { buildReviewArchiveUpdate } from './lib/reviews.js';
 import { sanitizeListenReport, aggregateListening, listeningHistory } from './lib/listening.js';
 import { errorSignature, registerAlertMessage, alertsSince } from './lib/alerts.js';
 import { isMusicPowerUser, musicPowerUserReason, pickMusicSeeds, buildMusicRecPrompt, parseMusicRecResponse, songKey, musicRecsNeedRefresh } from './lib/musicRecs.js';
-import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
+import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, buildMp3EncodeArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -3449,38 +3449,42 @@ async function readCachedSong(videoId) {
 // the raw stream URL elsewhere) and pipes it to ffmpeg, which encodes into a
 // real file — the ID3 cover and Xing duration frame are finalised by seeking
 // back, which a pipe can't do (see buildMp3FfmpegArgs).
-async function encodeSongToCache(videoId) {
-    const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    console.log(`[music/download] ${videoId}`);
-    const { stdout } = await runYtDlp(
-        ['--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio',
-            '--print', '%(.{title,track,artist,artists,uploader,album,release_year,upload_date})j', ytUrl],
-        30000
-    );
-    let info = {};
-    try { info = JSON.parse(stdout.trim().split('\n').pop()); } catch { /* tags fall back to the id */ }
-    const tags = buildTrackTags(info, videoId);
-
-    // Cover art is best-effort: a failure just means no picture.
-    const coverPath = path.join(os.tmpdir(), `gh-cover-${videoId}-${Date.now()}.jpg`);
-    let haveCover = false;
+// Cover art for a song, best-effort: false just means no picture.
+async function fetchCover(videoId, coverPath) {
     for (const src of coverCandidates(videoId)) {
         try {
             const img = await axios.get(src, { responseType: 'arraybuffer', timeout: 6000, maxContentLength: 5 * 1024 * 1024 });
             if (!String(img.headers['content-type'] || '').startsWith('image/')) continue;
             await fs.promises.writeFile(coverPath, img.data);
-            haveCover = true;
-            break;
+            return true;
         } catch { /* 404 (no maxres thumbnail) → try the next one */ }
     }
+    return false;
+}
 
-    console.log(`[music/download] streaming: "${tags.fileName}" by ${tags.artist}${haveCover ? ' (with cover)' : ''}`);
-    const partPath = path.join(MUSIC_CACHE_DIR, `.${videoId}-${Date.now()}.part.mp3`);
+function runFfmpeg(args) {
+    return execFileAsync('ffmpeg', ['-hide_banner', '-loglevel', 'error', ...args], { env: YT_ENV, timeout: 60000 });
+}
+
+// One yt-dlp run does both jobs: it writes the song's details to a file and
+// streams the audio straight into ffmpeg (YouTube is only looked up once —
+// the slow part). The cover downloads at the same time. Tags and cover are
+// then added by a copy pass that doesn't re-encode (well under a second).
+async function encodeSongToCache(videoId) {
+    const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    console.log(`[music/download] ${videoId}`);
+    const stamp = `${videoId}-${Date.now()}`;
+    const metaPath = path.join(os.tmpdir(), `gh-meta-${stamp}.json`);
+    const coverPath = path.join(os.tmpdir(), `gh-cover-${stamp}.jpg`);
+    const rawPath = path.join(MUSIC_CACHE_DIR, `.${stamp}.raw.mp3`);
+    const partPath = path.join(MUSIC_CACHE_DIR, `.${stamp}.part.mp3`);
+    const coverReady = fetchCover(videoId, coverPath);
     try {
         await new Promise((resolve, reject) => {
             const dl = spawn(YT_DLP_BIN, [...ytCookieArgs(), '--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio',
+                '--no-simulate', '--print-to-file', '%(.{title,track,artist,artists,uploader,album,release_year,upload_date})j', metaPath,
                 '-o', '-', '--quiet', '--no-warnings', ytUrl], { env: YT_ENV });
-            const ffmpeg = spawn('ffmpeg', buildMp3FfmpegArgs(tags, haveCover ? coverPath : null, partPath), { env: YT_ENV });
+            const ffmpeg = spawn('ffmpeg', buildMp3EncodeArgs(rawPath), { env: YT_ENV });
             let dlErr = '';
             dl.stderr.on('data', d => { dlErr = (dlErr + d).slice(-4000); });
             ffmpeg.stderr.on('data', () => {});
@@ -3492,19 +3496,51 @@ async function encodeSongToCache(videoId) {
             ffmpeg.on('error', e => { kill(); reject(e); });
             ffmpeg.on('close', async code => {
                 clearTimeout(timer);
-                console.log(`[music/download] done: "${tags.fileName}" code=${code}`);
-                const size = await fs.promises.stat(partPath).then(s => s.size).catch(() => 0);
+                const size = await fs.promises.stat(rawPath).then(s => s.size).catch(() => 0);
                 if (code === 0 && size > 0) return resolve();
                 reject(Object.assign(new Error(dlErr.trim().split('\n').pop() || `ffmpeg exited with code ${code}`), { stderr: dlErr }));
             });
         });
+
+        let info = {};
+        try { info = JSON.parse((await fs.promises.readFile(metaPath, 'utf8')).trim().split('\n').pop()); } catch { /* tags fall back to the id */ }
+        const tags = buildTrackTags(info, videoId);
+        const haveCover = await coverReady;
+        try {
+            await runFfmpeg(buildMp3FfmpegArgs(tags, haveCover ? coverPath : null, partPath, { input: rawPath, copyAudio: true }));
+        } catch {
+            // A bad cover image shouldn't cost the song: tag it without one.
+            await runFfmpeg(buildMp3FfmpegArgs(tags, null, partPath, { input: rawPath, copyAudio: true }));
+        }
+        console.log(`[music/download] done: "${tags.fileName}" by ${tags.artist}${haveCover ? ' (with cover)' : ''}`);
         await fs.promises.writeFile(cachedTagsPath(videoId), JSON.stringify(tags));
         await fs.promises.rename(partPath, cachedMp3Path(videoId));
     } finally {
-        fs.unlink(partPath, () => {});
-        if (haveCover) fs.unlink(coverPath, () => {});
+        for (const f of [metaPath, coverPath, rawPath, partPath]) fs.unlink(f, () => {});
     }
     return readCachedSong(videoId);
+}
+
+// Warm the cache ahead of time (the next songs in a queue, songs just added
+// to a library) so they start instantly. At most two at once in the
+// background, so a burst of adds doesn't swamp the box.
+const prefetchQueue = [];
+let prefetchRunning = 0;
+const PREFETCH_CONCURRENCY = 2;
+function prefetchSong(videoId) {
+    if (!/^[A-Za-z0-9_-]{11}$/.test(String(videoId || ''))) return;
+    if (musicEncodesInFlight.has(videoId) || prefetchQueue.includes(videoId) || prefetchQueue.length >= 50) return;
+    prefetchQueue.push(videoId);
+    pumpPrefetch();
+}
+function pumpPrefetch() {
+    while (prefetchRunning < PREFETCH_CONCURRENCY && prefetchQueue.length) {
+        const id = prefetchQueue.shift();
+        prefetchRunning++;
+        ensureSongCached(id)
+            .catch(e => console.error(`[music/prefetch] ${id}:`, String(e.message).split('\n')[0]))
+            .finally(() => { prefetchRunning--; pumpPrefetch(); });
+    }
 }
 
 async function ensureSongCached(videoId) {
@@ -3583,11 +3619,20 @@ app.post('/music/library/add', async (req, res) => {
     if (!s) return res.status(400).json({ error: 'Invalid song' });
     try {
         await addSongToLibrary(user, s.videoId, s);
+        prefetchSong(s.videoId);
         res.json({ ok: true });
     } catch (e) {
         logError(user, '/music/library/add', e).catch(() => {});
         res.status(500).json({ error: 'Could not save the song' });
     }
+});
+
+// The player asks for the next songs in its queue to be made ready early.
+app.post('/music/prefetch', async (req, res) => {
+    const { user, token, videoIds } = req.body;
+    if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
+    for (const id of (Array.isArray(videoIds) ? videoIds : []).slice(0, 3)) prefetchSong(String(id));
+    res.json({ ok: true });
 });
 
 app.post('/music/library/remove', async (req, res) => {
