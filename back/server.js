@@ -9,6 +9,7 @@ import axios from 'axios';
 import archiver from 'archiver';
 import * as cheerio from 'cheerio';
 import { create as createYtDlp } from 'yt-dlp-exec';
+import { Innertube, Log as YoutubeiLog } from 'youtubei.js';
 const ytDlpExec = createYtDlp('/usr/local/bin/yt-dlp');
 import ytdl from '@distube/ytdl-core';
 import os from 'os';
@@ -29,6 +30,7 @@ import { aggregateWatchSessions, genreBreakdown, GENRE_NAMES } from './lib/stats
 import { buildWatchedUpdate, watchedKeyFromPosition } from './lib/watched.js';
 import { nextUpEpisode, showStructure, seasonProgress } from './lib/nextUp.js';
 import { cleanLyricsQuery, pickLyrics } from './lib/lyrics.js';
+import { mapMusicSongs, mapVideos } from './lib/ytSearch.js';
 import { cleanEpisode, cleanSeason } from './lib/text.js';
 import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
 import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar.js';
@@ -3218,6 +3220,65 @@ function ytFailure(e, fallback) {
 const musicSearchCache = new Map(); // query -> { ts, results }
 const MUSIC_SEARCH_TTL_MS = 10 * 60 * 1000;
 
+// youtubei.js: one session for the whole server (created on first use, and
+// again after a failure in case it went stale). Its parser warnings about
+// unfamiliar page parts are noise for us.
+YoutubeiLog.setLevel(YoutubeiLog.Level.ERROR);
+let innertubeSession = null;
+function getInnertube() {
+    if (!innertubeSession) {
+        innertubeSession = Innertube.create({ retrieve_player: false }).catch((e) => { innertubeSession = null; throw e; });
+    }
+    return innertubeSession;
+}
+const withTimeout = (promise, ms) => Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms)),
+]);
+
+// Two searches in parallel: YouTube Music's Songs section returns the
+// artist's official catalog tracks (plain YouTube search is dominated by fan
+// lyric uploads), and regular YouTube covers everything else (live versions,
+// remixes, non-catalog uploads).
+async function searchWithInnertube(q) {
+    const yt = await withTimeout(getInnertube(), 8000);
+    const [songsRun, videosRun] = await Promise.allSettled([
+        withTimeout(yt.music.search(q, { type: 'song' }), 8000),
+        withTimeout(yt.search(q, { type: 'video' }), 8000),
+    ]);
+    if (songsRun.status === 'rejected' && videosRun.status === 'rejected') throw videosRun.reason;
+    const songs = songsRun.status === 'fulfilled' ? mapMusicSongs(songsRun.value?.songs?.contents) : [];
+    const videos = videosRun.status === 'fulfilled' ? rankYouTubeResults(mapVideos(videosRun.value?.videos), q) : [];
+    if (!songs.length && !videos.length) throw new Error('youtubei.js returned no results');
+    return { songs, videos };
+}
+
+// The previous way, kept as a fallback: two yt-dlp runs, then oEmbed for the
+// artist of each official song (yt-dlp's song entries carry only id + title).
+async function searchWithYtDlp(q) {
+    const [songsRun, videosRun] = await Promise.allSettled([
+        runYtDlp(['--flat-playlist', '--playlist-end', '5', '--dump-json', '--no-warnings',
+            `https://music.youtube.com/search?q=${encodeURIComponent(q)}#songs`], 25000),
+        runYtDlp(['--flat-playlist', '--dump-json', '--no-warnings', `ytsearch8:${q}`], 25000),
+    ]);
+    if (songsRun.status === 'rejected' && videosRun.status === 'rejected') throw videosRun.reason;
+    const songs = songsRun.status === 'fulfilled'
+        ? parseYtSearchOutput(songsRun.value.stdout, { official: true })
+        : [];
+    const videos = videosRun.status === 'fulfilled'
+        ? rankYouTubeResults(parseYtSearchOutput(videosRun.value.stdout), q)
+        : [];
+    await Promise.all(songs.map(async (s) => {
+        try {
+            const r = await axios.get('https://www.youtube.com/oembed', {
+                params: { url: s.url, format: 'json' }, timeout: 4000,
+            });
+            s.channel = artistFromOembedAuthor(r.data?.author_name);
+        } catch { /* artist stays unknown; the result is still official */ }
+    }));
+    return { songs, videos };
+}
+
 app.post('/music/search', async (req, res) => {
     const { user, token, query } = req.body;
     if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
@@ -3229,36 +3290,15 @@ app.post('/music/search', async (req, res) => {
     if (cached && Date.now() - cached.ts < MUSIC_SEARCH_TTL_MS) return res.json({ results: cached.results });
 
     try {
-        // Two searches in parallel: YouTube Music's Songs section returns the
-        // artist's official catalog tracks (plain YouTube search is dominated
-        // by fan lyric uploads), and regular YouTube covers everything else
-        // (live versions, remixes, non-catalog uploads).
-        const [songsRun, videosRun] = await Promise.allSettled([
-            runYtDlp(['--flat-playlist', '--playlist-end', '5', '--dump-json', '--no-warnings',
-                `https://music.youtube.com/search?q=${encodeURIComponent(q)}#songs`], 25000),
-            runYtDlp(['--flat-playlist', '--dump-json', '--no-warnings', `ytsearch8:${q}`], 25000),
-        ]);
-        if (songsRun.status === 'rejected' && videosRun.status === 'rejected') throw videosRun.reason;
-
-        const songs = songsRun.status === 'fulfilled'
-            ? parseYtSearchOutput(songsRun.value.stdout, { official: true })
-            : [];
-        const videos = videosRun.status === 'fulfilled'
-            ? rankYouTubeResults(parseYtSearchOutput(videosRun.value.stdout), q)
-            : [];
-
-        // Song entries carry only id + title; YouTube's public oEmbed gives
-        // the artist ("Bad Bunny - Topic") in a fraction of a second each.
-        await Promise.all(songs.map(async (s) => {
-            try {
-                const r = await axios.get('https://www.youtube.com/oembed', {
-                    params: { url: s.url, format: 'json' }, timeout: 4000,
-                });
-                s.channel = artistFromOembedAuthor(r.data?.author_name);
-            } catch { /* artist stays unknown; the result is still official */ }
-        }));
-
-        const results = mergeSearchResults(filterRelevantSongs(songs, q), videos);
+        let found;
+        try {
+            found = await searchWithInnertube(q);
+        } catch (e) {
+            console.error('[music/search] youtubei.js failed, using yt-dlp:', String(e?.message).split('\n')[0]);
+            innertubeSession = null;
+            found = await searchWithYtDlp(q);
+        }
+        const results = mergeSearchResults(filterRelevantSongs(found.songs, q), found.videos);
         if (musicSearchCache.size >= 200) musicSearchCache.delete(musicSearchCache.keys().next().value);
         musicSearchCache.set(cacheKey, { ts: Date.now(), results });
         res.json({ results });
@@ -3299,6 +3339,11 @@ async function askGeminiForSongs(prompt, maxRetries = 2) {
 async function resolveRecSong({ title, artist }) {
     const q = sanitizeSearchQuery(`${artist} ${title}`);
     if (!q) return null;
+    try {
+        const yt = await withTimeout(getInnertube(), 8000);
+        const [hit] = mapMusicSongs((await withTimeout(yt.music.search(q, { type: 'song' }), 8000))?.songs?.contents, 1);
+        if (hit) return { videoId: hit.videoId, title: hit.title || title, artist };
+    } catch { /* fall back to yt-dlp below */ }
     try {
         const { stdout } = await runYtDlp(['--flat-playlist', '--playlist-end', '1', '--dump-json', '--no-warnings',
             `https://music.youtube.com/search?q=${encodeURIComponent(q)}#songs`], 20000);
