@@ -174,8 +174,16 @@ export function coverCandidates(videoId) {
 // a seekable file: ffmpeg rewrites the ID3 header (with the picture) and the
 // Xing duration frame at the end, so over a pipe the tag comes out unreadable
 // and players show the wrong length.
-export function buildMp3FfmpegArgs(tags, coverPath, outPath) {
-    const args = ['-y', '-i', 'pipe:0'];
+// Plain MP3 encode from yt-dlp's audio on stdin, no tags (they're added after
+// by a fast copy pass, since the song's details arrive from the same run).
+export function buildMp3EncodeArgs(outPath) {
+    return ['-y', '-i', 'pipe:0', '-vn', '-codec:a', 'libmp3lame', '-q:a', '2', '-f', 'mp3', outPath];
+}
+
+// Tags + cover. With { input, copyAudio } it re-wraps an MP3 that's already
+// encoded (audio copied as-is, so it takes a fraction of a second).
+export function buildMp3FfmpegArgs(tags, coverPath, outPath, { input = 'pipe:0', copyAudio = false } = {}) {
+    const args = ['-y', '-i', input];
     if (coverPath) args.push('-i', coverPath);
     args.push('-map', '0:a');
     if (coverPath) {
@@ -188,7 +196,8 @@ export function buildMp3FfmpegArgs(tags, coverPath, outPath) {
             '-metadata:s:v', 'comment=Cover (front)',
         );
     }
-    args.push('-codec:a', 'libmp3lame', '-q:a', '2', '-id3v2_version', '3');
+    if (copyAudio) args.push('-codec:a', 'copy', '-id3v2_version', '3');
+    else args.push('-codec:a', 'libmp3lame', '-q:a', '2', '-id3v2_version', '3');
     const meta = { title: tags.title, artist: tags.artist, album: tags.album, date: tags.year };
     for (const [key, value] of Object.entries(meta)) {
         if (value) args.push('-metadata', `${key}=${value}`);
