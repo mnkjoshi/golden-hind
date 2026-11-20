@@ -11,6 +11,7 @@ import Topbar from "../components/topbar.jsx";
 import CoverArt from "../components/coverArt.jsx";
 import ConfirmButton from '../components/confirmButton.jsx';
 import { track } from '../utils/analytics.js';
+import { SongMenuButton } from '../components/songMenu.jsx';
 import '../stylesheets/music.css';
 import { useMusicPlayer, playQueue, currentSong, togglePlay, cachedLibrary, reopenPlayer, addSongsToQueue } from '../player/musicPlayer.js';
 import { usePlaylists, refreshPlaylists, createPlaylist, updatePlaylist, deletePlaylist, openPlaylistPicker } from '../player/playlists.js';
@@ -371,7 +372,7 @@ function RecShelf({ title, songs, m }) {
                             <span className="mx-card-title">{s.title}</span>
                             <span className="mx-card-sub">{s.artist}</span>
                         </button>
-                        <button className="mx-rec-queue" onClick={() => m.queueSong(s)} aria-label={`Add ${s.title} to the queue`} title="Add to queue">{Icon.queueAdd}</button>
+                        <SongMenuButton song={s} className="mx-rec-more" />
                     </div>
                 ))}
             </div>
@@ -815,7 +816,7 @@ export function MusicLibrary() {
                             >
                                 {m.offlineBusy === s.videoId ? <div className="music-spinner" /> : m.offlineIds.has(s.videoId) ? Icon.savedCheck : Icon.saveCircle}
                             </button>
-                            <button className="mx-icon-btn" onClick={() => m.queueSong(s)} aria-label={`Add ${s.title} to the queue`} title="Add to queue">{Icon.queueAdd}</button>
+                            <SongMenuButton song={s} />
                             <button className="mx-icon-btn mx-desktop" onClick={() => m.downloadSong(s)} disabled={!!m.rowBusy} aria-label={`Download ${s.title}`} title="Download MP3">
                                 {m.rowBusy === s.videoId ? <div className="music-spinner" /> : Icon.download}
                             </button>
@@ -915,7 +916,7 @@ function AutoPlaylist({ id }) {
                 <div className="mx-list">
                     {list.map((s, i) => (
                         <SongRow key={s.videoId} song={s} isPlaying={m.playing?.videoId === s.videoId} playingNow={!m.player.paused} onPlay={() => m.playFrom(list, i)}>
-                            <button className="mx-icon-btn" onClick={() => m.queueSong(s)} aria-label={`Add ${s.title} to the queue`} title="Add to queue">{Icon.queueAdd}</button>
+                            <SongMenuButton song={s} />
                         </SongRow>
                     ))}
                 </div>
@@ -993,7 +994,7 @@ function UserPlaylist() {
                 <div className="mx-list">
                     {songs.map((s, i) => (
                         <SongRow key={s.videoId} song={s} isPlaying={m.playing?.videoId === s.videoId} playingNow={!m.player.paused} onPlay={() => m.playFrom(songs, i)}>
-                            <button className="mx-icon-btn" onClick={() => m.queueSong(s)} aria-label={`Add ${s.title} to the queue`} title="Add to queue">{Icon.queueAdd}</button>
+                            <SongMenuButton song={s} />
                             <ConfirmButton className="mx-icon-btn" onConfirm={() => removeFromPlaylist(s.videoId)} message="Remove from this playlist?" aria-label={`Remove ${s.title} from this playlist`} title="Remove from playlist">{Icon.close}</ConfirmButton>
                         </SongRow>
                     ))}
