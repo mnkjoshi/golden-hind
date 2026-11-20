@@ -12,6 +12,7 @@ import RemoteControl from './remote.jsx';
 import PlayerBar from './playerBar.jsx';
 import PlaylistPicker from './playlistPicker.jsx';
 import AdminAlerts from './adminAlerts.jsx';
+import SongMenu from './songMenu.jsx';
 import UserAvatar, { AvatarEditor, useMyAvatarVersion, refreshMyAvatar } from './userAvatar.jsx';
 
 const GLITCH_FRAMES = [TextLogoGlitch1, TextLogoGlitch2, TextLogoGlitch3, TextLogoGlitch4, TextLogoGlitch5];
@@ -358,6 +359,7 @@ export default function Topbar() {
             <PlayerBar />
             <PlaylistPicker />
             <AdminAlerts />
+            <SongMenu />
             <nav className={`modern-topbar ${isScrolled ? 'scrolled' : ''}`}>
                 <div className="topbar-content">
                     {/* Logo */}
