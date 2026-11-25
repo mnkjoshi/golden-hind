@@ -17,6 +17,7 @@ import fs from 'fs';
 import path from 'path';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
+import { pipeline as streamPipeline } from 'stream/promises';
 const execFileAsync = promisify(execFile);
 
 // Pure helpers extracted for unit testing (see back/lib + back/test).
@@ -31,6 +32,7 @@ import { buildWatchedUpdate, watchedKeyFromPosition } from './lib/watched.js';
 import { nextUpEpisode, showStructure, seasonProgress } from './lib/nextUp.js';
 import { cleanLyricsQuery, pickLyrics } from './lib/lyrics.js';
 import { mapMusicSongs, mapVideos } from './lib/ytSearch.js';
+import { ytDlpAssetName, classifyYtError, YT_ERROR_ADVICE } from './lib/ytHealth.js';
 import { cleanEpisode, cleanSeason } from './lib/text.js';
 import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
 import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar.js';
@@ -1889,6 +1891,50 @@ app.post('/admin/alerts', async (request, response) => {
     }
 });
 
+// YouTube backend health for the admin page: yt-dlp version and upkeep,
+// cookies, and a live test of a song lookup and a search.
+const YT_TEST_VIDEO = 'jNQXAC9IVRw';   // "Me at the zoo" — the first YouTube video, always up
+app.post('/admin/yt-health', async (request, response) => {
+    const { user, token } = request.body;
+    if (!await AuthenticateAdmin(user, token)) return response.status(403).send("Forbidden");
+    const version = await ytDlpVersion();
+    let cookies = null;
+    try {
+        const st = await fs.promises.stat(YT_COOKIES);
+        cookies = { usable: ytCookieArgs().length > 0, ageDays: Math.floor((Date.now() - st.mtimeMs) / 86400e3) };
+    } catch { /* no cookies file */ }
+
+    const timed = async (fn) => {
+        const t = Date.now();
+        try { const detail = await fn(); return { ok: true, ms: Date.now() - t, detail }; }
+        catch (e) {
+            const raw = String(e?.stderr || e?.message || e).trim().split('\n').filter(Boolean).pop() || 'failed';
+            const kind = classifyYtError(`${e?.stderr || ''} ${e?.message || ''}`);
+            return { ok: false, ms: Date.now() - t, kind, advice: YT_ERROR_ADVICE[kind], error: raw.slice(0, 300) };
+        }
+    };
+    const [download, search] = await Promise.all([
+        timed(async () => (await runYtDlp(['--no-playlist', '-f', 'bestaudio[ext=webm]/bestaudio', '--simulate', '--print', '%(title)s',
+            `https://www.youtube.com/watch?v=${YT_TEST_VIDEO}`], 45000)).stdout.trim()),
+        timed(async () => `${(await searchWithInnertube('never gonna give you up')).songs.length} songs`),
+    ]);
+    response.json({
+        version,
+        managed: !process.env.YT_DLP_BIN && !!ytDlpAssetName(process.platform, process.arch),
+        upkeep: { ...ytUpkeep },
+        cookies,
+        download,
+        search,
+    });
+});
+
+app.post('/admin/yt-update', async (request, response) => {
+    const { user, token } = request.body;
+    if (!await AuthenticateAdmin(user, token)) return response.status(403).send("Forbidden");
+    const result = await updateYtDlp('updated from the admin page');
+    response.json({ version: await ytDlpVersion(), upkeep: { ...result } });
+});
+
 // No-comment mode: the account can't see or post reviews.
 app.post('/admin/set-no-comments', async (request, response) => {
     const { user, token, targetUser, enabled } = request.body;
@@ -3199,9 +3245,70 @@ function runYtDlp(args, timeout) {
     });
 }
 
+// ── yt-dlp upkeep ───────────────────────────────────────────────────────────
+// YouTube changes often enough that an old yt-dlp stops working. The server
+// keeps its own copy in ~/.local/bin (searched before /usr/local/bin, so no
+// sudo needed): downloaded from the official releases if missing, then
+// `yt-dlp -U` shortly after startup, once a day, and straight after a failure
+// that looks like an out-of-date yt-dlp (at most hourly). An explicit
+// YT_DLP_BIN in the environment is left alone.
+const MANAGED_YT_DLP = path.join(os.homedir(), '.local', 'bin', 'yt-dlp');
+const ytUpkeep = { version: null, lastCheck: 0, lastUpdate: 0, lastAutoUpdate: 0, error: null, running: false };
+
+async function ytDlpVersion() {
+    try {
+        return (await execFileAsync(YT_DLP_BIN, ['--version'], { env: YT_ENV, timeout: 15000 })).stdout.trim();
+    } catch {
+        return null;
+    }
+}
+
+async function updateYtDlp(reason) {
+    const asset = ytDlpAssetName(process.platform, process.arch);
+    if (ytUpkeep.running || process.env.YT_DLP_BIN || !asset) return ytUpkeep;
+    ytUpkeep.running = true;
+    const before = await ytDlpVersion();
+    try {
+        if (!fs.existsSync(MANAGED_YT_DLP)) {
+            await fs.promises.mkdir(path.dirname(MANAGED_YT_DLP), { recursive: true });
+            const tmp = `${MANAGED_YT_DLP}.${Date.now()}.part`;
+            const r = await axios.get(`https://github.com/yt-dlp/yt-dlp/releases/latest/download/${asset}`,
+                { responseType: 'stream', timeout: 180000, maxRedirects: 5 });
+            await streamPipeline(r.data, fs.createWriteStream(tmp, { mode: 0o755 }));
+            await fs.promises.rename(tmp, MANAGED_YT_DLP);
+        } else {
+            await execFileAsync(MANAGED_YT_DLP, ['-U'], { env: YT_ENV, timeout: 180000 });
+        }
+        ytUpkeep.version = await ytDlpVersion();
+        ytUpkeep.lastUpdate = Date.now();
+        ytUpkeep.error = null;
+        if (ytUpkeep.version && ytUpkeep.version !== before) {
+            console.log(`[yt-dlp] ${before || 'none'} → ${ytUpkeep.version} (${reason})`);
+            adminAlert('server', 'server', `yt-dlp updated ${before || '(none)'} → ${ytUpkeep.version} (${reason})`, { includeAdmin: true }).catch(() => {});
+        }
+    } catch (e) {
+        ytUpkeep.error = String(e?.stderr || e?.message || e).trim().split('\n').pop().slice(0, 300);
+        console.error('[yt-dlp] update failed:', ytUpkeep.error);
+    } finally {
+        ytUpkeep.running = false;
+        ytUpkeep.lastCheck = Date.now();
+    }
+    return ytUpkeep;
+}
+setTimeout(() => updateYtDlp('startup'), 20000);
+setInterval(() => updateYtDlp('daily check'), 24 * 3600 * 1000);
+
+function maybeUpdateAfterFailure(e) {
+    if (classifyYtError(`${e?.stderr || ''} ${e?.message || ''}`) !== 'outdated') return;
+    if (Date.now() - ytUpkeep.lastAutoUpdate < 3600 * 1000) return;
+    ytUpkeep.lastAutoUpdate = Date.now();
+    updateYtDlp('after a failed download').catch(() => {});
+}
+
 // ENOENT/EACCES from spawn means yt-dlp can't be run at all — retrying won't
 // help, so say so instead of "try again".
 function ytFailure(e, fallback) {
+    maybeUpdateAfterFailure(e);
     if (e?.code === 'ENOENT' || e?.code === 'EACCES') {
         return { status: 503, error: "Music tools aren't set up on the server (yt-dlp can't be run)." };
     }
@@ -3583,7 +3690,7 @@ function pumpPrefetch() {
         const id = prefetchQueue.shift();
         prefetchRunning++;
         ensureSongCached(id)
-            .catch(e => console.error(`[music/prefetch] ${id}:`, String(e.message).split('\n')[0]))
+            .catch(e => { maybeUpdateAfterFailure(e); console.error(`[music/prefetch] ${id}:`, String(e.message).split('\n')[0]); })
             .finally(() => { prefetchRunning--; pumpPrefetch(); });
     }
 }
