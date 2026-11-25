@@ -64,6 +64,9 @@ export default function Admin() {
     const [userActivityLoading, setUserActivityLoading] = useState(false);
     const [introBusy, setIntroBusy] = useState(false);
     const [moderationBusy, setModerationBusy] = useState(false);
+    // YouTube backend check: null = not run yet, 'loading', or the result.
+    const [ytHealth, setYtHealth] = useState(null);
+    const [ytUpdating, setYtUpdating] = useState(false);
     const [moderationStatus, setModerationStatus] = useState('');
 
     const user = localStorage.getItem('user');
@@ -140,6 +143,22 @@ export default function Admin() {
             setModerationStatus('Error: ' + (e.response?.data || e.message));
         }
         setModerationBusy(false);
+    };
+
+    const checkYt = async () => {
+        setYtHealth('loading');
+        try {
+            const r = await axios.post(`${BASE_URL}/admin/yt-health`, { user, token });
+            setYtHealth(r.data);
+        } catch (e) {
+            setYtHealth({ requestError: e.message });
+        }
+    };
+    const updateYt = async () => {
+        setYtUpdating(true);
+        try { await axios.post(`${BASE_URL}/admin/yt-update`, { user, token }); } catch { /* the re-check shows the state */ }
+        setYtUpdating(false);
+        checkYt();
     };
 
     const openUserActivity = async (targetUser) => {
@@ -292,6 +311,41 @@ export default function Admin() {
                         >
                             Re-issue to everyone
                         </button>
+                    </div>
+                </div>
+
+                {/* YouTube backend health (yt-dlp, cookies, live tests) */}
+                <div className="intro-admin yt-health">
+                    <div className="intro-admin-info">
+                        <span className={`intro-admin-dot ${ytHealth && typeof ytHealth === 'object' && !ytHealth.requestError ? (ytHealth.download?.ok && ytHealth.search?.ok ? 'on' : 'bad') : 'off'}`} />
+                        <div>
+                            <div className="intro-admin-title">YouTube backend</div>
+                            <div className="intro-admin-sub">
+                                {ytHealth === null && 'Checks yt-dlp, cookies, a song lookup and a search.'}
+                                {ytHealth === 'loading' && 'Checking… (takes up to ~45s)'}
+                                {ytHealth?.requestError && `Could not run the check: ${ytHealth.requestError}`}
+                                {ytHealth && typeof ytHealth === 'object' && !ytHealth.requestError && (
+                                    <>yt-dlp {ytHealth.version || 'not found'}
+                                        {ytHealth.managed ? ` · self-updating${ytHealth.upkeep?.lastUpdate ? `, last ${new Date(ytHealth.upkeep.lastUpdate).toLocaleString()}` : ''}` : ' · not self-managed'}
+                                        {' · '}cookies {ytHealth.cookies ? `${ytHealth.cookies.ageDays}d old${ytHealth.cookies.usable ? '' : ' (not readable)'}` : 'missing'}</>
+                                )}
+                            </div>
+                            {ytHealth && typeof ytHealth === 'object' && !ytHealth.requestError && (
+                                <div className="yt-health-tests">
+                                    {[['Song lookup', ytHealth.download], ['Search', ytHealth.search]].map(([label, r]) => (
+                                        <div key={label} className={`yt-health-test ${r?.ok ? 'ok' : 'fail'}`}>
+                                            <strong>{label}:</strong> {r?.ok ? `OK in ${(r.ms / 1000).toFixed(1)}s` : `${r?.advice || 'Failed'}`}
+                                            {!r?.ok && r?.error && <div className="yt-health-error">{r.error}</div>}
+                                        </div>
+                                    ))}
+                                    {ytHealth.upkeep?.error && <div className="yt-health-test fail"><strong>Last update:</strong> failed — {ytHealth.upkeep.error}</div>}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="intro-admin-actions">
+                        <button className="intro-admin-btn" onClick={checkYt} disabled={ytHealth === 'loading'}>Check now</button>
+                        <button className="intro-admin-btn" onClick={updateYt} disabled={ytUpdating || ytHealth === 'loading'}>{ytUpdating ? 'Updating…' : 'Update yt-dlp'}</button>
                     </div>
                 </div>
 

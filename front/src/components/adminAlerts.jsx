@@ -21,8 +21,9 @@ export const ALERT_LABELS = {
     signup: 'Sign-up',
     settings: 'Settings',
     power_user: 'Power user',
+    server: 'Server',
 };
-const ICONS = { error: '⚠️', signup: '👤', settings: '⚙️', power_user: '🎧' };
+const ICONS = { error: '⚠️', signup: '👤', settings: '⚙️', power_user: '🎧', server: '🛠️' };
 
 const readSeen = () => {
     try { return Number(localStorage.getItem(SEEN_KEY)) || 0; } catch { return 0; }

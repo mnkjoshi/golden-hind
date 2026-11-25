@@ -795,3 +795,15 @@
     .admin-alert-row { grid-template-columns: auto minmax(0, 1fr); }
     .admin-alert-row-time { grid-column: 2; }
 }
+
+/* YouTube backend health card */
+.intro-admin-dot.bad { background: #f85149; box-shadow: 0 0 8px rgba(248, 81, 73, 0.6); }
+.yt-health .intro-admin-info { align-items: flex-start; }
+.yt-health .intro-admin-dot { margin-top: 5px; }
+.yt-health-tests { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: 12.5px; }
+.yt-health-test.ok { color: #6fcf97; }
+.yt-health-test.fail { color: #f0b429; }
+.yt-health-test strong { color: #e6edf3; font-weight: 600; }
+.yt-health-error { color: #8b949e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; overflow-wrap: anywhere; margin-top: 2px; }
+.admin-alert-server { border-left-color: #a371f7; }
+.alert-pill.alert-server { color: #a371f7; border-color: rgba(163, 113, 247, 0.4); }
