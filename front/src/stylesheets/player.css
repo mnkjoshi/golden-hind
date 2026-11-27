@@ -779,3 +779,46 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
     .fp-lyrics { animation-duration: 0.01s; }
     .fl-line { transition-duration: 0.01s; }
 }
+
+/* ── Liquid glass, shared by the floating pieces ──────────────────────────
+   Same recipe as the phone tab bar: a translucent tint the page shows
+   through (blurred and saturated), a hairline edge, a soft top highlight and
+   a drop shadow. Content-heavy pieces (the mini player) use a slightly
+   darker tint so text stays easy to read over bright posters. */
+:root {
+    --glass-tint: rgba(30, 30, 36, 0.42);
+    --glass-tint-strong: rgba(26, 26, 32, 0.58);
+    --glass-blur: blur(22px) saturate(1.8);
+    --glass-edge: rgba(255, 255, 255, 0.12);
+    --glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Phone mini player */
+@media (max-width: 760px) {
+    body .player-bar {
+        background: var(--glass-tint-strong);
+        backdrop-filter: var(--glass-blur);
+        -webkit-backdrop-filter: var(--glass-blur);
+        border: 1px solid var(--glass-edge);
+        box-shadow: var(--glass-shadow);
+        border-radius: 22px;
+        overflow: hidden;   /* keeps the progress line inside the rounded corners */
+    }
+}
+
+/* Floating pills and bars */
+body .new-recs-pill,
+body .stats-promo-pill,
+body .remote-mini-bar,
+body .mx-select-bar {
+    background: var(--glass-tint-strong);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-shadow);
+}
+/* The selection bar and remote bar had plain edges; the promo pills keep
+   their coloured ones. */
+body .remote-mini-bar,
+body .mx-select-bar { border: 1px solid var(--glass-edge); }
+body .remote-mini-bar { border-radius: 22px; }
+body .mx-select-bar { border-radius: 22px; }

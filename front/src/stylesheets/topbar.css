@@ -1309,11 +1309,13 @@
         pointer-events: auto;
         height: 40px;
         border-radius: 999px;
-        /* Solid fill, no backdrop blur: on iOS a blur on a fixed top
-           element can soften its own contents. */
-        background: rgba(14, 14, 16, 0.92);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+        /* Liquid glass, like the tab bar (the status bar is opaque now, so
+           iOS's own top blur no longer reaches these). */
+        background: var(--glass-tint-strong, rgba(26, 26, 32, 0.58));
+        backdrop-filter: var(--glass-blur, blur(22px) saturate(1.8));
+        -webkit-backdrop-filter: var(--glass-blur, blur(22px) saturate(1.8));
+        border: 1px solid var(--glass-edge, rgba(255, 255, 255, 0.12));
+        box-shadow: var(--glass-shadow, 0 6px 18px rgba(0, 0, 0, 0.35));
         transition: background-color 0.3s ease;
     }
     .modern-topbar .topbar-logo { padding: 0 14px; }
@@ -1324,7 +1326,7 @@
     }
     /* A touch more solid once the page scrolls under them */
     .modern-topbar.scrolled .topbar-logo,
-    .modern-topbar.scrolled .topbar-right { background: rgb(14, 14, 16); }
+    .modern-topbar.scrolled .topbar-right { background: rgba(26, 26, 32, 0.7); }
 }
 
 /* ── Account button: a pill (wheel + name + chevron) whose highlight matches
