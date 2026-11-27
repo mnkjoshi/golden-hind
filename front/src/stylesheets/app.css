@@ -1237,11 +1237,8 @@ p {
 }
 
 @media (max-width: 600px) {
-    /* No top padding: on phones the top bar is floating pills, so the hero
-       starts at the very top with the logo and buttons over it. (55px here
-       used to leave a blank band where the old solid bar sat.) */
     .app-main {
-        padding-top: 0;
+        padding-top: 55px;
     }
     
     .hero-section {
@@ -2481,3 +2478,13 @@ p {
     backdrop-filter: blur(6px);
 }
 .card-next-up.next { border-color: rgba(63, 163, 255, 0.6); }
+
+/* Phones: the top bar is floating pills, so the hero carousel reaches up
+   under them to the very top instead of leaving a blank band. Only the
+   carousel moves: it grows by the same 55px, so everything below stays put. */
+@media (max-width: 600px) {
+    .hero-section { margin-top: -55px; height: calc(50vh + 55px); min-height: calc(280px + 55px); }
+}
+@media (max-width: 480px) {
+    .hero-section { height: calc(45vh + 55px); min-height: calc(250px + 55px); }
+}
