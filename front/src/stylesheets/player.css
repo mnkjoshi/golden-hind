@@ -366,12 +366,12 @@ body.has-music-player .stats-promo-pill.raised { bottom: calc(144px + env(safe-a
     .player-play-btn .player-spinner { border-color: rgba(10, 14, 39, 0.25); border-top-color: #0a0e27; }
     .player-options-btn { display: flex !important; }
 
-    body.has-tabbar.has-music-player { padding-bottom: calc(172px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar.has-music-player { padding-bottom: calc(var(--tabbar-top) + 124px); }
     body.has-tabbar.has-music-player .mx-select-bar,
     body.has-tabbar.has-music-player .remote-mini-bar,
     body.has-tabbar.has-music-player .new-recs-pill,
-    body.has-tabbar.has-music-player .stats-promo-pill { bottom: calc(176px + env(safe-area-inset-bottom, 0px)); }
-    body.has-tabbar.has-music-player .stats-promo-pill.raised { bottom: calc(226px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar.has-music-player .stats-promo-pill { bottom: calc(var(--tabbar-top) + 128px); }
+    body.has-tabbar.has-music-player .stats-promo-pill.raised { bottom: calc(var(--tabbar-top) + 178px); }
 }
 
 /* ⋯ action sheet */

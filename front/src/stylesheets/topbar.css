@@ -1177,20 +1177,32 @@
     .search-container { display: none; }
     .topbar-right .dropdown-arrow { display: none; }
 
+    /* Floating "liquid glass" tab bar: a rounded translucent pill that sits
+       just above the home indicator, the page showing (blurred) through it.
+       --tabbar-top is where its top edge is, for everything stacked above. */
+    :root {
+        --tabbar-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 8px));
+        --tabbar-top: calc(var(--tabbar-bottom) + 60px);
+    }
     .mobile-tabbar {
         position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        left: 10px;
+        right: 10px;
+        bottom: var(--tabbar-bottom);
         z-index: 950;
         display: grid;
         grid-template-columns: repeat(6, 1fr);
-        height: calc(56px + env(safe-area-inset-bottom, 0px));
-        padding: 0 4px env(safe-area-inset-bottom, 0px);
-        background: rgba(10, 14, 39, 0.97);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        height: 60px;
+        padding: 0 6px;
+        border-radius: 30px;
+        background: rgba(30, 30, 36, 0.42);
+        backdrop-filter: blur(22px) saturate(1.8);
+        -webkit-backdrop-filter: blur(22px) saturate(1.8);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow:
+            0 12px 32px rgba(0, 0, 0, 0.45),
+            inset 0 1px 0 rgba(255, 255, 255, 0.16),
+            inset 0 -1px 0 rgba(255, 255, 255, 0.04);
         font-family: 'Inter', system-ui, sans-serif;
     }
     .mobile-tab-slot { display: flex; min-width: 0; }
@@ -1205,12 +1217,12 @@
         justify-content: center;
         gap: 3px;
         width: 100%;
-        height: 56px;
+        height: 60px;
         padding: 0;
         border: none;
         border-radius: 0;
         background: none;
-        color: rgba(255, 255, 255, 0.58);
+        color: rgba(255, 255, 255, 0.62);
         cursor: pointer;
         -webkit-tap-highlight-color: transparent;
     }
@@ -1219,6 +1231,20 @@
     .mobile-tabbar .notif-button svg { width: 22px; height: 22px; }
     .mobile-tabbar .tab-label { display: block; font-size: 10px; font-weight: 600; letter-spacing: 0.01em; }
     .mobile-tab.active { color: #fff; }
+    /* The active tab sits on a soft lighter lozenge inside the glass */
+    .mobile-tab::before {
+        content: '';
+        position: absolute;
+        inset: 6px 2px;
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.14);
+        opacity: 0;
+        transform: scale(0.85);
+        transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+        pointer-events: none;
+    }
+    .mobile-tab.active::before { opacity: 1; transform: scale(1); }
+    .mobile-tab > * { position: relative; }
     .mobile-tabbar .remote-toggle.active { color: #3FA3FF; background: none; border: none; }
     .mobile-tabbar .remote-toggle-label { display: none; }
     .mobile-tabbar .notif-badge { top: 6px; right: calc(50% - 20px); }
@@ -1229,26 +1255,26 @@
         top: auto;
         left: 8px;
         right: 8px;
-        bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+        bottom: calc(var(--tabbar-top) + 8px);
         width: auto;
         max-width: none;
         max-height: 60vh;
     }
 
     /* Stack everything bottom-anchored above the tab bar */
-    body.has-tabbar { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
-    body.has-tabbar.has-music-player { padding-bottom: calc(122px + env(safe-area-inset-bottom, 0px)); }
-    body.has-tabbar .player-bar { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar { padding-bottom: calc(var(--tabbar-top) + 8px); }
+    body.has-tabbar.has-music-player { padding-bottom: calc(var(--tabbar-top) + 74px); }
+    body.has-tabbar .player-bar { bottom: calc(var(--tabbar-top) + 8px); }
     body.has-tabbar .mx-select-bar,
     body.has-tabbar .remote-mini-bar,
     body.has-tabbar .new-recs-pill,
-    body.has-tabbar .stats-promo-pill { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
-    body.has-tabbar .stats-promo-pill.raised { bottom: calc(118px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar .stats-promo-pill { bottom: calc(var(--tabbar-top) + 12px); }
+    body.has-tabbar .stats-promo-pill.raised { bottom: calc(var(--tabbar-top) + 62px); }
     body.has-tabbar.has-music-player .mx-select-bar,
     body.has-tabbar.has-music-player .remote-mini-bar,
     body.has-tabbar.has-music-player .new-recs-pill,
-    body.has-tabbar.has-music-player .stats-promo-pill { bottom: calc(134px + env(safe-area-inset-bottom, 0px)); }
-    body.has-tabbar.has-music-player .stats-promo-pill.raised { bottom: calc(184px + env(safe-area-inset-bottom, 0px)); }
+    body.has-tabbar.has-music-player .stats-promo-pill { bottom: calc(var(--tabbar-top) + 78px); }
+    body.has-tabbar.has-music-player .stats-promo-pill.raised { bottom: calc(var(--tabbar-top) + 128px); }
 }
 
 /* Movies section on phones: 5 tabs (search lives in the top bar). Music: 3. */
@@ -1260,11 +1286,6 @@
 
 /* ── Phone chrome: neutral colours + tighter spacing ── */
 @media (max-width: 800px) {
-    /* Spotify-style neutral black, no navy tint */
-    .mobile-tabbar {
-        background: rgba(0, 0, 0, 0.94);
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
-    }
     .mobile-tabbar.music { grid-template-columns: repeat(5, 1fr); }
     .mobile-tabbar.with-admin { grid-template-columns: repeat(6, 1fr); }
     /* No bar on phones: the logo and the buttons float as two small pills
