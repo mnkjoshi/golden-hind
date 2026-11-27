@@ -553,7 +553,7 @@ export default function Topbar() {
                     <RemoteControl hideButton />
                 </nav>
             ) : (
-                <nav className="mobile-tabbar" aria-label="Main">
+                <nav className={`mobile-tabbar${user === 'manav' ? ' with-admin' : ''}`} aria-label="Main">
                     <button className={`mobile-tab${location.pathname === '/app' ? ' active' : ''}`} onClick={() => navigate('/app')}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5z" /></svg>
                         <span className="tab-label">Home</span>
@@ -568,6 +568,13 @@ export default function Topbar() {
                         <span className="tab-label">Books</span>
                     </button>
                     <div className="mobile-tab-slot">{notifSection}</div>
+                    {/* Admin account only (the server checks every admin request too) */}
+                    {user === 'manav' && (
+                        <button className={`mobile-tab${location.pathname === '/admin' ? ' active' : ''}`} onClick={() => navigate('/admin')}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3z" /><path d="m9 12 2 2 4-4" /></svg>
+                            <span className="tab-label">Admin</span>
+                        </button>
+                    )}
                 </nav>
             ))}
 

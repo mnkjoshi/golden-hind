@@ -1266,6 +1266,7 @@
         border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
     .mobile-tabbar.music { grid-template-columns: repeat(5, 1fr); }
+    .mobile-tabbar.with-admin { grid-template-columns: repeat(6, 1fr); }
     /* Sit the bar just under the Dynamic Island instead of a full safe-area
        strip below it, and keep the bar itself compact. */
     .modern-topbar {
