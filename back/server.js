@@ -33,6 +33,7 @@ import { nextUpEpisode, showStructure, seasonProgress } from './lib/nextUp.js';
 import { cleanLyricsQuery, pickLyrics } from './lib/lyrics.js';
 import { mapMusicSongs, mapVideos } from './lib/ytSearch.js';
 import { ytDlpAssetName, classifyYtError, YT_ERROR_ADVICE } from './lib/ytHealth.js';
+import { filterAnalytics } from './lib/adminAnalytics.js';
 import { cleanEpisode, cleanSeason } from './lib/text.js';
 import { videoCacheKey, videoFileName, isExpiredVideo } from './lib/video.js';
 import { parseAvatarDataUrl, avatarFileName, sniffImageType } from './lib/avatar.js';
@@ -1419,18 +1420,15 @@ app.post('/admin/data', async (request, response) => {
     }
     try {
         const db = admin.database();
-        const [errorsSnap, analyticsSnap, usersSnap, alertsSnap] = await Promise.all([
+        // The activity feed has its own filtered endpoint (/admin/analytics).
+        const [errorsSnap, usersSnap, alertsSnap] = await Promise.all([
             db.ref('admin/errors').orderByChild('timestamp').limitToLast(100).once('value'),
-            db.ref('admin/analytics/events').orderByChild('timestamp').limitToLast(200).once('value'),
             db.ref('users').once('value'),
             db.ref('admin/alerts').orderByChild('timestamp').limitToLast(100).once('value'),
         ]);
         const alerts = alertsSince(alertsSnap.val(), 0, 100).reverse();
         const errors = errorsSnap.val()
             ? Object.values(errorsSnap.val()).sort((a, b) => b.timestamp - a.timestamp)
-            : [];
-        const analytics = analyticsSnap.val()
-            ? Object.values(analyticsSnap.val()).sort((a, b) => b.timestamp - a.timestamp)
             : [];
         const usersVal = usersSnap.val() || {};
         const users = Object.keys(usersVal);
@@ -1458,10 +1456,10 @@ app.post('/admin/data', async (request, response) => {
             const listenSeconds = Math.round(Object.values(u?.music_listens || {}).reduce((sum, l) => sum + (Number(l?.seconds) || 0), 0));
             if (songs || playlists || listenSeconds) music[uname] = { songs, playlists, listenSeconds };
         }
-        response.status(200).json({ errors, analytics, users, watchTotals, watchTotalAll, introConfig, introSeenCount, noCommentUsers, music, alerts });
+        response.status(200).json({ errors, users, watchTotals, watchTotalAll, introConfig, introSeenCount, noCommentUsers, music, alerts });
     } catch (error) {
         logError('manav', '/admin/data', error).catch(() => {});
-        response.status(200).json({ errors: [], analytics: [], users: [], fetchError: error.message });
+        response.status(200).json({ errors: [], users: [], fetchError: error.message });
     }
 });
 
@@ -1888,6 +1886,27 @@ app.post('/admin/alerts', async (request, response) => {
         response.json({ alerts: alertsSince(snap.val(), after), serverNow: Date.now() });
     } catch (error) {
         response.json({ alerts: [], serverNow: Date.now() });
+    }
+});
+
+// Activity feed with filters (hide people — e.g. the admin's own song plays —
+// keep only some people or event types). Looks at a wide recent window so a
+// burst from one person doesn't push everyone else out.
+const ANALYTICS_WINDOW = 3000;
+app.post('/admin/analytics', async (request, response) => {
+    const { user, token, filter } = request.body;
+    if (!await AuthenticateAdmin(user, token)) return response.status(403).send("Forbidden");
+    const list = (v) => (Array.isArray(v) ? v.map(String).slice(0, 50) : []);
+    try {
+        const snap = await admin.database().ref('admin/analytics/events').orderByChild('timestamp').limitToLast(ANALYTICS_WINDOW).once('value');
+        response.json(filterAnalytics(Object.values(snap.val() || {}), {
+            excludeUsers: list(filter?.excludeUsers),
+            users: list(filter?.users),
+            events: list(filter?.events),
+        }));
+    } catch (error) {
+        logError(user, '/admin/analytics', error).catch(() => {});
+        response.status(500).json({ events: [], total: 0, counts: {}, people: [], activeUsers: 0 });
     }
 });
 

@@ -67,6 +67,13 @@ export default function Admin() {
     // YouTube backend check: null = not run yet, 'loading', or the result.
     const [ytHealth, setYtHealth] = useState(null);
     const [ytUpdating, setYtUpdating] = useState(false);
+    // Activity feed filters (server-side, see /admin/analytics). Hiding your
+    // own activity is on by default and remembered.
+    const [hideMine, setHideMine] = useState(() => { try { return localStorage.getItem('adminHideMine') !== '0'; } catch { return true; } });
+    const [userFilter, setUserFilter] = useState('');
+    const [eventFilter, setEventFilter] = useState([]);
+    const [feed, setFeed] = useState(null);   // { events, total, counts, people, activeUsers }
+    const [feedLoading, setFeedLoading] = useState(false);
     const [moderationStatus, setModerationStatus] = useState('');
 
     const user = localStorage.getItem('user');
@@ -144,6 +151,27 @@ export default function Admin() {
         }
         setModerationBusy(false);
     };
+
+    const loadFeed = async () => {
+        setFeedLoading(true);
+        try {
+            const r = await axios.post(`${BASE_URL}/admin/analytics`, {
+                user, token,
+                filter: { excludeUsers: hideMine ? [user] : [], users: userFilter ? [userFilter] : [], events: eventFilter },
+            });
+            setFeed(r.data);
+        } catch { /* keep the last result */ }
+        setFeedLoading(false);
+    };
+    useEffect(() => {
+        if (tab === 'analytics') loadFeed();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tab, hideMine, userFilter, eventFilter.join(',')]);
+    const toggleHideMine = () => setHideMine(v => {
+        try { localStorage.setItem('adminHideMine', v ? '0' : '1'); } catch { /* noop */ }
+        return !v;
+    });
+    const toggleEvent = (type) => setEventFilter(list => (list.includes(type) ? list.filter(t => t !== type) : [...list, type]));
 
     const checkYt = async () => {
         setYtHealth('loading');
@@ -231,8 +259,6 @@ export default function Admin() {
     }
 
     const errors = data?.errors || [];
-    // Drop legacy per-navigation page_view spam from the feed + stats.
-    const analytics = (data?.analytics || []).filter(e => e.event !== 'page_view');
     const users = data?.users || [];
     const watchTotals = data?.watchTotals || {};
     const noCommentUsers = data?.noCommentUsers || [];
@@ -240,11 +266,6 @@ export default function Admin() {
     const alerts = data?.alerts || [];
     const watchTotalAll = data?.watchTotalAll || 0;
 
-    const eventCounts = analytics.reduce((acc, e) => {
-        acc[e.event] = (acc[e.event] || 0) + 1;
-        return acc;
-    }, {});
-    const uniqueUsers = [...new Set(analytics.map(e => e.user))].length;
     const introConfig = data?.introConfig || { enabled: true, version: 1 };
     const introSeenCount = data?.introSeenCount || 0;
 
@@ -258,7 +279,7 @@ export default function Admin() {
                         <h1 className="admin-title">Admin Console</h1>
                         <p className="admin-subtitle">Golden Hind — logged in as manav</p>
                     </div>
-                    <button className="admin-refresh-btn" onClick={fetchData}>↺ Refresh</button>
+                    <button className="admin-refresh-btn" onClick={() => { fetchData(); if (tab === 'analytics') loadFeed(); }}>↺ Refresh</button>
                 </div>
 
                 {/* Welcome / intro video control */}
@@ -369,7 +390,7 @@ export default function Admin() {
                         onClick={() => setTab('analytics')}
                     >
                         Analytics
-                        <span className="tab-badge">{analytics.length}</span>
+                        {feed && <span className="tab-badge">{feed.total}</span>}
                     </button>
                     <button
                         className={`admin-tab ${tab === 'users' ? 'active' : ''}`}
@@ -391,7 +412,7 @@ export default function Admin() {
                             </div>
                         ) : (
                             <div className="admin-table-wrap">
-                                <table className="admin-table">
+                                <table className="admin-table admin-table-cards">
                                     <thead>
                                         <tr>
                                             <th>Time</th>
@@ -443,35 +464,55 @@ export default function Admin() {
                 {tab === 'analytics' && (
                     <div className="admin-panel">
                         <h2 className="panel-title">Analytics</h2>
-                        <div className="analytics-stats">
-                            <div className="stat-card">
-                                <div className="stat-value">{analytics.length}</div>
-                                <div className="stat-label">Activity Events</div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-value">{uniqueUsers}</div>
-                                <div className="stat-label">Active Users</div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-value">{formatWatchTime(watchTotalAll)}</div>
-                                <div className="stat-label">Total Watch Time</div>
-                            </div>
-                            {Object.entries(eventCounts).map(([type, count]) => (
-                                <div className="stat-card" key={type}>
-                                    <div className="stat-value">{count}</div>
-                                    <div className="stat-label">{EVENT_LABELS[type] || type}</div>
-                                </div>
+
+                        <div className="admin-filters">
+                            <button className={`admin-toggle${hideMine ? ' on' : ''}`} onClick={toggleHideMine} aria-pressed={hideMine}>
+                                <span className="admin-toggle-knob" />Hide my activity
+                            </button>
+                            <select className="admin-select" value={userFilter} onChange={e => setUserFilter(e.target.value)} aria-label="Filter by person">
+                                <option value="">Everyone</option>
+                                {(feed?.people || []).filter(p => !(hideMine && p === user)).map(p => <option key={p} value={p}>{p}</option>)}
+                            </select>
+                            {(eventFilter.length > 0 || userFilter) && (
+                                <button className="admin-filter-clear" onClick={() => { setEventFilter([]); setUserFilter(''); }}>Clear filters</button>
+                            )}
+                        </div>
+                        <div className="admin-chips" role="group" aria-label="Event types">
+                            {Object.entries(feed?.counts || {}).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
+                                <button
+                                    key={type}
+                                    className={`admin-chip event-${type}${eventFilter.includes(type) ? ' on' : ''}`}
+                                    onClick={() => toggleEvent(type)}
+                                    aria-pressed={eventFilter.includes(type)}
+                                >
+                                    {EVENT_LABELS[type] || type}<span className="admin-chip-count">{count}</span>
+                                </button>
                             ))}
                         </div>
 
-                        <h3 className="panel-section-title">Recent Activity</h3>
-                        {analytics.length === 0 ? (
+                        <div className="analytics-stats">
+                            <div className="stat-card">
+                                <div className="stat-value">{feed ? feed.total : '…'}</div>
+                                <div className="stat-label">Matching events</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-value">{feed ? feed.activeUsers : '…'}</div>
+                                <div className="stat-label">Active users</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-value">{formatWatchTime(watchTotalAll)}</div>
+                                <div className="stat-label">Total watch time</div>
+                            </div>
+                        </div>
+
+                        <h3 className="panel-section-title">Recent Activity{feedLoading ? ' · updating…' : ''}</h3>
+                        {feed && feed.events.length === 0 ? (
                             <div className="admin-empty">
-                                <p>No activity recorded yet.</p>
+                                <p>No activity matches these filters.</p>
                             </div>
                         ) : (
                             <div className="admin-table-wrap">
-                                <table className="admin-table">
+                                <table className="admin-table admin-table-cards">
                                     <thead>
                                         <tr>
                                             <th>Time</th>
@@ -481,7 +522,7 @@ export default function Admin() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {analytics.map((evt, i) => (
+                                        {(feed?.events || []).map((evt, i) => (
                                             <tr key={i}>
                                                 <td className="td-time">{new Date(evt.timestamp).toLocaleString()}</td>
                                                 <td className="td-user">{evt.user}</td>

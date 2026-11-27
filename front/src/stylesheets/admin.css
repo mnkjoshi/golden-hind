@@ -807,3 +807,83 @@
 .yt-health-error { color: #8b949e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; overflow-wrap: anywhere; margin-top: 2px; }
 .admin-alert-server { border-left-color: #a371f7; }
 .alert-pill.alert-server { color: #a371f7; border-color: rgba(163, 113, 247, 0.4); }
+
+/* ── Activity feed filters ── */
+.admin-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.admin-toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px 6px 6px; border: 1px solid #30363d; border-radius: 999px;
+    background: #0d1117; color: #c9d1d9; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.admin-toggle-knob {
+    position: relative; width: 30px; height: 18px; border-radius: 999px; background: #30363d; transition: background 0.15s ease;
+}
+.admin-toggle-knob::after {
+    content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+    background: #e6edf3; transition: transform 0.15s ease;
+}
+.admin-toggle.on { border-color: rgba(63, 185, 80, 0.5); color: #e6edf3; }
+.admin-toggle.on .admin-toggle-knob { background: #3fb950; }
+.admin-toggle.on .admin-toggle-knob::after { transform: translateX(12px); }
+.admin-select {
+    padding: 7px 10px; border: 1px solid #30363d; border-radius: 8px;
+    background: #0d1117; color: #e6edf3; font: inherit; font-size: 13px;
+}
+.admin-filter-clear { border: none; background: none; color: #79c0ff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.admin-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.admin-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border: 1px solid #30363d; border-radius: 999px;
+    background: #0d1117; color: #c9d1d9; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.admin-chip:hover { border-color: #8b949e; }
+.admin-chip.on { background: #e6edf3; color: #0d1117; border-color: #e6edf3; }
+.admin-chip-count { font-size: 11px; opacity: 0.7; font-variant-numeric: tabular-nums; }
+
+/* ── Phones ── */
+@media (max-width: 700px) {
+    .admin-container { padding: 64px 12px 32px; }
+    .admin-title { font-size: 22px; }
+    .admin-header { margin-bottom: 16px; padding-bottom: 14px; }
+
+    /* Control cards: text on top, buttons below at full width */
+    .intro-admin { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
+    .intro-admin-actions { width: 100%; }
+    .intro-admin-actions .intro-admin-btn { flex: 1 1 auto; }
+
+    .admin-tabs { gap: 0; scrollbar-width: none; }
+    .admin-tabs::-webkit-scrollbar { display: none; }
+    .admin-tab { padding: 10px 14px; white-space: nowrap; }
+
+    .analytics-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    .analytics-stats .stat-card { min-width: 0; }
+
+    /* Tables become a list of cards: user + event on top, details, then time */
+    .admin-table-wrap { border: none; overflow: visible; }
+    .admin-table-cards, .admin-table-cards tbody { display: block; }
+    .admin-table-cards thead { display: none; }
+    .admin-table-cards tr {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 4px 10px;
+        align-items: center;
+        margin-bottom: 8px;
+        padding: 10px 12px;
+        border: 1px solid #21262d;
+        border-radius: 10px;
+        background: #0d1117;
+    }
+    .admin-table-cards tbody tr:hover { background: #0d1117; }
+    .admin-table-cards td { display: block; padding: 0; border: none; }
+    .admin-table-cards .td-user { grid-column: 1; font-weight: 700; color: #e6edf3; }
+    .admin-table-cards .td-endpoint { grid-column: 2; justify-self: start; }
+    .admin-table-cards .td-msg { grid-column: 1 / -1; color: #c9d1d9; }
+    .admin-table-cards .td-time { display: block; grid-column: 1 / -1; order: 9; font-size: 11.5px; color: #8b949e; }
+
+    .admin-alert-row { padding: 10px; }
+
+    /* User details: a full-screen sheet */
+    .admin-modal-backdrop { padding: 0; align-items: stretch; }
+    .admin-modal-box { max-width: none; max-height: none; height: 100%; border-radius: 0; border: none; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+    .admin-moderation .admin-moderation-btn { flex: 1 1 auto; }
+}
