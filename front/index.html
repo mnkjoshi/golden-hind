@@ -19,7 +19,12 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#141414" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Opaque status bar: the app starts below it. With "black-translucent"
+         the page ran under the status bar, and iOS 26 draws a Liquid Glass
+         blur band there that can't be turned off, which glazed the top bar.
+         iOS reads this when the app is added to the Home Screen, so existing
+         installs need re-adding. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="Golden Hind" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>The Golden Hind</title>
