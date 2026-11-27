@@ -778,7 +778,7 @@
 
 /* Content starts just below the (now tighter) phone top bar */
 @media (max-width: 800px) {
-    .music-content { padding-top: calc(58px + max(0px, calc(env(safe-area-inset-top, 0px) - 12px))); }
+    .music-content { padding-top: calc(58px + env(safe-area-inset-top, 0px)); }
 }
 
 /* ── Library: Songs | Playlists ── */

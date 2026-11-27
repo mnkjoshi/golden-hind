@@ -386,7 +386,7 @@
 }
 .stats-content { padding-top: calc(106px + env(safe-area-inset-top, 0px)); }
 @media (max-width: 760px) { .stats-content { padding-top: calc(78px + env(safe-area-inset-top, 0px)); } }
-@media (max-width: 800px) { .stats-content { padding-top: calc(62px + max(0px, calc(env(safe-area-inset-top, 0px) - 12px))); } }
+@media (max-width: 800px) { .stats-content { padding-top: calc(62px + env(safe-area-inset-top, 0px)); } }
 
 /* Music listening (from the music player's listening time) */
 .stats-music-hero { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
