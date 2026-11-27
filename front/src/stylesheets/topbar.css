@@ -1288,9 +1288,9 @@
         pointer-events: auto;
         height: 40px;
         border-radius: 999px;
-        background: rgba(14, 14, 16, 0.72);
-        backdrop-filter: blur(14px) saturate(1.4);
-        -webkit-backdrop-filter: blur(14px) saturate(1.4);
+        /* Solid fill, no backdrop blur: on iOS a blur on a fixed top
+           element can soften its own contents. */
+        background: rgba(14, 14, 16, 0.92);
         border: 1px solid rgba(255, 255, 255, 0.08);
         box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
         transition: background-color 0.3s ease;
@@ -1303,7 +1303,7 @@
     }
     /* A touch more solid once the page scrolls under them */
     .modern-topbar.scrolled .topbar-logo,
-    .modern-topbar.scrolled .topbar-right { background: rgba(14, 14, 16, 0.88); }
+    .modern-topbar.scrolled .topbar-right { background: rgb(14, 14, 16); }
 }
 
 /* ── Account button: a pill (wheel + name + chevron) whose highlight matches
