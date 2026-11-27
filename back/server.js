@@ -42,7 +42,7 @@ import { buildReviewArchiveUpdate } from './lib/reviews.js';
 import { sanitizeListenReport, aggregateListening, listeningHistory } from './lib/listening.js';
 import { errorSignature, registerAlertMessage, alertsSince } from './lib/alerts.js';
 import { isMusicPowerUser, musicPowerUserReason, pickMusicSeeds, buildMusicRecPrompt, parseMusicRecResponse, songKey, musicRecsNeedRefresh } from './lib/musicRecs.js';
-import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, buildMp3EncodeArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
+import { sanitizeSearchQuery, parseYtSearchOutput, artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs, buildTrackTags, coverCandidates, buildMp3FfmpegArgs, buildMp3EncodeArgs, playlistRemovalUpdate, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate, sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId } from './lib/music.js';
 
 //https://dashboard.render.com/web/srv-crcllkqj1k6c73coiv10/events
 //https://console.firebase.google.com/u/0/project/the-golden-hind/database/the-golden-hind-default-rtdb/data/~2F
@@ -3811,8 +3811,13 @@ app.post('/music/library/remove', async (req, res) => {
     if (!await Authenticate(user, token)) return res.status(401).json({ error: 'Unauthorized' });
     if (!/^[A-Za-z0-9_-]{11}$/.test(String(videoId || ''))) return res.status(400).json({ error: 'Invalid song' });
     try {
-        await admin.database().ref(`users/${user}/songs/${videoId}`).remove();
-        res.json({ ok: true });
+        const db = admin.database();
+        await db.ref(`users/${user}/songs/${videoId}`).remove();
+        // …and from every playlist it was in.
+        const playlistsRef = db.ref(`users/${user}/playlists`);
+        const update = playlistRemovalUpdate((await playlistsRef.once('value')).val(), videoId, Date.now());
+        if (update) await playlistsRef.update(update);
+        res.json({ ok: true, playlistsUpdated: update ? Object.keys(update).length / 2 : 0 });
     } catch (e) {
         logError(user, '/music/library/remove', e).catch(() => {});
         res.status(500).json({ error: 'Could not remove the song' });

@@ -1,7 +1,7 @@
 // Songs downloaded to THIS device for offline playback, kept as MP3 blobs in
 // IndexedDB (the music player prefers these over streaming). Everything here
 // degrades to "nothing downloaded" if IndexedDB is unavailable.
-import { saveArt } from './offlineArt.js';
+import { saveArt, removeArt } from './offlineArt.js';
 
 const API = 'https://ghb.mnkjoshi.ca';
 const DB_NAME = 'gh-music';
@@ -70,14 +70,18 @@ export async function saveOffline(videoId) {
     const blob = await res.blob();
     await tx('readwrite', s => s.put(blob, videoId));
     // Covers too, so the player and Downloads page aren't blank offline.
-    saveArt([`${API}/music/cover/${videoId}`, `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`]);
+    saveArt(artUrls(videoId));
     return blob.size;
 }
 
+const artUrls = (videoId) => [`${API}/music/cover/${videoId}`, `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`];
+
+// Deletes the song's MP3 from this device's storage, and its saved covers.
 export async function removeOffline(videoId) {
     const url = objectUrls.get(videoId);
     if (url) { URL.revokeObjectURL(url); objectUrls.delete(videoId); }
     try { await tx('readwrite', s => s.delete(videoId)); } catch { /* already gone */ }
+    await removeArt(artUrls(videoId));
 }
 
 export async function offlineUsageBytes() {
