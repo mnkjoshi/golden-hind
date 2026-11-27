@@ -1237,8 +1237,11 @@ p {
 }
 
 @media (max-width: 600px) {
+    /* No top padding: on phones the top bar is floating pills, so the hero
+       starts at the very top with the logo and buttons over it. (55px here
+       used to leave a blank band where the old solid bar sat.) */
     .app-main {
-        padding-top: 55px;
+        padding-top: 0;
     }
     
     .hero-section {
