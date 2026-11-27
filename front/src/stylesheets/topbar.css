@@ -1267,24 +1267,43 @@
     }
     .mobile-tabbar.music { grid-template-columns: repeat(5, 1fr); }
     .mobile-tabbar.with-admin { grid-template-columns: repeat(6, 1fr); }
-    /* Keep the logo and avatar fully below the status bar / Dynamic Island.
-       iOS draws its own frosted blur over that strip, so anything reaching
-       into it (the bar used to, by 12px) looks glazed and blurry. The strip
-       itself is painted solid black so there's nothing see-through to blur. */
-    .modern-topbar {
-        padding-top: env(safe-area-inset-top, 0px);
+    /* No bar on phones: the logo and the buttons float as two small pills
+       just below the status bar / Dynamic Island. iOS frosts that strip, so
+       nothing of ours reaches into it (anything that did looked glazed), and
+       there's no full-width bar to stretch down past it. */
+    .modern-topbar,
+    .modern-topbar.scrolled {
+        padding-top: calc(env(safe-area-inset-top, 0px) + 4px);
         height: calc(50px + env(safe-area-inset-top, 0px));
+        background: transparent !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border-bottom-color: transparent;
+        box-shadow: none;
+        pointer-events: none;   /* taps between the pills reach the page */
     }
-    .modern-topbar::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: env(safe-area-inset-top, 0px);
-        background: #000;
-        pointer-events: none;
+    .modern-topbar .topbar-content { padding: 0 10px; }
+    .modern-topbar .topbar-logo,
+    .modern-topbar .topbar-right {
+        pointer-events: auto;
+        height: 40px;
+        border-radius: 999px;
+        background: rgba(14, 14, 16, 0.72);
+        backdrop-filter: blur(14px) saturate(1.4);
+        -webkit-backdrop-filter: blur(14px) saturate(1.4);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+        transition: background-color 0.3s ease;
     }
+    .modern-topbar .topbar-logo { padding: 0 14px; }
+    .modern-topbar .topbar-right { display: flex; align-items: center; gap: 2px; padding: 0 4px; }
+    .modern-topbar .topbar-right .topbar-search-icon-btn {
+        width: 34px; height: 34px; min-width: 34px;
+        background: none; border: none; border-radius: 50%;
+    }
+    /* A touch more solid once the page scrolls under them */
+    .modern-topbar.scrolled .topbar-logo,
+    .modern-topbar.scrolled .topbar-right { background: rgba(14, 14, 16, 0.88); }
 }
 
 /* ── Account button: a pill (wheel + name + chevron) whose highlight matches
