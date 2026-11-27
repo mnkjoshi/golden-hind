@@ -15,7 +15,11 @@
     height: calc(70px + env(safe-area-inset-top, 0px));
     background: transparent !important;
     backdrop-filter: none !important;
-    transition: all 0.3s ease;
+    -webkit-backdrop-filter: none !important;
+    /* Only the colours animate. Animating the blur too ("all") makes iOS
+       Safari redraw the logo and avatar from a low-resolution copy, which
+       left them looking soft. */
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
     z-index: 1000;
     border-bottom: 1px solid transparent;
 }
@@ -23,6 +27,7 @@
 .modern-topbar.scrolled {
     background: rgba(20, 20, 20, 0.95) !important;
     backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
@@ -50,7 +55,6 @@
     padding: 0;
     display: flex;
     align-items: center;
-    transition: all 0.3s ease;
     position: relative;
 }
 
@@ -58,7 +62,7 @@
     height: 42px;
     width: auto;
     display: block;
-    transition: all 0.3s ease;
+    transition: transform 0.3s ease;
 }
 
 /* Hover zoom only where hover exists — on phones :hover sticks after a tap */
@@ -404,7 +408,7 @@
     cursor: pointer;
     padding: 0.5rem 1rem;
     border-radius: 8px;
-    transition: all 0.3s ease;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .account-button:hover {
@@ -1261,7 +1265,7 @@
         background: rgba(0, 0, 0, 0.94);
         border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
-    .mobile-tabbar.music { grid-template-columns: repeat(4, 1fr); }
+    .mobile-tabbar.music { grid-template-columns: repeat(5, 1fr); }
     /* Sit the bar just under the Dynamic Island instead of a full safe-area
        strip below it, and keep the bar itself compact. */
     .modern-topbar {
