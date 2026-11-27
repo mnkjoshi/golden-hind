@@ -1037,3 +1037,14 @@
     .song-menu.ready, .song-menu.closing, .song-menu-toast { animation-duration: 0.01s; }
     .song-menu.ready { opacity: 1; }
 }
+
+/* "← Playlists" on a playlist page */
+.mx-back {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin: -6px 0 12px -6px; padding: 6px 10px 6px 4px;
+    border: none; border-radius: 999px; background: none;
+    color: #8b949e; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+.mx-back:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+.mx-back svg { width: 20px; height: 20px; }

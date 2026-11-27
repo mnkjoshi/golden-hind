@@ -541,9 +541,13 @@ export default function Topbar() {
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" /></svg>
                         <span className="tab-label">Search</span>
                     </button>
-                    <button className={`mobile-tab${location.pathname === '/music/library' || location.pathname.startsWith('/music/playlist') ? ' active' : ''}`} onClick={() => navigate('/music/library')}>
+                    <button className={`mobile-tab${location.pathname === '/music/library' ? ' active' : ''}`} onClick={() => navigate('/music/library')}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 3v18M9 3v18" /><path d="m14 4 5 16" /></svg>
                         <span className="tab-label">Library</span>
+                    </button>
+                    <button className={`mobile-tab${location.pathname.startsWith('/music/playlist') ? ' active' : ''}`} onClick={() => navigate('/music/playlists')}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h12M3 12h12M3 18h7" /><circle cx="17.5" cy="17" r="2.5" /><path d="M20 17V9l2-1" /></svg>
+                        <span className="tab-label">Playlists</span>
                     </button>
                     {/* Not a tab here, but it still runs player mode / the controller bar */}
                     <RemoteControl hideButton />

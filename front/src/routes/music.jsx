@@ -234,11 +234,12 @@ function useArtists(library) {
 function MusicNav() {
     const navigate = useNavigate();
     const { pathname } = useLocation();
-    const tabs = [['/music', 'Home'], ['/music/search', 'Search'], ['/music/library', 'Library']];
+    const tabs = [['/music', 'Home'], ['/music/search', 'Search'], ['/music/library', 'Library'], ['/music/playlists', 'Playlists']];
+    const activeTab = pathname.startsWith('/music/playlist') ? '/music/playlists' : pathname;
     return (
         <div className="mx-nav">
             {tabs.map(([path, label]) => (
-                <button key={path} className={pathname === path ? 'active' : ''} onClick={() => navigate(path)}>{label}</button>
+                <button key={path} className={activeTab === path ? 'active' : ''} onClick={() => navigate(path)}>{label}</button>
             ))}
         </div>
     );
@@ -675,15 +676,11 @@ export function MusicLibrary() {
     const m = useMusicLibrary();
     const [sort, setSort] = useState(() => localStorage.getItem('musicLibrarySort') || 'recent');
     const [onlyDownloaded, setOnlyDownloaded] = useState(false);
-    const [view, setView] = useState(() => (localStorage.getItem('musicLibraryView') === 'playlists' ? 'playlists' : 'songs'));
-    const { playlists } = usePlaylists();
-    const [newName, setNewName] = useState(null); // null = not creating
     // Long-press selection: null = not selecting, else the selected videoIds.
     // The bar keeps the last count while it slides away.
     const [selected, setSelected] = useState(null);
     const lastCount = useRef(0);
     if (selected) lastCount.current = selected.size;
-    useEffect(() => { refreshPlaylists(); }, []);
     const isSelecting = !!selected;
     useEffect(() => {
         if (!isSelecting) return;
@@ -698,14 +695,6 @@ export function MusicLibrary() {
     if (!m.user) { navigate('/auth'); return null; }
 
     const changeSort = (v) => { setSort(v); try { localStorage.setItem('musicLibrarySort', v); } catch { /* noop */ } };
-    const changeView = (v) => { setView(v); try { localStorage.setItem('musicLibraryView', v); } catch { /* noop */ } };
-    const createNew = async () => {
-        const n = (newName || '').trim();
-        if (!n) return;
-        const id = await createPlaylist(n);
-        setNewName(null);
-        navigate(`/music/playlist/${id}`);
-    };
     const onDevice = (m.library || []).filter(s => m.offlineIds.has(s.videoId)).length;
     const toggleSelected = (id) => setSelected(prev => {
         const next = new Set(prev || []);
@@ -721,47 +710,6 @@ export function MusicLibrary() {
                 <span className="mx-lib-count">{m.library ? `${m.library.length} songs · ${onDevice} on this device` : ''}</span>
             </div>
 
-            <div className="mx-segment">
-                <button className={view === 'songs' ? 'active' : ''} onClick={() => changeView('songs')}>Songs</button>
-                <button className={view === 'playlists' ? 'active' : ''} onClick={() => changeView('playlists')}>Playlists</button>
-            </div>
-
-            {view === 'playlists' ? (
-                <div className="mx-playlists">
-                    {newName === null ? (
-                        <button className="mx-pl-new" onClick={() => setNewName('')}>
-                            <span className="mx-pl-new-icon">{Icon.plus}</span>New playlist
-                        </button>
-                    ) : (
-                        <div className="mx-pl-create">
-                            <input autoFocus maxLength={60} placeholder="Playlist name" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') createNew(); if (e.key === 'Escape') setNewName(null); }} />
-                            <button onClick={createNew} disabled={!newName.trim()}>Create</button>
-                            <button className="secondary" onClick={() => setNewName(null)}>Cancel</button>
-                        </div>
-                    )}
-                    {Object.entries(AUTO_PLAYLISTS).map(([autoId, a]) => (
-                        <button key={autoId} className="mx-pl-row" onClick={() => navigate(`/music/playlist/${autoId}`)}>
-                            <AutoCover icon={a.icon} className="mx-pl-cover" />
-                            <span className="mx-row-text">
-                                <span className="mx-row-title">{a.name}</span>
-                                <span className="mx-row-artist">Automatic playlist</span>
-                            </span>
-                        </button>
-                    ))}
-                    {(playlists || []).map(p => (
-                        <button key={p.id} className="mx-pl-row" onClick={() => navigate(`/music/playlist/${p.id}`)}>
-                            <PlaylistCover songs={p.songs} className="mx-pl-cover" />
-                            <span className="mx-row-text">
-                                <span className="mx-row-title">{p.name}</span>
-                                <span className="mx-row-artist">Playlist · {p.songs.length} song{p.songs.length === 1 ? '' : 's'}</span>
-                            </span>
-                        </button>
-                    ))}
-                    {playlists && playlists.length === 0 && newName === null && (
-                        <div className="mx-empty"><p>No playlists yet. Make one, then add songs from your library or search.</p></div>
-                    )}
-                </div>
-            ) : <>
             {m.library?.length > 0 && (
                 <>
                     <div className="mx-actions">
@@ -839,8 +787,80 @@ export function MusicLibrary() {
                     onClick={() => { openPlaylistPicker(selectedSongs()); setSelected(null); }}
                 >{Icon.playlistAdd}<span>Add to playlist</span></button>
             </div>
-            </>}
         </Shell>
+    );
+}
+
+// ── Playlists ───────────────────────────────────────────────────────────────
+
+export function MusicPlaylists() {
+    const navigate = useNavigate();
+    const m = useMusicLibrary();
+    const { playlists } = usePlaylists();
+    const [newName, setNewName] = useState(null); // null = not creating
+    useEffect(() => { refreshPlaylists(); }, []);
+    if (!m.user) { navigate('/auth'); return null; }
+
+    const createNew = async () => {
+        const n = (newName || '').trim();
+        if (!n) return;
+        const id = await createPlaylist(n);
+        setNewName(null);
+        navigate(`/music/playlist/${id}`);
+    };
+
+    return (
+        <Shell>
+            <div className="mx-lib-head">
+                <h1 className="mx-page-title">Playlists</h1>
+                <span className="mx-lib-count">{playlists ? `${playlists.length} playlist${playlists.length === 1 ? '' : 's'}` : ''}</span>
+            </div>
+                <div className="mx-playlists">
+                    {newName === null ? (
+                        <button className="mx-pl-new" onClick={() => setNewName('')}>
+                            <span className="mx-pl-new-icon">{Icon.plus}</span>New playlist
+                        </button>
+                    ) : (
+                        <div className="mx-pl-create">
+                            <input autoFocus maxLength={60} placeholder="Playlist name" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') createNew(); if (e.key === 'Escape') setNewName(null); }} />
+                            <button onClick={createNew} disabled={!newName.trim()}>Create</button>
+                            <button className="secondary" onClick={() => setNewName(null)}>Cancel</button>
+                        </div>
+                    )}
+                    {Object.entries(AUTO_PLAYLISTS).map(([autoId, a]) => (
+                        <button key={autoId} className="mx-pl-row" onClick={() => navigate(`/music/playlist/${autoId}`)}>
+                            <AutoCover icon={a.icon} className="mx-pl-cover" />
+                            <span className="mx-row-text">
+                                <span className="mx-row-title">{a.name}</span>
+                                <span className="mx-row-artist">Automatic playlist</span>
+                            </span>
+                        </button>
+                    ))}
+                    {(playlists || []).map(p => (
+                        <button key={p.id} className="mx-pl-row" onClick={() => navigate(`/music/playlist/${p.id}`)}>
+                            <PlaylistCover songs={p.songs} className="mx-pl-cover" />
+                            <span className="mx-row-text">
+                                <span className="mx-row-title">{p.name}</span>
+                                <span className="mx-row-artist">Playlist · {p.songs.length} song{p.songs.length === 1 ? '' : 's'}</span>
+                            </span>
+                        </button>
+                    ))}
+                    {playlists && playlists.length === 0 && newName === null && (
+                        <div className="mx-empty"><p>No playlists yet. Make one, then add songs from your library or search.</p></div>
+                    )}
+                </div>
+        </Shell>
+    );
+}
+
+// "← Playlists" at the top of a playlist page.
+function BackToPlaylists() {
+    const navigate = useNavigate();
+    return (
+        <button className="mx-back" onClick={() => navigate('/music/playlists')}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            Playlists
+        </button>
     );
 }
 
@@ -895,6 +915,7 @@ function AutoPlaylist({ id }) {
 
     return (
         <Shell>
+            <BackToPlaylists />
             <div className="mx-pl-hero">
                 <AutoCover icon={def.icon} className="mx-pl-hero-cover" />
                 <div className="mx-pl-hero-text">
@@ -945,7 +966,7 @@ function UserPlaylist() {
             <Shell>
                 <div className="mx-empty">
                     <p>{playlists === null ? 'Loading…' : 'This playlist no longer exists.'}</p>
-                    {playlists !== null && <button className="mx-cta" onClick={() => navigate('/music/library')}>Back to Library</button>}
+                    {playlists !== null && <button className="mx-cta" onClick={() => navigate('/music/playlists')}>Back to Playlists</button>}
                 </div>
             </Shell>
         );
@@ -960,11 +981,12 @@ function UserPlaylist() {
     const remove = async () => {
         if (!window.confirm(`Delete “${playlist.name}”? The songs stay in your library.`)) return;
         await deletePlaylist(playlist.id);
-        navigate('/music/library');
+        navigate('/music/playlists');
     };
 
     return (
         <Shell>
+            <BackToPlaylists />
             <div className="mx-pl-hero">
                 <PlaylistCover songs={playlist.songs} className="mx-pl-hero-cover" />
                 <div className="mx-pl-hero-text">
