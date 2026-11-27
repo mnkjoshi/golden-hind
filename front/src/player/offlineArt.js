@@ -2,6 +2,14 @@
 // service worker falls back to this cache for cross-origin images.
 const ART_CACHE = 'gh-offline-art';
 
+export async function removeArt(urls) {
+    if (typeof caches === 'undefined') return;
+    try {
+        const cache = await caches.open(ART_CACHE);
+        await Promise.all(urls.filter(Boolean).map(url => cache.delete(new Request(url, { mode: 'no-cors' }))));
+    } catch { /* storage unavailable */ }
+}
+
 export async function saveArt(urls) {
     if (typeof caches === 'undefined') return;
     try {

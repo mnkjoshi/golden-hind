@@ -1048,3 +1048,6 @@
 }
 .mx-back:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
 .mx-back svg { width: 20px; height: 20px; }
+
+/* "Remove from device": every song is already saved here */
+.mx-action.on { color: #3FA3FF; }

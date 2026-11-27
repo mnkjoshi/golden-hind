@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
     sanitizeSearchQuery, formatDuration, parseYtSearchOutput,
     artistFromOembedAuthor, rankYouTubeResults, mergeSearchResults, filterRelevantSongs,
-    buildTrackTags, coverCandidates, buildMp3FfmpegArgs, buildMp3EncodeArgs, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate,
+    buildTrackTags, coverCandidates, buildMp3FfmpegArgs, buildMp3EncodeArgs, playlistRemovalUpdate, sanitizeLibrarySong, zipEntryNames, sanitizePlayerUpdate,
     sanitizePlaylistName, sanitizePlaylistSongs, isValidPlaylistId,
 } from '../lib/music.js';
 
@@ -257,4 +257,15 @@ test('buildMp3FfmpegArgs can re-wrap an encoded MP3 without re-encoding', () => 
     assert.ok(args.includes('copy'));
     assert.ok(!args.includes('libmp3lame'));
     assert.ok(args.includes('attached_pic'));
+});
+
+test('playlistRemovalUpdate drops the song from every playlist that has it', () => {
+    const playlists = {
+        a: { name: 'A', songs: ['x', 'y', 'x'] },
+        b: { name: 'B', songs: ['y'] },
+        c: { name: 'C' },
+    };
+    assert.deepEqual(playlistRemovalUpdate(playlists, 'x', 5), { 'a/songs': ['y'], 'a/updatedAt': 5 });
+    assert.equal(playlistRemovalUpdate(playlists, 'z', 5), null);
+    assert.equal(playlistRemovalUpdate(null, 'x', 5), null);
 });

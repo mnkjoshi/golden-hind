@@ -139,6 +139,21 @@ function useMusicLibrary() {
         }
     };
 
+    // Every song already on the device: the same button takes them all off.
+    const removeAllOffline = async () => {
+        if (offlineBusy || !offlineIds.size) return;
+        if (!window.confirm(`Remove all ${offlineIds.size} songs from this device? They stay in your library and can be saved again.`)) return;
+        setOfflineBusy('all');
+        const ids = [...offlineIds];
+        for (let i = 0; i < ids.length; i++) {
+            setStatus(`Removing from this device ${i + 1} of ${ids.length}`);
+            await removeOffline(ids[i]);
+        }
+        setOfflineIds(await listOffline());
+        setOfflineBusy(null);
+        flash('Removed every song from this device.');
+    };
+
     const saveAllOffline = async () => {
         if (offlineBusy || !library?.length) return;
         const pending = library.filter(s => !offlineIds.has(s.videoId));
@@ -196,7 +211,10 @@ function useMusicLibrary() {
 
     const removeSong = (song) => {
         setLibrary(prev => prev.filter(s => s.videoId !== song.videoId));
-        axios.post(`${API}/music/library/remove`, { user, token, videoId: song.videoId }).catch(() => loadLibrary());
+        // The server also takes it out of every playlist; refresh those.
+        axios.post(`${API}/music/library/remove`, { user, token, videoId: song.videoId })
+            .then(() => refreshPlaylists())
+            .catch(() => loadLibrary());
     };
 
     const isSaved = (videoId) => !!library?.some(s => s.videoId === videoId);
@@ -209,7 +227,7 @@ function useMusicLibrary() {
 
     return {
         user, library, loadLibrary, offlineIds, offlineBusy, zipBusy, rowBusy, status, player, playing,
-        playFrom, shufflePlay, queueSong, queueSongs, toggleOffline, saveAllOffline, downloadZip, downloadSong, removeSong, isSaved, toggleSaved,
+        playFrom, shufflePlay, queueSong, queueSongs, toggleOffline, saveAllOffline, removeAllOffline, downloadZip, downloadSong, removeSong, isSaved, toggleSaved,
     };
 }
 
@@ -715,9 +733,19 @@ export function MusicLibrary() {
                     <div className="mx-actions">
                         <button className="mx-action primary" onClick={() => m.playFrom(list, 0)}>{Icon.play}<span>Play</span></button>
                         <button className="mx-action" onClick={() => m.shufflePlay(list)}>{Icon.shuffle}<span>Shuffle</span></button>
-                        <button className="mx-action" onClick={m.saveAllOffline} disabled={!!m.offlineBusy} title="Save every song onto this device for offline listening">
-                            {Icon.phone}<span>{m.offlineBusy === 'all' ? 'Saving…' : 'To this device'}</span>
-                        </button>
+                        {(() => {
+                            const allOnDevice = m.library.length > 0 && m.library.every(s => m.offlineIds.has(s.videoId));
+                            return (
+                                <button
+                                    className={`mx-action${allOnDevice ? ' on' : ''}`}
+                                    onClick={allOnDevice ? m.removeAllOffline : m.saveAllOffline}
+                                    disabled={!!m.offlineBusy}
+                                    title={allOnDevice ? 'Every song is on this device. Tap to remove them all.' : 'Save every song onto this device for offline listening'}
+                                >
+                                    {Icon.phone}<span>{m.offlineBusy === 'all' ? 'Working…' : allOnDevice ? 'Remove from device' : 'To this device'}</span>
+                                </button>
+                            );
+                        })()}
                         <button className="mx-action" onClick={m.downloadZip} disabled={m.zipBusy} title="Download every song as MP3 files in one ZIP">
                             {Icon.download}<span>{m.zipBusy ? 'Preparing…' : 'ZIP'}</span>
                         </button>

@@ -295,5 +295,19 @@ export function sanitizePlaylistSongs(raw) {
     return out;
 }
 
+// Taking a song out of the library takes it out of every playlist too:
+// a multi-path update (relative to users/{u}/playlists) for the playlists
+// that contain it, or null when none do.
+export function playlistRemovalUpdate(playlists, videoId, now) {
+    const update = {};
+    for (const [id, p] of Object.entries(playlists || {})) {
+        const songs = Array.isArray(p?.songs) ? p.songs : [];
+        if (!songs.includes(videoId)) continue;
+        update[`${id}/songs`] = songs.filter(v => v !== videoId);
+        update[`${id}/updatedAt`] = now;
+    }
+    return Object.keys(update).length ? update : null;
+}
+
 // RTDB push keys ("-Nx…"), safe to use as a path segment.
 export const isValidPlaylistId = (id) => /^-?[A-Za-z0-9_-]{1,40}$/.test(String(id || ''));
